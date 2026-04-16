@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://champiq.io/manifests/champvoice.manifest.json",
+  "title": "ChampVoice Tool Manifest",
+  "description": "Voice qualification tool for prospect calls",
+  "x-champiq": {
+    "tool_id": "champvoice",
+    "version": "0.1.0",
+    "category": "qualification",
+    "status": "active",
+    "canvas": {
+      "node": {
+        "label": "ChampVoice Call",
+        "icon": "Phone",
+        "color": "#A855F7",
+        "accepts_input_from": ["champgraph"]
+      }
+    },
+    "transport": {
+      "rest": {
+        "action": {
+          "endpoint": "/api/champvoice/call",
+          "method": "POST",
+          "button_label": "Start Calls",
+          "async": true
+        },
+        "health": "/api/champvoice/status",
+        "populate": {
+          "scripts": "/api/champvoice/scripts"
+        }
+      },
+      "cli": {
+        "binary": "champvoice",
+        "command": "call",
+        "args": ["--payload", "{payload}"]
+      }
+    }
+  },
+  "type": "object",
+  "properties": {
+    "input": {
+      "type": "object",
+      "description": "Receives prospect list from ChampGraph via edge",
+      "properties": {
+        "prospects": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+    "config": {
+      "type": "object",
+      "title": "Call Configuration",
+      "required": ["script_id", "call_window"],
+      "properties": {
+        "script_id": {
+          "type": "string",
+          "title": "Call Script",
+          "x-champiq-field": { "widget": "select", "populate_from": "scripts" }
+        },
+        "call_window": {
+          "type": "string",
+          "title": "Call Window",
+          "default": "09:00-17:00",
+          "pattern": "^\\d{2}:\\d{2}-\\d{2}:\\d{2}$",
+          "x-champiq-field": { "widget": "text" }
+        },
+        "max_calls": {
+          "type": "integer",
+          "title": "Max Calls Per Day",
+          "minimum": 1,
+          "maximum": 200,
+          "default": 20,
+          "x-champiq-field": { "widget": "number" }
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "properties": {
+        "job_id": { "type": "string" },
+        "calls_completed": { "type": "integer" },
+        "calls_failed": { "type": "integer" },
+        "qualification_results": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "prospect_id": { "type": "string" },
+              "qualified": { "type": "boolean" },
+              "notes": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

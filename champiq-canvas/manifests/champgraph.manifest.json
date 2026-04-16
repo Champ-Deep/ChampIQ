@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://champiq.io/manifests/champgraph.manifest.json",
+  "title": "ChampGraph Tool Manifest",
+  "description": "Knowledge graph query tool for prospect research",
+  "x-champiq": {
+    "tool_id": "champgraph",
+    "version": "0.1.0",
+    "category": "research",
+    "status": "active",
+    "canvas": {
+      "node": {
+        "label": "ChampGraph Query",
+        "icon": "Database",
+        "color": "#3B82F6",
+        "accepts_input_from": []
+      }
+    },
+    "transport": {
+      "rest": {
+        "action": {
+          "endpoint": "/api/champgraph/query",
+          "method": "POST",
+          "button_label": "Query Graph",
+          "async": true
+        },
+        "health": "/api/champgraph/status",
+        "populate": {
+          "industries": "/api/champgraph/industries",
+          "roles": "/api/champgraph/roles"
+        }
+      },
+      "cli": {
+        "binary": "champgraph",
+        "command": "query",
+        "args": ["--payload", "{payload}"]
+      }
+    }
+  },
+  "type": "object",
+  "properties": {
+    "input": {
+      "type": "object",
+      "description": "No input required. ChampGraph is the source node.",
+      "properties": {}
+    },
+    "config": {
+      "type": "object",
+      "title": "Query Configuration",
+      "required": ["industry", "role"],
+      "properties": {
+        "industry": {
+          "type": "string",
+          "title": "Industry",
+          "x-champiq-field": { "widget": "select", "populate_from": "industries" }
+        },
+        "role": {
+          "type": "string",
+          "title": "Target Role",
+          "x-champiq-field": { "widget": "select", "populate_from": "roles" }
+        },
+        "company_size": {
+          "type": "string",
+          "title": "Company Size",
+          "enum": ["1-10", "11-50", "51-200", "201-1000", "1000+"],
+          "default": "11-50"
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "properties": {
+        "job_id": { "type": "string" },
+        "prospects": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "email": { "type": "string" },
+              "company": { "type": "string" },
+              "role": { "type": "string" }
+            }
+          }
+        },
+        "total": { "type": "integer" }
+      }
+    }
+  }
+}

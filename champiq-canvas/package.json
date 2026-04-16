@@ -1,0 +1,12 @@
+{
+  "name": "champiq-canvas",
+  "version": "0.1.0",
+  "private": true,
+  "engines": { "node": ">=20", "pnpm": ">=9" },
+  "scripts": {
+    "dev": "pnpm --filter @champiq/web dev & pnpm --filter @champiq/api dev",
+    "build": "pnpm --filter @champiq/web build",
+    "test": "pnpm --filter @champiq/web test",
+    "test:e2e": "pnpm --filter @champiq/web test:e2e"
+  }
+}

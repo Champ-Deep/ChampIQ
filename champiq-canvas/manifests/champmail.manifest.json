@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://champiq.io/manifests/champmail.manifest.json",
+  "title": "Champmail Tool Manifest",
+  "description": "Email outreach tool for prospect engagement",
+  "x-champiq": {
+    "tool_id": "champmail",
+    "version": "0.1.0",
+    "category": "outreach",
+    "status": "active",
+    "canvas": {
+      "node": {
+        "label": "Champmail Outreach",
+        "icon": "Mail",
+        "color": "#22C55E",
+        "accepts_input_from": ["champgraph"]
+      }
+    },
+    "transport": {
+      "rest": {
+        "action": {
+          "endpoint": "/api/champmail/send",
+          "method": "POST",
+          "button_label": "Send Emails",
+          "async": true
+        },
+        "health": "/api/champmail/status",
+        "populate": {
+          "templates": "/api/champmail/templates"
+        }
+      },
+      "cli": {
+        "binary": "champmail",
+        "command": "send",
+        "args": ["--payload", "{payload}"]
+      }
+    }
+  },
+  "type": "object",
+  "properties": {
+    "input": {
+      "type": "object",
+      "description": "Receives prospect list from ChampGraph via edge",
+      "properties": {
+        "prospects": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+    "config": {
+      "type": "object",
+      "title": "Email Configuration",
+      "required": ["subject", "template_id"],
+      "properties": {
+        "subject": {
+          "type": "string",
+          "title": "Email Subject",
+          "minLength": 1,
+          "x-champiq-field": { "widget": "text" }
+        },
+        "template_id": {
+          "type": "string",
+          "title": "Email Template",
+          "x-champiq-field": { "widget": "select", "populate_from": "templates" }
+        },
+        "daily_limit": {
+          "type": "integer",
+          "title": "Daily Send Limit",
+          "minimum": 1,
+          "maximum": 500,
+          "default": 50,
+          "x-champiq-field": { "widget": "number" }
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "properties": {
+        "job_id": { "type": "string" },
+        "sent": { "type": "integer" },
+        "queued": { "type": "integer" },
+        "failed": { "type": "integer" },
+        "batch_id": { "type": "string" }
+      }
+    }
+  }
+}

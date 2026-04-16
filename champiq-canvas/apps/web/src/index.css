@@ -1,0 +1,60 @@
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Theme tokens ──────────────────────────────────────────────────────────
+   Light defaults; .dark overrides flip every surface.
+   All components reference these variables — change colours in one place here.
+   ─────────────────────────────────────────────────────────────────────────── */
+:root {
+  --bg-base:    #f8fafc;   /* page / canvas background  */
+  --bg-surface: #ffffff;   /* node, panel, card         */
+  --bg-sidebar: #f1f5f9;   /* sidebar, topbar           */
+  --border:     #e2e8f0;
+  --text-1:     #0f172a;   /* primary                   */
+  --text-2:     #475569;   /* secondary / labels        */
+  --text-3:     #94a3b8;   /* muted / timestamps        */
+}
+
+.dark {
+  --bg-base:    #0f1117;
+  --bg-surface: #1a1d27;
+  --bg-sidebar: #1a1d27;
+  --border:     #334155;
+  --text-1:     #f1f5f9;
+  --text-2:     #cbd5e1;
+  --text-3:     #64748b;
+}
+
+body {
+  background-color: var(--bg-base);
+  color: var(--text-1);
+  font-size: 14px;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+/* ─── React Flow overrides ──────────────────────────────────────────────── */
+.react-flow__background { background-color: var(--bg-base) !important; }
+.react-flow__minimap    { background: var(--bg-surface) !important; }
+
+/* ─── RJSF form inputs inside ToolNode ─────────────────────────────────────
+   Fixes the white-text-on-white-box problem in dark mode.
+   ─────────────────────────────────────────────────────────────────────────── */
+.node-form input,
+.node-form select,
+.node-form textarea {
+  background: var(--bg-sidebar) !important;
+  color: var(--text-1) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 12px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.node-form label        { color: var(--text-2) !important; font-size: 11px; }
+.node-form .text-danger { color: #ef4444 !important; font-size: 11px; }
+.node-form fieldset     { border: none; padding: 0; margin: 0; }
