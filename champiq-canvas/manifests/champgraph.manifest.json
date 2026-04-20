@@ -1,91 +1,77 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://champiq.io/manifests/champgraph.manifest.json",
-  "title": "ChampGraph Tool Manifest",
-  "description": "Knowledge graph query tool for prospect research",
-  "x-champiq": {
-    "tool_id": "champgraph",
-    "version": "0.1.0",
-    "category": "research",
-    "status": "active",
-    "canvas": {
-      "node": {
-        "label": "ChampGraph Query",
-        "icon": "Database",
-        "color": "#3B82F6",
-        "accepts_input_from": []
-      }
-    },
-    "transport": {
-      "rest": {
-        "action": {
-          "endpoint": "/api/champgraph/query",
-          "method": "POST",
-          "button_label": "Query Graph",
-          "async": true
-        },
-        "health": "/api/champgraph/status",
-        "populate": {
-          "industries": "/api/champgraph/industries",
-          "roles": "/api/champgraph/roles"
-        }
-      },
-      "cli": {
-        "binary": "champgraph",
-        "command": "query",
-        "args": ["--payload", "{payload}"]
-      }
-    }
-  },
-  "type": "object",
-  "properties": {
-    "input": {
-      "type": "object",
-      "description": "No input required. ChampGraph is the source node.",
-      "properties": {}
-    },
-    "config": {
-      "type": "object",
-      "title": "Query Configuration",
-      "required": ["industry", "role"],
-      "properties": {
-        "industry": {
-          "type": "string",
-          "title": "Industry",
-          "x-champiq-field": { "widget": "select", "populate_from": "industries" }
-        },
-        "role": {
-          "type": "string",
-          "title": "Target Role",
-          "x-champiq-field": { "widget": "select", "populate_from": "roles" }
-        },
-        "company_size": {
-          "type": "string",
-          "title": "Company Size",
-          "enum": ["1-10", "11-50", "51-200", "201-1000", "1000+"],
-          "default": "11-50"
+  "$schema": "https://champiq.dev/manifest/v2.json",
+  "manifest_version": 2,
+  "tool_id": "champgraph",
+  "name": "ChampGraph",
+  "description": "Semantic knowledge graph — prospect/company relationships, NL queries.",
+  "category": "data",
+  "color": "#10B981",
+  "icon": "graph",
+  "credentials_required": ["champgraph"],
+  "actions": [
+    {
+      "id": "ingest_prospect",
+      "label": "Ingest Prospect",
+      "input_schema": {
+        "type": "object",
+        "required": ["email"],
+        "properties": {
+          "email": {"type": "string"},
+          "name": {"type": "string"},
+          "company": {"type": "string"},
+          "title": {"type": "string"},
+          "attributes": {"type": "object"}
         }
       }
     },
-    "output": {
-      "type": "object",
-      "properties": {
-        "job_id": { "type": "string" },
-        "prospects": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "id": { "type": "string" },
-              "name": { "type": "string" },
-              "email": { "type": "string" },
-              "company": { "type": "string" },
-              "role": { "type": "string" }
-            }
-          }
-        },
-        "total": { "type": "integer" }
+    {
+      "id": "ingest_company",
+      "label": "Ingest Company",
+      "input_schema": {
+        "type": "object",
+        "required": ["domain"],
+        "properties": {
+          "domain": {"type": "string"},
+          "name": {"type": "string"},
+          "industry": {"type": "string"},
+          "size": {"type": "string"}
+        }
+      }
+    },
+    {
+      "id": "semantic_search",
+      "label": "Semantic Search",
+      "input_schema": {
+        "type": "object",
+        "required": ["query"],
+        "properties": {
+          "query": {"type": "string"},
+          "limit": {"type": "integer", "default": 20}
+        }
+      }
+    },
+    {
+      "id": "nl_query",
+      "label": "NL Query",
+      "input_schema": {
+        "type": "object",
+        "required": ["question"],
+        "properties": {"question": {"type": "string"}}
+      }
+    },
+    {
+      "id": "add_relationship",
+      "label": "Add Relationship",
+      "input_schema": {
+        "type": "object",
+        "required": ["from_id", "to_id", "type"],
+        "properties": {
+          "from_id": {"type": "string"},
+          "to_id": {"type": "string"},
+          "type": {"type": "string"}
+        }
       }
     }
-  }
+  ],
+  "triggers": []
 }

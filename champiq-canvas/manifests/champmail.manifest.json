@@ -1,85 +1,79 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://champiq.io/manifests/champmail.manifest.json",
-  "title": "Champmail Tool Manifest",
-  "description": "Email outreach tool for prospect engagement",
-  "x-champiq": {
-    "tool_id": "champmail",
-    "version": "0.1.0",
-    "category": "outreach",
-    "status": "active",
-    "canvas": {
-      "node": {
-        "label": "Champmail Outreach",
-        "icon": "Mail",
-        "color": "#22C55E",
-        "accepts_input_from": ["champgraph"]
-      }
-    },
-    "transport": {
-      "rest": {
-        "action": {
-          "endpoint": "/api/champmail/send",
-          "method": "POST",
-          "button_label": "Send Emails",
-          "async": true
-        },
-        "health": "/api/champmail/status",
-        "populate": {
-          "templates": "/api/champmail/templates"
-        }
-      },
-      "cli": {
-        "binary": "champmail",
-        "command": "send",
-        "args": ["--payload", "{payload}"]
-      }
-    }
-  },
-  "type": "object",
-  "properties": {
-    "input": {
-      "type": "object",
-      "description": "Receives prospect list from ChampGraph via edge",
-      "properties": {
-        "prospects": { "type": "array", "items": { "type": "object" } }
-      }
-    },
-    "config": {
-      "type": "object",
-      "title": "Email Configuration",
-      "required": ["subject", "template_id"],
-      "properties": {
-        "subject": {
-          "type": "string",
-          "title": "Email Subject",
-          "minLength": 1,
-          "x-champiq-field": { "widget": "text" }
-        },
-        "template_id": {
-          "type": "string",
-          "title": "Email Template",
-          "x-champiq-field": { "widget": "select", "populate_from": "templates" }
-        },
-        "daily_limit": {
-          "type": "integer",
-          "title": "Daily Send Limit",
-          "minimum": 1,
-          "maximum": 500,
-          "default": 50,
-          "x-champiq-field": { "widget": "number" }
+  "$schema": "https://champiq.dev/manifest/v2.json",
+  "manifest_version": 2,
+  "tool_id": "champmail",
+  "name": "Champmail",
+  "description": "Cold email sequences, reply detection, analytics.",
+  "category": "outreach",
+  "color": "#6366F1",
+  "icon": "mail",
+  "credentials_required": ["champmail"],
+  "actions": [
+    {
+      "id": "add_prospect",
+      "label": "Add Prospect",
+      "input_schema": {
+        "type": "object",
+        "required": ["email"],
+        "properties": {
+          "email": {"type": "string", "format": "email"},
+          "first_name": {"type": "string"},
+          "last_name": {"type": "string"},
+          "company": {"type": "string"},
+          "title": {"type": "string"}
         }
       }
     },
-    "output": {
-      "type": "object",
-      "properties": {
-        "job_id": { "type": "string" },
-        "sent": { "type": "integer" },
-        "queued": { "type": "integer" },
-        "failed": { "type": "integer" },
-        "batch_id": { "type": "string" }
+    {
+      "id": "start_sequence",
+      "label": "Start Sequence",
+      "input_schema": {
+        "type": "object",
+        "required": ["prospect_email", "sequence_id"],
+        "properties": {
+          "prospect_email": {"type": "string", "format": "email"},
+          "sequence_id": {"type": "string"},
+          "variables": {"type": "object"}
+        }
+      }
+    },
+    {
+      "id": "pause_sequence",
+      "label": "Pause Sequence",
+      "input_schema": {
+        "type": "object",
+        "required": ["sequence_id"],
+        "properties": {"sequence_id": {"type": "string"}}
+      }
+    },
+    {
+      "id": "send_single_email",
+      "label": "Send One-Off Email",
+      "input_schema": {
+        "type": "object",
+        "required": ["to", "subject", "body"],
+        "properties": {
+          "to": {"type": "string", "format": "email"},
+          "subject": {"type": "string"},
+          "body": {"type": "string"}
+        }
+      }
+    },
+    {
+      "id": "get_analytics",
+      "label": "Get Sequence Analytics",
+      "input_schema": {
+        "type": "object",
+        "required": ["sequence_id"],
+        "properties": {"sequence_id": {"type": "string"}}
       }
     }
-  }
+  ],
+  "triggers": [
+    {"kind": "event", "event": "email.replied", "label": "On Email Replied"},
+    {"kind": "event", "event": "email.opened", "label": "On Email Opened"},
+    {"kind": "event", "event": "email.clicked", "label": "On Email Clicked"},
+    {"kind": "event", "event": "email.bounced", "label": "On Email Bounced"},
+    {"kind": "event", "event": "sequence.completed", "label": "On Sequence Completed"}
+  ]
 }

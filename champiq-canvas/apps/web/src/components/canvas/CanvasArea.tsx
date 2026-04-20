@@ -13,7 +13,7 @@ import '@xyflow/react/dist/style.css'
 import { useCanvasStore } from '@/store/canvasStore'
 import { ToolNode } from './ToolNode'
 import { CustomEdge } from './CustomEdge'
-import { isEdgeCompatible } from '@/lib/manifest'
+import { getNodeMeta, getToolId, isEdgeCompatible } from '@/lib/manifest'
 import type { ChampIQManifest } from '@/types'
 
 const nodeTypes = { toolNode: ToolNode }
@@ -39,14 +39,16 @@ export function CanvasArea() {
       const targetManifest = targetNode.data.manifest as ChampIQManifest | undefined
       if (!sourceManifest || !targetManifest) return
 
-      const sourceToolId = sourceManifest['x-champiq'].tool_id
+      const sourceToolId = getToolId(sourceManifest)
+      const targetMeta = getNodeMeta(targetManifest)
+      const sourceMeta = getNodeMeta(sourceManifest)
 
       if (!isEdgeCompatible(sourceToolId, targetManifest)) {
         addLog({
           nodeId: targetNode.id,
-          nodeName: targetManifest['x-champiq'].canvas.node.label,
+          nodeName: targetMeta.label,
           status: 'error',
-          message: `Edge rejected: ${targetManifest['x-champiq'].canvas.node.label} does not accept input from ${sourceManifest['x-champiq'].canvas.node.label}`,
+          message: `Edge rejected: ${targetMeta.label} does not accept input from ${sourceMeta.label}`,
         })
         return
       }
@@ -62,7 +64,7 @@ export function CanvasArea() {
       const toolId = e.dataTransfer.getData('application/champiq-tool')
       if (!toolId) return
 
-      const manifest = manifests.find((m) => m['x-champiq'].tool_id === toolId)
+      const manifest = manifests.find((m) => getToolId(m) === toolId)
       if (!manifest) return
 
       const bounds = reactFlowWrapper.current?.getBoundingClientRect()
@@ -77,7 +79,7 @@ export function CanvasArea() {
         id: `${toolId}-${Date.now()}`,
         type: 'toolNode',
         position,
-        data: { manifest, config: {}, toolId },
+        data: { manifest, config: {}, toolId, kind: toolId },
       }
 
       useCanvasStore.setState((state) => ({ nodes: [...state.nodes, newNode] }))
@@ -113,7 +115,7 @@ export function CanvasArea() {
         <MiniMap
           nodeColor={(n) => {
             const m = n.data?.manifest as ChampIQManifest | undefined
-            return m?.['x-champiq']?.canvas?.node?.color ?? '#666'
+            return m ? getNodeMeta(m).color : '#666'
           }}
           maskColor="rgba(15,17,23,0.8)"
         />

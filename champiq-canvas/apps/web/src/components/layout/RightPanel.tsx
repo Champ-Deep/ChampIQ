@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useCanvasStore } from '@/store/canvasStore'
 import { X, Copy, Check } from 'lucide-react'
+import { getNodeMeta } from '@/lib/manifest'
 import type { ChampIQManifest } from '@/types'
 
 export function RightPanel() {
@@ -10,7 +11,10 @@ export function RightPanel() {
   const node = nodes.find((n) => n.id === selectedNodeId)
   if (!node) return null
 
-  const manifest = node.data.manifest as ChampIQManifest
+  const manifest = node.data.manifest as ChampIQManifest | undefined
+  const label = manifest
+    ? getNodeMeta(manifest).label
+    : ((node.data?.kind as string | undefined) ?? (node.data?.label as string | undefined) ?? 'Node')
   const runtime = nodeRuntimeStates[selectedNodeId!] ?? {}
   const jsonText = JSON.stringify({ config: node.data.config, runtime }, null, 2)
 
@@ -28,7 +32,7 @@ export function RightPanel() {
     >
       <div className="flex items-center justify-between px-3 py-2" style={{ borderBottom: '1px solid var(--border)' }}>
         <span className="text-sm font-semibold" style={{ color: 'var(--text-1)' }}>
-          {manifest['x-champiq'].canvas.node.label} Inspector
+          {label} Inspector
         </span>
         <div className="flex gap-1">
           <button onClick={handleCopy} className="p-1 rounded" style={{ color: 'var(--text-3)' }} aria-label="Copy output JSON">

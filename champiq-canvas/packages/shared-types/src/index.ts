@@ -46,12 +46,12 @@ export interface XChampiq {
 
 export interface ChampIQManifest {
   $schema: string;
-  $id: string;
-  title: string;
-  description: string;
-  'x-champiq': XChampiq;
-  type: 'object';
-  properties: {
+  $id?: string;
+  title?: string;
+  description?: string;
+  'x-champiq'?: XChampiq;
+  type?: 'object';
+  properties?: {
     input: Record<string, unknown>;
     config: {
       type: 'object';
@@ -64,6 +64,52 @@ export interface ChampIQManifest {
       properties: Record<string, unknown>;
     };
   };
+
+  // --- Manifest v2 (orchestrator-native) ---
+  manifest_version?: 2;
+  tool_id?: string;
+  name?: string;
+  category?: string;
+  color?: string;
+  icon?: string;
+  credentials_required?: string[];
+  actions?: ChampIQManifestAction[];
+  triggers?: ChampIQManifestTrigger[];
+  nodes?: ChampIQManifestSystemNode[];
+}
+
+export interface ChampIQManifestAction {
+  id: string;
+  label: string;
+  input_schema?: Record<string, unknown>;
+}
+
+export interface ChampIQManifestTrigger {
+  kind: 'event' | 'webhook' | 'cron' | 'manual';
+  event?: string;
+  label?: string;
+}
+
+export interface ChampIQManifestSystemNode {
+  kind: string;
+  label: string;
+  group?: string;
+}
+
+export interface WorkflowPatch {
+  add_nodes?: unknown[];
+  add_edges?: unknown[];
+  remove_node_ids?: string[];
+  update_nodes?: { id: string; data: Record<string, unknown> }[];
+}
+
+export interface ChatMessage {
+  id: number;
+  session_id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  workflow_patch?: WorkflowPatch | null;
+  created_at: string;
 }
 
 export type NodeStatus = 'idle' | 'running' | 'success' | 'error';

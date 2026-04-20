@@ -2,6 +2,7 @@ import { useCanvasStore } from '@/store/canvasStore'
 import { api } from '@/lib/api'
 import { useTheme } from '@/hooks/useTheme'
 import { topoLayers } from '@/lib/execution'
+import { getToolId } from '@/lib/manifest'
 import { Button } from '@/components/ui/button'
 import { Save, Play, ZoomIn, ZoomOut, Moon, Sun } from 'lucide-react'
 import { useReactFlow } from '@xyflow/react'
@@ -40,7 +41,8 @@ export function TopBar() {
       {/* Tool health dots */}
       <div className="flex items-center gap-2">
         {manifests.map((m) => {
-          const toolId = m['x-champiq'].tool_id
+          const toolId = getToolId(m)
+          if (!toolId) return null
           const status = toolHealthStatus[toolId] ?? 'unknown'
           const color =
             status === 'ok' ? 'bg-green-500' :

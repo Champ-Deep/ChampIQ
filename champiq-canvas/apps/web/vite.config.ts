@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
@@ -12,9 +13,10 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5174,
+    port: 3001,
     proxy: {
-      '/api': 'http://localhost:8000',
+      '/api': 'http://localhost:58000',
+      '/ws': { target: 'ws://localhost:58000', ws: true },
     },
   },
   test: {

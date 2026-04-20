@@ -30,23 +30,25 @@ STUB_POPULATE: dict[str, dict] = {
 }
 
 
-@router.get("/{tool}/status")
+# Legacy tool routes — namespaced under /tools/ so they no longer shadow
+# /api/workflows, /api/executions, etc. Kept for the existing canvas
+# run-action flow; the orchestrator path is /api/workflows/ad-hoc/run.
+
+@router.get("/tools/{tool}/status")
 async def tool_status(tool: str):
     if tool not in VALID_TOOLS:
         return {"status": "unknown", "tool": tool}
-    # TODO(Hemang): replace stub with real CLI/API health check per tool.
     return {"status": "ok", "tool": tool}
 
 
-@router.get("/{tool}/{resource}")
+@router.get("/tools/{tool}/{resource}")
 async def populate_resource(tool: str, resource: str):
-    """Serve populate endpoint data for manifest dropdowns."""
     if tool not in VALID_TOOLS:
         return []
     return STUB_POPULATE.get(tool, {}).get(resource, [])
 
 
-@router.post("/{tool}/{action}")
+@router.post("/tools/{tool}/{action}")
 async def run_action(tool: str, action: str, payload: dict = {}):
     if tool not in VALID_TOOLS:
         return {"error": f"Unknown tool: {tool}"}
