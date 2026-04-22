@@ -41,11 +41,18 @@ def _safe_get(obj: Any, key: Any) -> Any:
 class _DotDict(dict):
     """Dict that supports both `d["k"]` and `d.k` — so expressions can say
     `node.Champmail.output.prospect.email` instead of bracket soup.
+
+    Dict data keys take priority over built-in dict method names, so that a
+    key named "items", "keys", "values" etc. resolves to the stored value
+    rather than the built-in method.
     """
 
-    def __getattr__(self, item: str) -> Any:
-        value = self.get(item)
-        return _wrap(value)
+    def __getattribute__(self, item: str) -> Any:
+        # Dict data keys take priority over built-in method names.
+        try:
+            return _wrap(dict.__getitem__(self, item))
+        except KeyError:
+            return object.__getattribute__(self, item)
 
     def __getitem__(self, item: Any) -> Any:
         return _wrap(super().get(item))
@@ -86,12 +93,18 @@ class SimpleExpressionEvaluator:
     # -- internals --------------------------------------------------------
 
     def _build_names(self, context: dict[str, Any]) -> dict[str, Any]:
-        return {
+        names: dict[str, Any] = {
             "node": _wrap(context.get("node", {})),
             "prev": _wrap(context.get("prev", {})),
             "trigger": _wrap(context.get("trigger", {})),
             "execution_id": context.get("execution_id"),
         }
+        # Expose loop iteration variables when present
+        if "item" in context:
+            names["item"] = _wrap(context["item"])
+        if "index" in context:
+            names["index"] = context["index"]
+        return names
 
     def _render(self, value: Any, names: dict[str, Any]) -> Any:
         if isinstance(value, str):

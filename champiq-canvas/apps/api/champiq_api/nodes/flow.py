@@ -25,8 +25,11 @@ class LoopExecutor(NodeExecutor):
         template = ctx.config.get("each", {}) or {}
 
         async def _one(item: Any, index: int) -> dict[str, Any]:
-            # Expose `item`/`index` to expressions via the `prev` namespace.
+            # Expose `item` and `index` as top-level names so {{ item.field }}
+            # works directly in expressions, as documented in the system prompt.
             sub_ctx = dict(ctx.expression_context())
+            sub_ctx["item"] = item
+            sub_ctx["index"] = index
             sub_ctx["prev"] = {"item": item, "index": index, **(ctx.input or {})}
             rendered = ctx.expressions.evaluate(template, sub_ctx)
             return rendered if isinstance(rendered, dict) else {"value": rendered}
