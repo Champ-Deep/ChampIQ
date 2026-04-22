@@ -150,6 +150,9 @@ class Orchestrator:
         pending = {nid for nid in by_id if nid not in incoming}
         results: dict[str, NodeResult] = {}
         inputs: dict[str, dict[str, Any]] = {}
+        # loop_context[node_id] = list of items from an upstream loop node,
+        # so the downstream node can be fanned-out per item.
+        loop_context: dict[str, list[Any]] = {}
         skipped: set[str] = set()
 
         # BFS layer-by-layer so parallel siblings run concurrently.
@@ -166,13 +169,25 @@ class Orchestrator:
                 if node_id in skipped:
                     return node_id, None, "skipped"
                 try:
-                    result = await self._execute_node(
-                        execution_id=execution_id,
-                        node=node,
-                        upstream={nid: {"output": r.output} for nid, r in results.items()},
-                        direct_input=inputs.get(node_id, {}),
-                        trigger_payload=effective_trigger,
-                    )
+                    items = loop_context.get(node_id)
+                    if items is not None:
+                        # Fan-out: run once per item, inject item + index into context.
+                        result = await self._execute_node_fan_out(
+                            execution_id=execution_id,
+                            node=node,
+                            upstream={nid: {"output": r.output} for nid, r in results.items()},
+                            direct_input=inputs.get(node_id, {}),
+                            trigger_payload=effective_trigger,
+                            items=items,
+                        )
+                    else:
+                        result = await self._execute_node(
+                            execution_id=execution_id,
+                            node=node,
+                            upstream={nid: {"output": r.output} for nid, r in results.items()},
+                            direct_input=inputs.get(node_id, {}),
+                            trigger_payload=effective_trigger,
+                        )
                     return node_id, result, None
                 except Exception as err:  # noqa: BLE001
                     log.exception("node %s failed", node_id)
@@ -213,16 +228,104 @@ class Orchestrator:
                 })
 
                 chosen_edges = _choose_edges(outgoing.get(node_id, []), result.branches)
+
+                # Detect if this node produced loop items that should be fanned out.
+                # A loop node (kind == "loop") outputs {"items": [...], "count": N}.
+                # Propagate those items to downstream nodes so they execute per-item.
+                produced_items: Optional[list[Any]] = None
+                if node_kind == "loop" and result.output.get("items") is not None:
+                    produced_items = result.output["items"]
+                # Also fan-out if this node itself was fanned out — pass the
+                # aggregated per-item results list forward.
+                elif result.output.get("_fan_out_items") is not None:
+                    produced_items = result.output["_fan_out_items"]
+
                 for edge in chosen_edges:
                     target = edge["target"]
                     if target in skipped:
                         continue
                     inputs[target] = {**inputs.get(target, {}), **result.output}
+                    if produced_items is not None:
+                        loop_context[target] = produced_items
                     if _all_parents_done(target, incoming, results, skipped):
                         pending.add(target)
 
         final_status = "error" if any(r.output.get("error") for r in results.values()) else "success"
         await self._finalize_execution(execution_id, final_status, results)
+
+    async def _execute_node_fan_out(
+        self,
+        *,
+        execution_id: str,
+        node: dict[str, Any],
+        upstream: dict[str, dict[str, Any]],
+        direct_input: dict[str, Any],
+        trigger_payload: dict[str, Any],
+        items: list[Any],
+    ) -> NodeResult:
+        """Run a node once per item in a loop's output, injecting item + index."""
+        node_id = node["id"]
+        data = node.get("data", {}) or {}
+        node_kind = data.get("kind") or data.get("toolId") or node.get("type") or "unknown"
+        config = data.get("config", {}) or {}
+
+        from ..core.interfaces import NodeContext as _NC  # local to avoid circular
+
+        item_results: list[dict[str, Any]] = []
+        errors: list[str] = []
+
+        for index, item in enumerate(items):
+            per_item_input = {**direct_input, "item": item, "index": index}
+
+            async def emit(topic: str, payload: dict[str, Any]) -> None:
+                await self._publish(topic, {"execution_id": execution_id, "node_id": node_id, **payload})
+
+            ctx = _NC(
+                execution_id=execution_id,
+                node_id=node_id,
+                node_kind=node_kind,
+                config=config,
+                input=per_item_input,
+                upstream=upstream,
+                trigger=trigger_payload,
+                credentials=self._credentials,
+                expressions=self._expressions,
+                events=self._events,
+                emit=emit,
+            )
+            # Patch expression context to include item + index at top level.
+            original_expr_ctx = ctx.expression_context
+
+            def _patched_ctx(item=item, index=index, ctx=ctx):
+                base = {
+                    "node": ctx.upstream,
+                    "prev": ctx.input,
+                    "trigger": ctx.trigger,
+                    "execution_id": ctx.execution_id,
+                    "item": item,
+                    "index": index,
+                }
+                return base
+
+            ctx.expression_context = _patched_ctx  # type: ignore[method-assign]
+
+            executor = self._registry.get(node_kind)
+            try:
+                r = await executor.execute(ctx)
+                item_results.append(r.output)
+            except Exception as err:  # noqa: BLE001
+                log.warning("fan-out node %s item %d failed: %s", node_id, index, err)
+                errors.append(str(err))
+                item_results.append({"error": str(err), "item": item})
+
+        output: dict[str, Any] = {
+            "_fan_out_items": item_results,
+            "count": len(item_results),
+            "items": item_results,
+        }
+        if errors:
+            output["errors"] = errors
+        return NodeResult(output=output)
 
     async def _execute_node(
         self,

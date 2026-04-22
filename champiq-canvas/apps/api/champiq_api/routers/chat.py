@@ -106,9 +106,18 @@ champmail:
   "Open the Credentials panel (key icon in chat header) → Add New → type: champmail → enter ChampMail admin email + password → Save."
 
 champgraph:
-  { "action": "ingest_prospect",  — OR: ingest_company, semantic_search, nl_query, add_relationship
-    "credential": "",
-    "inputs": { "email": "{{ item.email }}", "name": "{{ item.name }}", "company": "{{ item.company }}" } }
+  { "action": "create_prospect",  — OR: list_prospects, research_prospects, campaign_essence, campaign_segment,
+                                       campaign_pitch, campaign_personalize, campaign_html, list_sequences,
+                                       enroll_sequence, upload_prospect_list, list_campaigns, analytics_overview
+    "credential": "champgraph-admin",
+    "inputs": {
+      — create_prospect:      { "email": "{{ item.email }}", "first_name": "{{ item.first_name }}", "last_name": "{{ item.last_name }}", "company_name": "{{ item.company_name }}", "title": "{{ item.title }}" }
+      — bulk_import:          { "prospects": [{ "email": "...", "first_name": "..." }] }
+      — research_prospects:   { "prospect_ids": ["<uuid>"], "concurrency": 3 }
+      — campaign_essence:     { "description": "Cold outreach to SaaS CTOs", "target_audience": "CTO at B2B SaaS" }
+      — enroll_sequence:      { "sequence_id": "<seq_id>", "prospect_email": "{{ item.email }}" }
+    } }
+  ⚠ Requires credential: champgraph-admin (same login as ChampMail backend — email + password).
 
 lakeb2b_pulse:
   { "action": "track_page",  — OR: schedule_engagement, list_posts, get_engagement_status
@@ -192,12 +201,13 @@ REPLY HANDLING:
     "negative" branch → champmail pause_sequence
     "neutral" branch → wait { seconds: 259200 } → champmail start_sequence
 
-DAILY PROSPECTING:
-  trigger.cron { cron: "0 8 * * 1-5", timezone: "UTC" }
-  → champgraph semantic_search { query: "VP Sales technology startup" }
-  → loop { items: "{{ prev.results }}", concurrency: 3 }
-    → champmail add_prospect
-    → champmail start_sequence
+PROSPECTING RESEARCH (CSV upload → create + research per prospect):
+  trigger.manual (items from CSV upload)
+  → loop { items: "{{ trigger.payload.items }}", concurrency: 3,
+           each: { email: "{{ item.email }}", first_name: "{{ item.first_name }}", company_name: "{{ item.company }}" } }
+    → champgraph create_prospect { email: "{{ item.email }}", first_name: "{{ item.first_name }}", company_name: "{{ item.company }}" }
+  NOTE: research_prospects requires prospect UUIDs returned by create_prospect.
+        Use an LLM node after champgraph for AI-generated openers without needing UUIDs.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 REPLY FORMAT — MUST FOLLOW EXACTLY
