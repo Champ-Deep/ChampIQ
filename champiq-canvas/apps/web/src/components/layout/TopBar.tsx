@@ -1,27 +1,91 @@
+import { useState } from 'react'
 import { useCanvasStore } from '@/store/canvasStore'
 import { api } from '@/lib/api'
 import { useTheme } from '@/hooks/useTheme'
-import { topoLayers } from '@/lib/execution'
 import { getToolId } from '@/lib/manifest'
+import { saveCurrentCanvas } from '@/hooks/usePersistence'
 import { Button } from '@/components/ui/button'
-import { Save, Play, ZoomIn, ZoomOut, Moon, Sun } from '@/lib/icons'
+import { Save, Play, ZoomIn, ZoomOut, Moon, Sun, Check, Loader2 } from '@/lib/icons'
 import { useReactFlow } from '@xyflow/react'
 
 export function TopBar() {
-  const { canvasName, nodes, edges, toolHealthStatus, manifests, setCanvasName, setNodeRuntime } = useCanvasStore()
+  const { canvasName, nodes, edges, toolHealthStatus, manifests, setCanvasName, setNodeRuntime, addLog } = useCanvasStore()
   const { zoomIn, zoomOut } = useReactFlow()
   const { dark, toggle } = useTheme()
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [running, setRunning] = useState(false)
 
-  function handleSave() {
-    api.saveCanvasState(nodes, edges).catch(console.error)
+  async function handleSave() {
+    if (saving) return
+    setSaving(true)
+    setSaved(false)
+    try {
+      saveCurrentCanvas()
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    } catch (e) {
+      console.error('Save failed', e)
+    } finally {
+      setSaving(false)
+    }
   }
 
-  function handleRunAll() {
-    const layers = topoLayers(nodes, edges)
-    if (layers.length === 0) return
-    useCanvasStore.setState({ isRunningAll: true })
-    for (const id of layers[0]) {
-      setNodeRuntime(id, { status: 'idle', pendingRun: true })
+  async function handleRunAll() {
+    if (running || nodes.length === 0) return
+    setRunning(true)
+
+    // Mark all nodes as running
+    for (const n of nodes) setNodeRuntime(n.id, { status: 'running', error: undefined })
+
+    addLog({ nodeId: 'run', nodeName: 'Run All', status: 'running', message: `Starting execution of ${nodes.length} nodes…` })
+
+    try {
+      const { execution_id } = await api.runAdHoc(nodes, edges)
+
+      // Poll until finished
+      const poll = async () => {
+        const exec = await api.getExecution(execution_id) as Record<string, unknown>
+        const status = exec.status as string
+
+        if (status === 'running') {
+          setTimeout(poll, 1000)
+          return
+        }
+
+        // Fetch per-node results and update status indicators
+        const nodeRuns = await api.getNodeRuns(execution_id) as Array<Record<string, unknown>>
+        for (const run of nodeRuns) {
+          setNodeRuntime(run.node_id as string, {
+            status: run.status === 'success' ? 'success' : 'error',
+            output: run.output as Record<string, unknown>,
+            error: run.error as string | undefined,
+          })
+        }
+
+        // Mark any nodes not in nodeRuns (didn't execute) as idle
+        const ranIds = new Set(nodeRuns.map((r) => r.node_id as string))
+        for (const n of nodes) {
+          if (!ranIds.has(n.id)) setNodeRuntime(n.id, { status: 'idle' })
+        }
+
+        const finalStatus = status === 'success' ? 'success' : 'error'
+        addLog({
+          nodeId: 'run',
+          nodeName: 'Run All',
+          status: finalStatus,
+          message: status === 'success'
+            ? `Execution complete — ${nodeRuns.length} nodes ran`
+            : `Execution failed: ${(exec.error as string) ?? 'unknown error'}`,
+        })
+        setRunning(false)
+      }
+
+      setTimeout(poll, 800)
+    } catch (e) {
+      for (const n of nodes) setNodeRuntime(n.id, { status: 'idle' })
+      addLog({ nodeId: 'run', nodeName: 'Run All', status: 'error', message: String(e) })
+      setRunning(false)
     }
   }
 
@@ -71,13 +135,27 @@ export function TopBar() {
           style={{ color: 'var(--text-2)' }}>
           {dark ? <Sun size={16} /> : <Moon size={16} />}
         </Button>
-        <Button variant="ghost" size="sm" onClick={handleRunAll} aria-label="Run all nodes"
-          style={{ color: 'var(--text-2)' }}>
-          <Play size={14} className="mr-1" /> Run All
+        <Button
+          variant="ghost" size="sm"
+          onClick={handleRunAll}
+          disabled={running || nodes.length === 0}
+          aria-label="Run all nodes"
+          style={{ color: running ? '#60a5fa' : 'var(--text-2)' }}
+        >
+          {running
+            ? <><Loader2 size={14} className="mr-1 animate-spin" /> Running…</>
+            : <><Play size={14} className="mr-1" /> Run All</>}
         </Button>
-        <Button size="sm" onClick={handleSave} aria-label="Save canvas"
-          style={{ background: 'var(--bg-surface)', color: 'var(--text-1)', border: '1px solid var(--border)' }}>
-          <Save size={14} className="mr-1" /> Save
+        <Button
+          size="sm"
+          onClick={handleSave}
+          disabled={saving}
+          aria-label="Save canvas"
+          style={{ background: saved ? '#16a34a22' : 'var(--bg-surface)', color: saved ? '#4ade80' : 'var(--text-1)', border: `1px solid ${saved ? '#16a34a55' : 'var(--border)'}` }}
+        >
+          {saved
+            ? <><Check size={14} className="mr-1" /> Saved</>
+            : <><Save size={14} className="mr-1" /> Save</>}
         </Button>
       </div>
     </div>

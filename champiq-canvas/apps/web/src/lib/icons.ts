@@ -20,6 +20,10 @@ import {
   Send,
   Copy,
   Check,
+  ChevronDown,
+  ChevronUp,
+  Paperclip,
+  Key,
   // Status / feedback
   Loader2,
   Moon,
@@ -64,6 +68,10 @@ export const iconMap: Record<string, LucideIcon> = {
   Send,
   Copy,
   Check,
+  ChevronDown,
+  ChevronUp,
+  Paperclip,
+  Key,
   Loader2,
   Moon,
   Sun,
@@ -85,6 +93,7 @@ export function resolveIcon(name: string | undefined): LucideIcon {
 export type { LucideIcon }
 export {
   Box, X, Plus, Trash2, Save, Play, Send, Copy, Check,
+  ChevronDown, ChevronUp, Paperclip, Key,
   Loader2, Moon, Sun, ZoomIn, ZoomOut, Sparkles, Bot, User,
   Network, Activity, Phone, Mail, Settings,
 }

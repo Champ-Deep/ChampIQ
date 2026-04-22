@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .container import get_container
-from .routers import canvas, chat, credentials, events_ws, jobs, registry, tools, webhooks, workflows
+from .routers import canvas, chat, credentials, events_ws, jobs, registry, tools, uploads, webhooks, workflows
 
 
 @asynccontextmanager
@@ -49,6 +49,7 @@ app.include_router(workflows.router, prefix="/api")
 app.include_router(credentials.router, prefix="/api")
 app.include_router(webhooks.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
+app.include_router(uploads.router, prefix="/api")
 app.include_router(events_ws.router)
 
 

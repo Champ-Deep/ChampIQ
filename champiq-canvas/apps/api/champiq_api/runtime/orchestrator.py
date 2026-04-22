@@ -153,6 +153,10 @@ class Orchestrator:
         skipped: set[str] = set()
 
         # BFS layer-by-layer so parallel siblings run concurrently.
+        # effective_trigger tracks the live trigger payload — updated after the
+        # trigger node runs so {{ trigger.payload.X }} resolves for all downstream nodes.
+        effective_trigger: dict[str, Any] = dict(trigger_payload)
+
         while pending:
             layer = list(pending)
             pending = set()
@@ -167,7 +171,7 @@ class Orchestrator:
                         node=node,
                         upstream={nid: {"output": r.output} for nid, r in results.items()},
                         direct_input=inputs.get(node_id, {}),
-                        trigger_payload=trigger_payload,
+                        trigger_payload=effective_trigger,
                     )
                     return node_id, result, None
                 except Exception as err:  # noqa: BLE001
@@ -178,6 +182,12 @@ class Orchestrator:
 
             for node_id, result, error in outcomes:
                 node = by_id[node_id]
+                # If a trigger node just ran, promote its output to effective_trigger
+                # so downstream nodes can use {{ trigger.payload.X }} expressions.
+                node_kind = (node.get("data", {}) or {}).get("kind", "")
+                if result is not None and node_kind.startswith("trigger."):
+                    effective_trigger = result.output
+
                 on_error = (node.get("data", {}) or {}).get("on_error", "stop")
                 if error is not None:
                     await self._publish("node.failed", {

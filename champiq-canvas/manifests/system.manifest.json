@@ -21,6 +21,7 @@
     {"kind": "if", "label": "If", "group": "control"},
     {"kind": "switch", "label": "Switch", "group": "control"},
     {"kind": "loop", "label": "Loop", "group": "control"},
+    {"kind": "split", "label": "Split / A-B", "group": "control"},
     {"kind": "wait", "label": "Wait", "group": "control"},
 
     {"kind": "code", "label": "Code", "group": "code"},

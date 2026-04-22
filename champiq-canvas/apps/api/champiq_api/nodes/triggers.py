@@ -17,8 +17,17 @@ class _PassthroughTrigger(NodeExecutor):
         return NodeResult(output={"payload": ctx.trigger})
 
 
-class ManualTriggerExecutor(_PassthroughTrigger):
+class ManualTriggerExecutor(NodeExecutor):
     kind = "trigger.manual"
+
+    async def execute(self, ctx: NodeContext) -> NodeResult:
+        # Merge config.items into the payload so {{ trigger.payload.items }}
+        # resolves correctly when items were loaded from a CSV upload.
+        payload = dict(ctx.trigger)
+        items = ctx.config.get("items")
+        if items and "items" not in payload:
+            payload["items"] = items
+        return NodeResult(output={"payload": payload})
 
 
 class WebhookTriggerExecutor(_PassthroughTrigger):

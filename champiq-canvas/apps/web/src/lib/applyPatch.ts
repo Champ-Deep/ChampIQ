@@ -9,8 +9,8 @@ import type { WorkflowPatch } from '@/types'
 type NodePatch = Partial<Node> & { id?: string; data?: Record<string, unknown>; position?: { x: number; y: number } }
 type EdgePatch = Partial<Edge> & { id?: string; source?: string; target?: string }
 
-export function applyWorkflowPatch(patch: WorkflowPatch): { added: number; removed: number; updated: number } {
-  if (!patch) return { added: 0, removed: 0, updated: 0 }
+export function applyWorkflowPatch(patch: WorkflowPatch): { added: number; removed: number; updated: number; addedIds: string[] } {
+  if (!patch) return { added: 0, removed: 0, updated: 0, addedIds: [] }
 
   const store = useCanvasStore.getState()
   const removeIds = new Set(patch.remove_node_ids ?? [])
@@ -27,8 +27,8 @@ export function applyWorkflowPatch(patch: WorkflowPatch): { added: number; remov
     })
   }
 
-  const laidOut = laidOutPosition(nodes.length)
-  const added = (patch.add_nodes ?? []).map((raw, i) => {
+  const laidOut = linearPosition(nodes)
+  const addedNodes = (patch.add_nodes ?? []).map((raw, i) => {
     const n = raw as NodePatch
     const id = n.id ?? `${(n.data as { kind?: string } | undefined)?.kind ?? 'node'}-${Date.now()}-${i}`
     return {
@@ -38,7 +38,7 @@ export function applyWorkflowPatch(patch: WorkflowPatch): { added: number; remov
       data: (n.data as Record<string, unknown>) ?? {},
     } as Node
   })
-  nodes = [...nodes, ...added]
+  nodes = [...nodes, ...addedNodes]
 
   const addedEdges = (patch.add_edges ?? []).map((raw, i) => {
     const e = raw as EdgePatch
@@ -54,14 +54,17 @@ export function applyWorkflowPatch(patch: WorkflowPatch): { added: number; remov
   edges = [...edges, ...addedEdges]
 
   useCanvasStore.setState({ nodes, edges })
-  return { added: added.length, removed: removeIds.size, updated }
+  return { added: addedNodes.length, removed: removeIds.size, updated, addedIds: addedNodes.map((n) => n.id) }
 }
 
-function laidOutPosition(existingCount: number) {
-  return (i: number) => {
-    const idx = existingCount + i
-    const col = idx % 3
-    const row = Math.floor(idx / 3)
-    return { x: 80 + col * 260, y: 80 + row * 160 }
-  }
+// Linear left-to-right layout: each new node steps 280px right from the rightmost existing node.
+// Branch nodes (y specified by LLM) keep their y; unpositioned ones go at y=300.
+function linearPosition(existingNodes: Node[]) {
+  const maxX = existingNodes.length > 0
+    ? Math.max(...existingNodes.map((n) => n.position.x))
+    : -200
+  return (i: number) => ({
+    x: maxX + 280 + i * 280,
+    y: 300,
+  })
 }

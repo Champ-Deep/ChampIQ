@@ -55,7 +55,9 @@ RUN uv pip install --system --no-cache \
       "httpx>=0.27.0" \
       "redis>=5.0.0" \
       "apscheduler>=3.10.4" \
-      "websockets>=13.0"
+      "websockets>=13.0" \
+      "python-multipart>=0.0.9" \
+      "openpyxl>=3.1.0"
 
 COPY apps/api ./apps/api
 COPY manifests ./manifests

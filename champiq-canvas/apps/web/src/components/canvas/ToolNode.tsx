@@ -38,19 +38,65 @@ export function ToolNode(props: NodeProps) {
   return <LegacyFormNode {...props} manifest={manifest} kindHint={kind} />
 }
 
+// Maps built-in kinds to friendly colors and short labels for the node header.
+const KIND_META: Record<string, { label: string; color: string }> = {
+  'trigger.manual':  { label: 'Manual Trigger',  color: '#10b981' },
+  'trigger.webhook': { label: 'Webhook Trigger', color: '#10b981' },
+  'trigger.cron':    { label: 'Cron Schedule',   color: '#10b981' },
+  'trigger.event':   { label: 'Event Trigger',   color: '#10b981' },
+  'http':            { label: 'HTTP Request',     color: '#3b82f6' },
+  'set':             { label: 'Set / Map',        color: '#8b5cf6' },
+  'merge':           { label: 'Merge',            color: '#8b5cf6' },
+  'if':              { label: 'If / Branch',      color: '#f59e0b' },
+  'switch':          { label: 'Switch',           color: '#f59e0b' },
+  'loop':            { label: 'Loop',             color: '#f59e0b' },
+  'split':           { label: 'Split / A-B',      color: '#ec4899' },
+  'wait':            { label: 'Wait',             color: '#6b7280' },
+  'code':            { label: 'Code',             color: '#06b6d4' },
+  'llm':             { label: 'LLM',              color: '#a855f7' },
+  'champmail_reply': { label: 'Reply Classifier', color: '#ef4444' },
+  'champmail':       { label: 'Champmail',        color: '#f97316' },
+  'champgraph':      { label: 'ChampGraph',       color: '#14b8a6' },
+  'lakeb2b_pulse':   { label: 'LakeB2B Pulse',   color: '#64748b' },
+}
+
+function configSummary(config: Record<string, unknown>, kind: string): string | null {
+  if (!config) return null
+  if (kind === 'if') return config.condition ? `if ${String(config.condition).slice(0, 30)}` : null
+  if (kind === 'loop') return config.items ? `loop: ${String(config.items).slice(0, 30)}` : null
+  if (kind === 'split') return `split into ${config.n ?? 2} branches`
+  if (kind === 'wait') return config.seconds ? `wait ${config.seconds}s` : null
+  if (kind.startsWith('trigger.cron')) return config.cron ? String(config.cron) : null
+  if (kind === 'champmail' || kind === 'champgraph' || kind === 'lakeb2b_pulse') {
+    return config.action ? `action: ${config.action}` : null
+  }
+  if (kind === 'http') return config.url ? String(config.url).slice(0, 35) : null
+  if (kind === 'llm') return config.prompt ? String(config.prompt).slice(0, 35) + '…' : null
+  return null
+}
+
 function SimpleNode({ id, data, selected }: NodeProps) {
   const manifest = data.manifest as ChampIQManifest | undefined
+  const kind = (data.kind as string | undefined) ?? (data.toolId as string | undefined) ?? 'unknown'
+  const kindMeta = KIND_META[kind]
   const meta = manifest
     ? getNodeMeta(manifest)
     : {
-        label: (data.label as string) ?? (data.kind as string) ?? 'Node',
+        label: (data.label as string) ?? kindMeta?.label ?? kind,
         icon: 'box',
-        color: '#6366F1',
+        color: kindMeta?.color ?? '#6366F1',
         accepts_input_from: [] as string[],
       }
   const { nodeRuntimeStates, setSelectedNode } = useCanvasStore()
   const runtime = nodeRuntimeStates[id] ?? { status: 'idle' as NodeStatus }
   const IconComponent = resolveIcon(meta.icon)
+  const config = (data.config as Record<string, unknown>) ?? {}
+  const summary = configSummary(config, kind)
+
+  // Split node gets multiple output handles
+  const isSplit = kind === 'split'
+  const splitN = isSplit ? Math.max(Number(config.n ?? 2), 2) : 0
+  const isRootTrigger = kind.startsWith('trigger.')
 
   return (
     <div
@@ -63,13 +109,15 @@ function SimpleNode({ id, data, selected }: NodeProps) {
         borderTopWidth: 3,
       }}
     >
-      <Handle type="target" position={Position.Left} className="!bg-slate-500 !w-3 !h-3 !border-slate-400" />
+      {!isRootTrigger && (
+        <Handle type="target" position={Position.Left} className="!bg-slate-500 !w-3 !h-3 !border-slate-400" />
+      )}
       <div className="flex items-center justify-between px-3 py-2">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           <span style={{ color: meta.color }}><IconComponent size={14} /></span>
-          <span className="font-semibold text-sm" style={{ color: 'var(--text-1)' }}>{meta.label}</span>
+          <span className="font-semibold text-sm truncate" style={{ color: 'var(--text-1)' }}>{meta.label}</span>
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 shrink-0">
           <span
             className={`w-2.5 h-2.5 rounded-full ${STATUS_COLORS[runtime.status as NodeStatus] ?? STATUS_COLORS.idle}`}
             aria-label={`Status: ${runtime.status ?? 'idle'}`}
@@ -90,16 +138,37 @@ function SimpleNode({ id, data, selected }: NodeProps) {
           </button>
         </div>
       </div>
+
+      {summary && (
+        <div className="px-3 pb-1">
+          <span className="text-xs truncate block" style={{ color: 'var(--text-3)' }}>{summary}</span>
+        </div>
+      )}
+
       <div className="px-3 pb-2">
         <button
-          className="text-xs underline"
-          onClick={() => setSelectedNode(id)}
-          style={{ color: 'var(--text-3)' }}
+          className="text-xs px-2 py-0.5 rounded hover:opacity-80 transition-opacity"
+          onClick={(e) => { e.stopPropagation(); setSelectedNode(id) }}
+          style={{ background: meta.color + '22', color: meta.color, border: `1px solid ${meta.color}44` }}
         >
           Configure
         </button>
       </div>
-      <Handle type="source" position={Position.Right} className="!bg-slate-500 !w-3 !h-3 !border-slate-400" />
+
+      {/* Split: render N named output handles */}
+      {isSplit
+        ? Array.from({ length: splitN }, (_, i) => (
+            <Handle
+              key={`branch_${i}`}
+              id={`branch_${i}`}
+              type="source"
+              position={Position.Right}
+              style={{ top: `${20 + (i * 60 / (splitN - 1 || 1))}%`, background: '#ec4899' }}
+              className="!w-3 !h-3 !border-pink-400"
+            />
+          ))
+        : <Handle type="source" position={Position.Right} className="!bg-slate-500 !w-3 !h-3 !border-slate-400" />
+      }
     </div>
   )
 }
