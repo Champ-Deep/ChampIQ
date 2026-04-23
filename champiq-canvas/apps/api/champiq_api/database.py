@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     champmail_base_url: str = "http://localhost:8001"
     champgraph_base_url: str = "http://localhost:8002"
     lakeb2b_base_url: str = "http://localhost:8003"
+    champvoice_base_url: str = "http://localhost:8004"
 
     champserver_email: str = ""
     champserver_password: str = ""

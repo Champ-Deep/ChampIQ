@@ -1,95 +1,141 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://champiq.io/manifests/champvoice.manifest.json",
-  "title": "ChampVoice Tool Manifest",
-  "description": "Voice qualification tool for prospect calls",
-  "x-champiq": {
-    "tool_id": "champvoice",
-    "version": "0.1.0",
-    "category": "qualification",
-    "status": "active",
-    "canvas": {
-      "node": {
-        "label": "ChampVoice Call",
-        "icon": "Phone",
-        "color": "#A855F7",
-        "accepts_input_from": ["champgraph"]
-      }
-    },
-    "transport": {
-      "rest": {
-        "action": {
-          "endpoint": "/api/champvoice/call",
-          "method": "POST",
-          "button_label": "Start Calls",
-          "async": true
-        },
-        "health": "/api/champvoice/status",
-        "populate": {
-          "scripts": "/api/champvoice/scripts"
-        }
-      },
-      "cli": {
-        "binary": "champvoice",
-        "command": "call",
-        "args": ["--payload", "{payload}"]
-      }
-    }
-  },
-  "type": "object",
-  "properties": {
-    "input": {
-      "type": "object",
-      "description": "Receives prospect list from ChampGraph via edge",
-      "properties": {
-        "prospects": { "type": "array", "items": { "type": "object" } }
-      }
-    },
-    "config": {
-      "type": "object",
-      "title": "Call Configuration",
-      "required": ["script_id", "call_window"],
-      "properties": {
-        "script_id": {
-          "type": "string",
-          "title": "Call Script",
-          "x-champiq-field": { "widget": "select", "populate_from": "scripts" }
-        },
-        "call_window": {
-          "type": "string",
-          "title": "Call Window",
-          "default": "09:00-17:00",
-          "pattern": "^\\d{2}:\\d{2}-\\d{2}:\\d{2}$",
-          "x-champiq-field": { "widget": "text" }
-        },
-        "max_calls": {
-          "type": "integer",
-          "title": "Max Calls Per Day",
-          "minimum": 1,
-          "maximum": 200,
-          "default": 20,
-          "x-champiq-field": { "widget": "number" }
-        }
-      }
-    },
-    "output": {
-      "type": "object",
-      "properties": {
-        "job_id": { "type": "string" },
-        "calls_completed": { "type": "integer" },
-        "calls_failed": { "type": "integer" },
-        "qualification_results": {
-          "type": "array",
-          "items": {
+  "$schema": "https://champiq.dev/manifest/v2.json",
+  "manifest_version": 2,
+  "tool_id": "champvoice",
+  "name": "ChampVoice",
+  "description": "AI calling agent — initiates and manages outbound voice calls for prospect qualification and follow-up.",
+  "category": "outreach",
+  "color": "#A855F7",
+  "icon": "phone",
+  "credentials_required": ["champvoice"],
+  "actions": [
+    {
+      "id": "initiate_call",
+      "label": "Initiate Call",
+      "description": "Start an AI voice call to a prospect. Use after mail engagement (replied/opened) or sequence completion for warm follow-up.",
+      "input_schema": {
+        "type": "object",
+        "required": ["prospect_email", "script_id"],
+        "properties": {
+          "prospect_email": {
+            "type": "string",
+            "format": "email",
+            "description": "Prospect's email address — used to look up their profile and personalize the call"
+          },
+          "prospect_name": {
+            "type": "string",
+            "description": "Prospect's full name for personalized greeting"
+          },
+          "phone_number": {
+            "type": "string",
+            "description": "Phone number to dial. If omitted, ChampVoice looks it up from the prospect record."
+          },
+          "script_id": {
+            "type": "string",
+            "description": "ID of the call script to use. Fetch available scripts with list_scripts."
+          },
+          "call_reason": {
+            "type": "string",
+            "enum": ["cold_outreach", "email_follow_up", "sequence_completed", "replied_follow_up"],
+            "default": "email_follow_up",
+            "description": "Context for why this call is being made — shapes the AI's opening."
+          },
+          "engagement_context": {
             "type": "object",
-            "properties": {
-              "prospect_id": { "type": "string" },
-              "qualified": { "type": "boolean" },
-              "notes": { "type": "string" }
-            }
+            "description": "Prospect engagement data to personalize the call (email_opened, email_replied, etc.)"
+          },
+          "variables": {
+            "type": "object",
+            "description": "Additional template variables injected into the call script"
+          },
+          "call_window": {
+            "type": "string",
+            "default": "09:00-17:00",
+            "description": "Allowed call hours in HH:MM-HH:MM format (prospect's local timezone)"
+          },
+          "max_attempts": {
+            "type": "integer",
+            "default": 2,
+            "minimum": 1,
+            "maximum": 5,
+            "description": "How many dial attempts before marking as no-answer"
           }
         }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "call_id":    {"type": "string"},
+          "status":     {"type": "string", "enum": ["queued", "dialing", "answered", "voicemail", "no_answer", "completed", "failed"]},
+          "queued_at":  {"type": "string", "format": "date-time"},
+          "message":    {"type": "string"}
+        }
+      }
+    },
+    {
+      "id": "get_call_status",
+      "label": "Get Call Status",
+      "description": "Poll the outcome of a previously initiated call.",
+      "input_schema": {
+        "type": "object",
+        "required": ["call_id"],
+        "properties": {
+          "call_id": {"type": "string"}
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "call_id":          {"type": "string"},
+          "status":           {"type": "string"},
+          "duration_seconds": {"type": "integer"},
+          "outcome":          {"type": "string", "enum": ["qualified", "disqualified", "callback_requested", "no_answer", "voicemail", "unknown"]},
+          "transcript_url":   {"type": "string"},
+          "notes":            {"type": "string"},
+          "completed_at":     {"type": "string", "format": "date-time"}
+        }
+      }
+    },
+    {
+      "id": "list_scripts",
+      "label": "List Call Scripts",
+      "description": "Retrieve all available call scripts.",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "id": "list_calls",
+      "label": "List Calls",
+      "description": "Retrieve call history, optionally filtered by prospect or status.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "prospect_email": {"type": "string"},
+          "status":         {"type": "string"},
+          "limit":          {"type": "integer", "default": 50}
+        }
+      }
+    },
+    {
+      "id": "cancel_call",
+      "label": "Cancel Call",
+      "description": "Cancel a queued call before it is dialed.",
+      "input_schema": {
+        "type": "object",
+        "required": ["call_id"],
+        "properties": {
+          "call_id": {"type": "string"}
+        }
       }
     }
-  }
+  ],
+  "triggers": [
+    {"kind": "event", "event": "call.completed",    "label": "On Call Completed"},
+    {"kind": "event", "event": "call.qualified",    "label": "On Prospect Qualified"},
+    {"kind": "event", "event": "call.disqualified", "label": "On Prospect Disqualified"},
+    {"kind": "event", "event": "call.voicemail",    "label": "On Voicemail Left"},
+    {"kind": "event", "event": "call.no_answer",    "label": "On No Answer"}
+  ]
 }

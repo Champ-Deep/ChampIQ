@@ -10,6 +10,30 @@
   "credentials_required": ["champgraph"],
   "actions": [
     {
+      "id": "get_prospect_status",
+      "label": "Get Prospect Status",
+      "description": "Fetch a prospect's current engagement status. Returns engagement_status: cold | sent | opened | replied | sequence_active | sequence_completed | not_found. Use a Switch node on {{ prev.data.engagement_status }} to route to mail engine or calling agent.",
+      "input_schema": {
+        "type": "object",
+        "required": ["email"],
+        "properties": {
+          "email": {"type": "string", "format": "email"}
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "found":              {"type": "boolean"},
+          "engagement_status":  {"type": "string", "enum": ["cold", "sent", "opened", "replied", "sequence_active", "sequence_completed", "not_found"]},
+          "email_sent":         {"type": "boolean"},
+          "email_opened":       {"type": "boolean"},
+          "email_replied":      {"type": "boolean"},
+          "sequence_active":    {"type": "boolean"},
+          "sequence_completed": {"type": "boolean"}
+        }
+      }
+    },
+    {
       "id": "ingest_prospect",
       "label": "Ingest Prospect",
       "input_schema": {

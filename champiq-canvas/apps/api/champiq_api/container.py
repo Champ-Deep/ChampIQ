@@ -11,7 +11,7 @@ from typing import Any
 
 from .credentials import CredentialService, FernetCrypto, SqlCredentialResolver
 from .database import get_session_factory, get_settings
-from .drivers import ChampGraphDriver, ChampmailDriver, LakebPulseDriver, ToolNodeExecutor
+from .drivers import ChampGraphDriver, ChampmailDriver, ChampVoiceDriver, LakebPulseDriver, ToolNodeExecutor
 from .expressions import SimpleExpressionEvaluator
 from .llm import LLMProvider, OpenRouterProvider
 from .nodes import (
@@ -68,8 +68,9 @@ def get_container() -> Container:
 
     # Tool drivers.
     drivers = {
-        "champmail": ChampmailDriver(settings.champmail_base_url),
-        "champgraph": ChampGraphDriver(settings.champgraph_base_url),
+        "champmail":    ChampmailDriver(settings.champmail_base_url),
+        "champgraph":   ChampGraphDriver(settings.champgraph_base_url),
+        "champvoice":   ChampVoiceDriver(settings.champvoice_base_url),
         "lakeb2b_pulse": LakebPulseDriver(settings.lakeb2b_base_url),
     }
     for driver in drivers.values():
