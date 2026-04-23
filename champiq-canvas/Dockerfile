@@ -1,45 +1,57 @@
 # syntax=docker/dockerfile:1.7
 #
-# Single-container ChampIQ Canvas image.
-#   stage 1 (web-builder):  pnpm install + vite build -> /app/apps/web/dist
-#   stage 2 (runtime):      python 3.12 + uv + copy dist + run API that also
-#                           serves the built SPA.
+# Single-container ChampIQ Canvas image — Railway-ready.
 #
-# Everything listens on port 8000. Postgres and Redis are sibling services.
+#   stage 1 (web-builder):  pnpm install + vite build  →  /src/apps/web/dist
+#   stage 2 (runtime):      python 3.12 + uv + copy dist + API that serves the SPA
+#
+# Railway injects PORT at runtime. The entrypoint reads it and passes it to uvicorn.
+# Postgres and Redis are Railway plugin services; their URLs come via env vars.
 
+# ── 1. Build the Vite SPA ────────────────────────────────────────────────────
 FROM node:20-alpine AS web-builder
 
 WORKDIR /src
 
+# Enable pnpm via corepack (deterministic version)
 RUN corepack enable && corepack prepare pnpm@9 --activate
 
+# Copy workspace manifests first so the layer is cached across code changes
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
-COPY apps/web/package.json ./apps/web/
+COPY apps/web/package.json           ./apps/web/
 COPY packages/shared-types/package.json ./packages/shared-types/
 
 RUN pnpm install --frozen-lockfile
 
-COPY apps/web ./apps/web
+# Copy source (manifests are imported at build time via vite alias)
+COPY apps/web            ./apps/web
 COPY packages/shared-types ./packages/shared-types
-COPY manifests ./manifests
+COPY manifests           ./manifests
 
+# build:docker skips the TS type-check pass (saves ~20 s, safe for CI)
 RUN pnpm --filter @champiq/web build:docker
 
+# ── 2. Python runtime ─────────────────────────────────────────────────────────
 FROM python:3.12-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    WEB_DIST_DIR=/app/web
+    # Where FastAPI looks for the built SPA
+    WEB_DIST_DIR=/app/web \
+    # Default port — Railway overrides this with its own PORT env var
+    PORT=8000
 
 WORKDIR /app
 
+# System deps: curl (healthcheck), ca-certificates, tini (PID 1 signal reaping)
 RUN apt-get update \
  && apt-get install -y --no-install-recommends curl ca-certificates tini \
  && rm -rf /var/lib/apt/lists/* \
  && pip install --no-cache-dir uv
 
-COPY apps/api/pyproject.toml ./apps/api/pyproject.toml
+# Install Python deps from the explicit list so Docker layer is cached
+# independently of application source changes.
 RUN uv pip install --system --no-cache \
       "fastapi>=0.135.3" \
       "uvicorn[standard]>=0.44.0" \
@@ -59,10 +71,14 @@ RUN uv pip install --system --no-cache \
       "python-multipart>=0.0.9" \
       "openpyxl>=3.1.0"
 
-COPY apps/api ./apps/api
+# Copy application source
+COPY apps/api  ./apps/api
 COPY manifests ./manifests
+
+# Copy the pre-built SPA
 COPY --from=web-builder /src/apps/web/dist ./web
 
+# Entrypoint script
 COPY apps/api/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
@@ -70,10 +86,14 @@ ENV PYTHONPATH=/app/apps/api
 
 WORKDIR /app/apps/api
 
+# Railway routes external traffic to $PORT. We expose it as a hint only —
+# the actual binding is done in CMD via $PORT so Railway's dynamic port works.
 EXPOSE 8000
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-  CMD curl -fsS http://localhost:8000/health || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
+  CMD curl -fsS http://localhost:${PORT:-8000}/health || exit 1
 
 ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]
-CMD ["uvicorn", "champiq_api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+# CMD is overridden by the entrypoint script which reads $PORT at runtime
+CMD ["sh", "-c", "uvicorn champiq_api.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --loop uvloop --http httptools"]

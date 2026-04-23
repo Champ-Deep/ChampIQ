@@ -27,15 +27,26 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="ChampIQ Canvas API", version="0.2.0", lifespan=lifespan)
 
+import os as _os
+
+# CORS: allow localhost dev origins + any extra origins from CORS_ORIGINS env var.
+# On Railway the frontend is same-origin (SPA served by FastAPI), so the
+# wildcard fallback is only reached by direct API calls from external clients.
+_cors_origins = [
+    "http://localhost:3001",
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://localhost:4173",
+    "http://localhost:8000",
+]
+_extra = _os.environ.get("CORS_ORIGINS", "")
+if _extra:
+    _cors_origins.extend(o.strip() for o in _extra.split(",") if o.strip())
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3001",
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "http://localhost:4173",
-        "http://localhost:8000",
-    ],
+    allow_origins=_cors_origins,
+    allow_origin_regex=r"https://.*\.railway\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
