@@ -13,9 +13,15 @@ if config.config_file_name is not None:
 
 # Prefer the runtime DATABASE_URL (container / deployment) over whatever is
 # baked into alembic.ini. Keeps one source of truth for the connection string.
+def _asyncpg_url(url: str) -> str:
+    for prefix in ("postgresql://", "postgres://"):
+        if url.startswith(prefix):
+            return "postgresql+asyncpg://" + url[len(prefix):]
+    return url
+
 _database_url = os.environ.get("DATABASE_URL")
 if _database_url:
-    config.set_main_option("sqlalchemy.url", _database_url)
+    config.set_main_option("sqlalchemy.url", _asyncpg_url(_database_url))
 
 target_metadata = Base.metadata
 
