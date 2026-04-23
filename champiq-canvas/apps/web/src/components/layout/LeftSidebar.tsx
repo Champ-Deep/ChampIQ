@@ -18,7 +18,7 @@ interface PaletteItem {
   group?: string
 }
 
-const GROUP_ORDER = ['triggers', 'control', 'data', 'code', 'ai', 'tools']
+const GROUP_ORDER = ['triggers', 'control', 'data', 'code', 'ai', 'tools', 'outreach']
 
 function buildPalette(manifests: ChampIQManifest[]): { group: string; items: PaletteItem[] }[] {
   const grouped: Record<string, PaletteItem[]> = {}
@@ -36,7 +36,7 @@ function buildPalette(manifests: ChampIQManifest[]): { group: string; items: Pal
         if (!grouped[group]) grouped[group] = []
         grouped[group].push({ dragId: kind, label, icon: meta.icon, color: meta.color, group })
       }
-    } else if (toolId && toolId !== 'champvoice') {
+    } else if (toolId) {
       // Single tool item (champmail, champgraph, lakeb2b_pulse)
       const group = 'tools'
       if (!grouped[group]) grouped[group] = []
