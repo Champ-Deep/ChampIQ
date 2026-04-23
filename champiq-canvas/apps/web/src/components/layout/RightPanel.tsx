@@ -239,7 +239,7 @@ const KIND_FIELDS: Record<string, FieldDef[]> = {
       options: ['initiate_call', 'get_call_status', 'list_calls', 'cancel_call'],
       hint: 'The champiq-voice gateway routes this to ElevenLabs. No ChampServer login needed.' },
     { key: 'credential', label: 'ChampVoice credential', type: 'credential',
-      hint: 'Must contain gateway_url and optionally api_key + agent_id. Add via the Credentials panel.' },
+      hint: 'Must contain gateway_url, elevenlabs_api_key, agent_id, and phone_number_id. Add via the Credentials panel.' },
   ],
   'lakeb2b_pulse': [
     { key: 'action', label: 'Action', type: 'select',
