@@ -33,9 +33,19 @@ def get_settings() -> Settings:
     return Settings()
 
 
+def _asyncpg_url(url: str) -> str:
+    """Ensure the URL uses the asyncpg driver.
+    Railway injects plain postgresql:// or postgres:// — rewrite to asyncpg."""
+    for prefix in ("postgresql://", "postgres://"):
+        if url.startswith(prefix):
+            return "postgresql+asyncpg://" + url[len(prefix):]
+    return url
+
+
 def get_engine():
     settings = get_settings()
-    return create_async_engine(settings.database_url, echo=False, pool_pre_ping=True)
+    url = _asyncpg_url(settings.database_url)
+    return create_async_engine(url, echo=False, pool_pre_ping=True)
 
 
 @lru_cache
