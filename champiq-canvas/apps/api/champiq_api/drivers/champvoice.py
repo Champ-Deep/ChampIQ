@@ -9,10 +9,12 @@ Auth model — the gateway uses:
   - NO email/password JWT — the gateway itself owns the ElevenLabs API key
 
 Credential fields expected from the ChampIQ credential store:
-    gateway_url             Required — e.g. http://localhost:3001
+    gateway_url             Required — e.g. https://your-gateway.railway.app
     api_key                 Optional — X-Api-Key for the gateway
+    elevenlabs_api_key      Required — forwarded per-call; no env var needed on gateway
     agent_id                Optional default — ElevenLabs agent ID
                             Can be overridden per-call via inputs["agent_id"]
+    phone_number_id         Required — ElevenLabs outbound phone number ID; forwarded per-call
     canvas_webhook_secret   Optional — for verifying inbound call events
 
 Agent IDs can differ per call: different agents for cold outreach vs. follow-up
@@ -147,6 +149,19 @@ class ChampVoiceDriver(HttpToolDriver):
         agent_id = inputs.get("agent_id") or credentials.get("agent_id")
         if agent_id:
             payload["agent_id"] = agent_id
+
+        # Per-call ElevenLabs credential overrides — forwarded from Canvas credential store
+        # so the gateway never needs ELEVENLABS_API_KEY / ELEVENLABS_PHONE_NUMBER_ID env vars
+        el_api_key = credentials.get("elevenlabs_api_key")
+        if el_api_key:
+            payload["elevenlabs_api_key"] = el_api_key
+
+        el_phone_id = (
+            inputs.get("phone_number_id")
+            or credentials.get("phone_number_id")
+        )
+        if el_phone_id:
+            payload["elevenlabs_phone_number_id"] = el_phone_id
 
         # Optional linking fields
         if script := inputs.get("script"):
