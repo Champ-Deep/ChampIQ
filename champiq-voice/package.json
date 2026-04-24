@@ -1,0 +1,36 @@
+{
+  "name": "champiq-voice-gateway",
+  "version": "1.0.0",
+  "description": "ChampIQ Voice Gateway — headless CLI + HTTP service for AI calling agents",
+  "type": "module",
+  "bin": {
+    "champiq-voice": "./bin/champiq-voice.js"
+  },
+  "scripts": {
+    "dev": "tsx watch src/cli/index.ts",
+    "build": "tsc",
+    "start": "node dist/cli/index.js",
+    "serve": "tsx src/cli/index.ts serve",
+    "cli": "tsx src/cli/index.ts"
+  },
+  "dependencies": {
+    "commander": "^12.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.1",
+    "express": "^4.18.2",
+    "helmet": "^7.1.0",
+    "ioredis": "^5.3.2",
+    "morgan": "^1.10.0",
+    "uuid": "^9.0.1",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/morgan": "^1.9.9",
+    "@types/node": "^20.11.16",
+    "@types/uuid": "^9.0.7",
+    "tsx": "^4.7.1",
+    "typescript": "^5.3.3"
+  }
+}
