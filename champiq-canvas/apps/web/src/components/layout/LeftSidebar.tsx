@@ -73,9 +73,24 @@ function switchCanvas(targetId: string) {
 }
 
 function createCanvas() {
+  const { canvasList, currentCanvasId } = useCanvasStore.getState()
+
+  // Don't create a duplicate blank canvas — switch to existing blank one instead
+  const existingBlank = canvasList.find(
+    (c) => c.id !== currentCanvasId && !localStorage.getItem(`champiq:canvas:${c.id}`)
+  )
+  if (existingBlank) {
+    switchCanvas(existingBlank.id)
+    return
+  }
+
   saveCurrentCanvas()
   const id = crypto.randomUUID()
-  const meta: CanvasMeta = { id, name: 'Untitled Canvas', updatedAt: new Date().toISOString() }
+  const meta: CanvasMeta = { id, name: 'New Canvas', updatedAt: new Date().toISOString() }
+
+  // Write empty state immediately so saveCurrentCanvas never inherits old nodes
+  localStorage.setItem(`champiq:canvas:${id}`, JSON.stringify({ nodes: [], edges: [] }))
+
   useCanvasStore.setState((s) => ({
     canvasList: [...s.canvasList, meta],
     currentCanvasId: id,

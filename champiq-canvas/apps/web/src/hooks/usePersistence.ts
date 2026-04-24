@@ -24,13 +24,35 @@ export function saveCurrentCanvas() {
   api.saveCanvasState(nodes, edges).catch(() => {})
 }
 
+// Strip fields that should never be manually configured — they flow from loop item automatically
+function migrateNodes(nodes: Node[]): Node[] {
+  return nodes.map((n) => {
+    if ((n.data as Record<string, unknown>)?.kind === 'champvoice') {
+      const config = ((n.data as Record<string, unknown>)?.config as Record<string, unknown>) || {}
+      const inputs = { ...(config.inputs as Record<string, unknown> || {}) }
+      delete inputs['to_number']
+      delete inputs['first_name']
+      delete inputs['last_name']
+      delete inputs['phone_number']
+      delete inputs['phone']
+      delete inputs['lead_name']
+      delete inputs['email']
+      delete inputs['company']
+      return { ...n, data: { ...n.data, config: { ...config, inputs } } }
+    }
+    return n
+  })
+}
+
 function loadCanvasFromStorage(id: string): { nodes: Node[]; edges: Edge[] } | null {
   const raw = localStorage.getItem(`champiq:canvas:${id}`)
   if (!raw) return null
   try {
     const { nodes, edges } = JSON.parse(raw) as { nodes: Node[]; edges: Edge[] }
-    // Deduplicate and strip orphan edges
-    const uniqueNodes = nodes.filter((n, i, arr) => arr.findIndex(x => x.id === n.id) === i)
+    // Deduplicate, strip orphan edges, migrate stale configs
+    const uniqueNodes = migrateNodes(
+      nodes.filter((n, i, arr) => arr.findIndex(x => x.id === n.id) === i)
+    )
     const nodeIds = new Set(uniqueNodes.map(n => n.id))
     const uniqueEdges = edges
       .filter((e, i, arr) => arr.findIndex(x => x.id === e.id) === i)
@@ -49,11 +71,19 @@ export function usePersistence() {
   // 1. Initialise canvas list from localStorage (runs once on mount).
   useEffect(() => {
     const raw = localStorage.getItem('champiq:canvas:list')
-    const list: CanvasMeta[] = raw ? (JSON.parse(raw) as CanvasMeta[]) : []
+    let list: CanvasMeta[] = raw ? (JSON.parse(raw) as CanvasMeta[]) : []
+
+    // Deduplicate by ID
+    list = list.filter((c, i, arr) => arr.findIndex(x => x.id === c.id) === i)
+
+    // Also remove the stale flat key written by old persist middleware
+    localStorage.removeItem('champiq:canvas')
 
     if (list.length > 0) {
       const first = list[0]
       useCanvasStore.setState({ canvasList: list, currentCanvasId: first.id, canvasName: first.name })
+      // Persist deduplicated list
+      localStorage.setItem('champiq:canvas:list', JSON.stringify(list))
     } else {
       const id = crypto.randomUUID()
       const meta: CanvasMeta = { id, name: 'My Canvas', updatedAt: new Date().toISOString() }
