@@ -275,7 +275,11 @@ class Orchestrator:
         errors: list[str] = []
 
         for index, item in enumerate(items):
-            per_item_input = {**direct_input, "item": item, "index": index}
+            # Loop outputs {"_item": <raw row>, "_index": N, ...rendered fields}
+            # Extract the raw row so {{ item.phone }} resolves to the CSV field.
+            raw_item = item.get("_item", item) if isinstance(item, dict) else item
+            raw_index = item.get("_index", index) if isinstance(item, dict) else index
+            per_item_input = {**direct_input, "item": raw_item, "index": raw_index}
 
             async def emit(topic: str, payload: dict[str, Any]) -> None:
                 await self._publish(topic, {"execution_id": execution_id, "node_id": node_id, **payload})
@@ -296,7 +300,7 @@ class Orchestrator:
             # Patch expression context to include item + index at top level.
             original_expr_ctx = ctx.expression_context
 
-            def _patched_ctx(item=item, index=index, ctx=ctx):
+            def _patched_ctx(item=raw_item, index=raw_index, ctx=ctx):
                 base = {
                     "node": ctx.upstream,
                     "prev": ctx.input,
