@@ -278,6 +278,9 @@ class Orchestrator:
         item_results: list[dict[str, Any]] = []
         errors: list[str] = []
 
+        # Start a single node_run row for the fan-out node so the frontend can see output
+        run_row = await self._start_node_run(execution_id, node_id, node_kind, direct_input)
+
         for index, item in enumerate(items):
             # Loop outputs {"_item": <raw CSV row>, "_index": N, ...rendered fields}
             # Unwrap so {{ item.phone }} resolves to the CSV field directly.
@@ -305,11 +308,9 @@ class Orchestrator:
                 events=self._events,
                 emit=emit,
             )
-            # Patch expression context to include item + index at top level.
-            original_expr_ctx = ctx.expression_context
 
             def _patched_ctx(item=raw_item, index=raw_index, ctx=ctx):
-                base = {
+                return {
                     "node": ctx.upstream,
                     "prev": ctx.input,
                     "trigger": ctx.trigger,
@@ -317,7 +318,6 @@ class Orchestrator:
                     "item": item,
                     "index": index,
                 }
-                return base
 
             ctx.expression_context = _patched_ctx  # type: ignore[method-assign]
 
@@ -328,7 +328,7 @@ class Orchestrator:
             except Exception as err:  # noqa: BLE001
                 log.warning("fan-out node %s item %d failed: %s", node_id, index, err)
                 errors.append(str(err))
-                item_results.append({"error": str(err), "item": item})
+                item_results.append({"error": str(err), "item": raw_item})
 
         output: dict[str, Any] = {
             "_fan_out_items": item_results,
@@ -337,6 +337,11 @@ class Orchestrator:
         }
         if errors:
             output["errors"] = errors
+
+        # Persist to DB so frontend getNodeRuns() can show output + transcript
+        final_status = "error" if errors else "success"
+        await self._finish_node_run(run_row.id, final_status, output, errors[0] if errors else None, 0)
+
         return NodeResult(output=output)
 
     async def _execute_node(
