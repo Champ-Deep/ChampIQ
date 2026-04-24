@@ -157,12 +157,75 @@ class ChampVoiceDriver(HttpToolDriver):
             )
 
         data = resp.json()
+        conversation_id = data.get("conversation_id")
+        call_id = dynamic_vars["leadId"]
+
+        # Poll until call completes then return full transcript
+        transcript, duration_seconds, recording_url, final_status = \
+            await self._poll_until_done(conversation_id, headers)
+
         return {
-            "callId": dynamic_vars["leadId"],
-            "conversationId": data.get("conversation_id"),
-            "status": "initiated",
-            "raw": data,
+            "callId": call_id,
+            "conversationId": conversation_id,
+            "status": final_status,
+            "phone": to_number,
+            "lead_name": dynamic_vars.get("lead_name", ""),
+            "email": dynamic_vars.get("email", ""),
+            "company": dynamic_vars.get("company", ""),
+            "duration_seconds": duration_seconds,
+            "recording_url": recording_url,
+            "transcript": transcript,
         }
+
+    async def _poll_until_done(
+        self,
+        conversation_id: str,
+        headers: dict[str, str],
+        poll_interval: float = 15.0,
+        max_wait: float = 600.0,
+    ) -> tuple[list[dict[str, Any]], Any, Any, str]:
+        """Poll ElevenLabs until conversation status is 'done' or 'failed'.
+
+        Returns (transcript, duration_seconds, recording_url, status).
+        Falls back gracefully on timeout — never raises.
+        """
+        import asyncio
+
+        elapsed = 0.0
+        while elapsed < max_wait:
+            await asyncio.sleep(poll_interval)
+            elapsed += poll_interval
+            try:
+                async with httpx.AsyncClient(timeout=30.0) as client:
+                    r = await client.get(
+                        f"{EL_BASE}/convai/conversations/{conversation_id}",
+                        headers=headers,
+                    )
+                if r.status_code != 200:
+                    continue
+                d = r.json()
+                if d.get("status") in ("done", "failed"):
+                    transcript = [
+                        {
+                            "speaker": "agent" if t.get("role") == "agent" else "user",
+                            "text": t.get("message", ""),
+                            "time_in_call_secs": t.get("time_in_call_secs", 0),
+                        }
+                        for t in d.get("transcript", [])
+                        if t.get("message") and t.get("message") != "None"
+                    ]
+                    metadata = d.get("metadata") or {}
+                    return (
+                        transcript,
+                        metadata.get("call_duration_secs"),
+                        metadata.get("recording_url"),
+                        "completed" if d.get("status") == "done" else "failed",
+                    )
+            except Exception:
+                continue  # transient error — keep polling
+
+        # Timeout — return empty transcript, don't fail the node
+        return [], None, None, "timeout"
 
     async def _get_call_status(
         self,
