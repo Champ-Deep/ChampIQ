@@ -1,15 +1,17 @@
 import uuid
+import json
 import asyncio
-from fastapi import APIRouter
-from ..jobs import job_store, simulate_job_progression
-from ..cli_shim import invoke_tool_cli
+from datetime import datetime, timezone
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+from ..container import get_container
+from ..database import get_db
+from ..jobs import job_store
 
 router = APIRouter()
 
-VALID_TOOLS = {"champgraph", "champmail", "champvoice"}
+VALID_TOOLS = {"champgraph", "champmail", "champvoice", "lakeb2b_pulse"}
 
-# Stub populate data.
-# TODO(Hemang): replace stub data with real API calls to each tool backend.
 STUB_POPULATE: dict[str, dict] = {
     "champgraph": {
         "industries": ["SaaS", "FinTech", "HealthTech", "EdTech", "RetailTech"],
@@ -30,10 +32,6 @@ STUB_POPULATE: dict[str, dict] = {
 }
 
 
-# Legacy tool routes — namespaced under /tools/ so they no longer shadow
-# /api/workflows, /api/executions, etc. Kept for the existing canvas
-# run-action flow; the orchestrator path is /api/workflows/ad-hoc/run.
-
 @router.get("/tools/{tool}/status")
 async def tool_status(tool: str):
     if tool not in VALID_TOOLS:
@@ -49,10 +47,43 @@ async def populate_resource(tool: str, resource: str):
 
 
 @router.post("/tools/{tool}/{action}")
-async def run_action(tool: str, action: str, payload: dict = {}):
+async def run_action(tool: str, action: str, payload: dict = {}, db: AsyncSession = Depends(get_db)):
     if tool not in VALID_TOOLS:
-        return {"error": f"Unknown tool: {tool}"}
+        raise HTTPException(400, f"Unknown tool: {tool}")
+
+    container = get_container()
+    driver = container.drivers.get(tool)
+    if driver is None:
+        raise HTTPException(500, f"No driver registered for tool: {tool}")
+
+    # Resolve credentials — accept credential_id (int) or credential name (str)
+    credentials: dict = {}
+    cred_ref = payload.get("credential_id") or payload.get("credential")
+    if cred_ref is not None:
+        try:
+            if isinstance(cred_ref, int):
+                from ..models import CredentialTable  # noqa: PLC0415
+                row = await db.get(CredentialTable, cred_ref)
+                if row is None:
+                    raise HTTPException(404, f"Credential {cred_ref} not found")
+                credentials = json.loads(container.crypto.decrypt(row.data_encrypted))
+            else:
+                credentials = await container.credential_resolver.resolve(str(cred_ref))
+        except KeyError as e:
+            raise HTTPException(404, str(e))
+
+    inputs = payload.get("inputs", {})
+
     job_id = f"job_{uuid.uuid4().hex[:8]}"
-    await invoke_tool_cli(tool, action, payload)
-    asyncio.create_task(simulate_job_progression(job_id))
+
+    async def _run():
+        try:
+            result = await driver.invoke(action, inputs, credentials)
+            job_store[job_id] = {"job_id": job_id, "status": "done", "progress": 100, "result": result}
+        except Exception as exc:
+            job_store[job_id] = {"job_id": job_id, "status": "failed", "progress": 100, "result": {"error": str(exc)}}
+
+    job_store[job_id] = {"job_id": job_id, "status": "running", "progress": 0, "result": None, "created_at": datetime.now(timezone.utc).isoformat()}
+    asyncio.create_task(_run())
+
     return {"job_id": job_id, "accepted": True, "async": True}
