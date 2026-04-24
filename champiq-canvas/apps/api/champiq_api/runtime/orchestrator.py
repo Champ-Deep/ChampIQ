@@ -235,10 +235,12 @@ class Orchestrator:
                 produced_items: Optional[list[Any]] = None
                 if node_kind == "loop" and result.output.get("items") is not None:
                     produced_items = result.output["items"]
-                # Also fan-out if this node itself was fanned out — pass the
-                # aggregated per-item results list forward.
                 elif result.output.get("_fan_out_items") is not None:
                     produced_items = result.output["_fan_out_items"]
+
+                log.info("[orchestrator] node %s done | kind=%s | produced_items=%s | chosen_edges=%s",
+                         node_id, node_kind, len(produced_items) if produced_items is not None else None,
+                         [e["target"] for e in chosen_edges])
 
                 for edge in chosen_edges:
                     target = edge["target"]
@@ -247,7 +249,9 @@ class Orchestrator:
                     inputs[target] = {**inputs.get(target, {}), **result.output}
                     if produced_items is not None:
                         loop_context[target] = produced_items
-                    if _all_parents_done(target, incoming, results, skipped):
+                    parents_done = _all_parents_done(target, incoming, results, skipped)
+                    log.info("[orchestrator] edge %s->%s | parents_done=%s", node_id, target, parents_done)
+                    if parents_done:
                         pending.add(target)
 
         final_status = "error" if any(r.output.get("error") for r in results.values()) else "success"
