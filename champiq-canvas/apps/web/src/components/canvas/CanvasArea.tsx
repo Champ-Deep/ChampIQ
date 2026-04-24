@@ -7,17 +7,28 @@ import {
   MiniMap,
   addEdge,
   type Connection,
+  type Node,
 } from '@xyflow/react'
 import { useTheme } from '@/hooks/useTheme'
 import '@xyflow/react/dist/style.css'
 import { useCanvasStore } from '@/store/canvasStore'
 import { ToolNode } from './ToolNode'
 import { CustomEdge } from './CustomEdge'
-import { isEdgeCompatible } from '@/lib/manifest'
+import { getNodeMeta, getToolId, isEdgeCompatible } from '@/lib/manifest'
 import type { ChampIQManifest } from '@/types'
 
 const nodeTypes = { toolNode: ToolNode }
 const edgeTypes = { customEdge: CustomEdge }
+
+function WrapNode({ data, ...props }: { data: Record<string, unknown> } & Node) {
+  return <ToolNode data={data} {...props} />
+}
+
+const fallbackNodeTypes: Record<string, React.ComponentType<{ data: Record<string, unknown> } & Node>> = {
+  triggerNode: WrapNode,
+  builtinNode: WrapNode,
+  default: WrapNode,
+}
 
 export function CanvasArea() {
   const {
@@ -37,18 +48,21 @@ export function CanvasArea() {
 
       const sourceManifest = sourceNode.data.manifest as ChampIQManifest | undefined
       const targetManifest = targetNode.data.manifest as ChampIQManifest | undefined
-      if (!sourceManifest || !targetManifest) return
 
-      const sourceToolId = sourceManifest['x-champiq'].tool_id
-
-      if (!isEdgeCompatible(sourceToolId, targetManifest)) {
-        addLog({
-          nodeId: targetNode.id,
-          nodeName: targetManifest['x-champiq'].canvas.node.label,
-          status: 'error',
-          message: `Edge rejected: ${targetManifest['x-champiq'].canvas.node.label} does not accept input from ${sourceManifest['x-champiq'].canvas.node.label}`,
-        })
-        return
+      // v2 / system nodes have no manifest on the node data — always allow connection
+      if (sourceManifest && targetManifest) {
+        const sourceToolId = getToolId(sourceManifest)
+        if (!isEdgeCompatible(sourceToolId, targetManifest)) {
+          const targetMeta = getNodeMeta(targetManifest)
+          const sourceMeta = getNodeMeta(sourceManifest)
+          addLog({
+            nodeId: targetNode.id,
+            nodeName: targetMeta.label,
+            status: 'error',
+            message: `Edge rejected: ${targetMeta.label} does not accept input from ${sourceMeta.label}`,
+          })
+          return
+        }
       }
 
       setEdges(addEdge({ ...connection, type: 'customEdge', data: { state: 'waiting' } }, edges))
@@ -59,11 +73,10 @@ export function CanvasArea() {
   const onDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault()
-      const toolId = e.dataTransfer.getData('application/champiq-tool')
-      if (!toolId) return
-
-      const manifest = manifests.find((m) => m['x-champiq'].tool_id === toolId)
-      if (!manifest) return
+      // dragId is either a node kind (e.g. "trigger.manual", "if", "set")
+      // or a tool_id (e.g. "champmail", "champgraph")
+      const dragId = e.dataTransfer.getData('application/champiq-tool')
+      if (!dragId) return
 
       const bounds = reactFlowWrapper.current?.getBoundingClientRect()
       if (!bounds) return
@@ -73,11 +86,18 @@ export function CanvasArea() {
         y: e.clientY - bounds.top - 40,
       }
 
+      // Find matching manifest: for tool nodes match on tool_id,
+      // for system node kinds find the parent manifest that contains this kind
+      const toolManifest = manifests.find((m) => getToolId(m) === dragId)
+      const isNodeKind = !toolManifest
+
       const newNode = {
-        id: `${toolId}-${Date.now()}`,
+        id: `${dragId}-${Date.now()}`,
         type: 'toolNode',
         position,
-        data: { manifest, config: {}, toolId },
+        data: isNodeKind
+          ? { kind: dragId, config: {}, label: dragId }
+          : { manifest: toolManifest, config: {}, toolId: dragId, kind: dragId },
       }
 
       useCanvasStore.setState((state) => ({ nodes: [...state.nodes, newNode] }))
@@ -95,7 +115,7 @@ export function CanvasArea() {
       <ReactFlow
         nodes={nodes}
         edges={edges}
-        nodeTypes={nodeTypes}
+        nodeTypes={{ ...nodeTypes, ...fallbackNodeTypes }}
         edgeTypes={edgeTypes}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
@@ -113,7 +133,7 @@ export function CanvasArea() {
         <MiniMap
           nodeColor={(n) => {
             const m = n.data?.manifest as ChampIQManifest | undefined
-            return m?.['x-champiq']?.canvas?.node?.color ?? '#666'
+            return m ? getNodeMeta(m).color : '#666'
           }}
           maskColor="rgba(15,17,23,0.8)"
         />

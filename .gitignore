@@ -2,8 +2,12 @@ node_modules/
 dist/
 .env
 .env.local
+.env.*.local
 __pycache__/
 *.pyc
 .venv/
 *.egg-info/
 .DS_Store
+.claude/
+test-results/
+*.sqlite3

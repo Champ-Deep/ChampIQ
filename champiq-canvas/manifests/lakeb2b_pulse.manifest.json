@@ -1,0 +1,64 @@
+{
+  "$schema": "https://champiq.dev/manifest/v2.json",
+  "manifest_version": 2,
+  "tool_id": "lakeb2b_pulse",
+  "name": "Lakeb2b Pulse",
+  "description": "LinkedIn engagement automation: track pages, detect posts, schedule likes/comments.",
+  "category": "engagement",
+  "color": "#0EA5E9",
+  "icon": "pulse",
+  "credentials_required": ["lakeb2b_pulse"],
+  "actions": [
+    {
+      "id": "track_page",
+      "label": "Track LinkedIn Page",
+      "input_schema": {
+        "type": "object",
+        "required": ["page_url"],
+        "properties": {
+          "page_url": {"type": "string"},
+          "team_id": {"type": "string"}
+        }
+      }
+    },
+    {
+      "id": "schedule_engagement",
+      "label": "Schedule Engagement",
+      "input_schema": {
+        "type": "object",
+        "required": ["post_id", "action"],
+        "properties": {
+          "post_id": {"type": "string"},
+          "action": {"type": "string", "enum": ["like", "comment", "both"]},
+          "comment_text": {"type": "string"},
+          "stagger_minutes": {"type": "integer", "default": 30}
+        }
+      }
+    },
+    {
+      "id": "list_posts",
+      "label": "List Recent Posts",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page_id": {"type": "string"},
+          "since": {"type": "string", "format": "date-time"}
+        }
+      }
+    },
+    {
+      "id": "get_engagement_status",
+      "label": "Get Engagement Status",
+      "input_schema": {
+        "type": "object",
+        "required": ["engagement_id"],
+        "properties": {"engagement_id": {"type": "string"}}
+      }
+    }
+  ],
+  "triggers": [
+    {"kind": "event", "event": "pulse.post.detected", "label": "On New Post"},
+    {"kind": "event", "event": "pulse.engagement.completed", "label": "On Engagement Done"},
+    {"kind": "event", "event": "pulse.cap.hit", "label": "On Daily Cap Hit"}
+  ]
+}

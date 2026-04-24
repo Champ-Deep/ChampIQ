@@ -1,4 +1,5 @@
 import asyncio
+import os
 from logging.config import fileConfig
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy import pool
@@ -9,6 +10,18 @@ from champiq_api import models  # noqa: F401  # type: ignore[import] -- register
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
+
+# Prefer the runtime DATABASE_URL (container / deployment) over whatever is
+# baked into alembic.ini. Keeps one source of truth for the connection string.
+def _asyncpg_url(url: str) -> str:
+    for prefix in ("postgresql://", "postgres://"):
+        if url.startswith(prefix):
+            return "postgresql+asyncpg://" + url[len(prefix):]
+    return url
+
+_database_url = os.environ.get("DATABASE_URL")
+if _database_url:
+    config.set_main_option("sqlalchemy.url", _asyncpg_url(_database_url))
 
 target_metadata = Base.metadata
 

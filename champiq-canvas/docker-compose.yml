@@ -1,0 +1,108 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: champiq-canvas:local
+    container_name: champiq-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/champiq
+      REDIS_URL: redis://redis:6379/0
+      FERNET_KEY: ${FERNET_KEY}
+      CHAMPMAIL_BASE_URL: ${CHAMPMAIL_BASE_URL:?CHAMPMAIL_BASE_URL is required}
+      CHAMPGRAPH_BASE_URL: ${CHAMPGRAPH_BASE_URL:?CHAMPGRAPH_BASE_URL is required}
+      LAKEB2B_BASE_URL: ${LAKEB2B_BASE_URL:-http://host.docker.internal:8002}
+      CHAMPSERVER_EMAIL: ${CHAMPSERVER_EMAIL:?CHAMPSERVER_EMAIL is required}
+      CHAMPSERVER_PASSWORD: ${CHAMPSERVER_PASSWORD:?CHAMPSERVER_PASSWORD is required}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-anthropic/claude-sonnet-4}
+      OPENROUTER_REFERRER: ${OPENROUTER_REFERRER:-https://champiq.local}
+      OPENROUTER_APP_TITLE: ${OPENROUTER_APP_TITLE:-ChampIQ Canvas}
+    ports:
+      - "8000:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # Cap at 200 MB — the Python API + gzip cache + uvicorn comfortably fit in
+    # ~120 MB peak. 200 MB gives headroom without stealing from the OS page cache.
+    deploy:
+      resources:
+        limits:
+          memory: 200M
+        reservations:
+          memory: 80M
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: champiq-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: champiq
+    # Tuned for a low-RAM dev/single-user setup on an 8 GB host.
+    # shared_buffers=32MB (was 128MB — default is 1/4 of container RAM which
+    # Docker reports as the host total; we don't need that here).
+    # effective_cache_size reflects the OS page cache that Postgres can exploit.
+    # work_mem=2MB prevents runaway sort allocations on simple queries.
+    command: >
+      postgres
+      -c shared_buffers=32MB
+      -c effective_cache_size=128MB
+      -c work_mem=2MB
+      -c maintenance_work_mem=32MB
+      -c max_connections=20
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=4MB
+      -c synchronous_commit=off
+    volumes:
+      - champiq_postgres:/var/lib/postgresql/data
+    ports:
+      - "55432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d champiq"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 80M
+        reservations:
+          memory: 32M
+
+  redis:
+    image: redis:7-alpine
+    container_name: champiq-redis
+    restart: unless-stopped
+    ports:
+      - "56379:6379"
+    # maxmemory: cap at 32 MB. allkeys-lru evicts the least-recently-used key
+    # when full — safe for a pub/sub + session-cache workload where stale entries
+    # can be recomputed. Without maxmemory Redis grows unboundedly until the OOM
+    # killer fires.
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 32mb
+      --maxmemory-policy allkeys-lru
+      --save 900 1
+      --save 300 10
+    volumes:
+      - champiq_redis:/data
+    deploy:
+      resources:
+        limits:
+          memory: 48M
+        reservations:
+          memory: 16M
+
+volumes:
+  champiq_postgres:
+  champiq_redis:

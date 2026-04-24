@@ -42,7 +42,8 @@ interface CanvasStore {
 }
 
 export const useCanvasStore = create<CanvasStore>()(
-  subscribeWithSelector((set) => ({
+  subscribeWithSelector(
+  (set) => ({
     nodes: [],
     edges: [],
     nodeRuntimeStates: {},
@@ -62,7 +63,12 @@ export const useCanvasStore = create<CanvasStore>()(
     setEdges: (edges) => set({ edges }),
 
     onNodesChange: (changes) =>
-      set((s) => ({ nodes: applyNodeChanges(changes, s.nodes) })),
+      set((s) => {
+        const nodes = applyNodeChanges(changes, s.nodes)
+        const nodeIds = new Set(nodes.map((n) => n.id))
+        const edges = s.edges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target))
+        return { nodes, edges }
+      }),
 
     onEdgesChange: (changes) =>
       set((s) => ({ edges: applyEdgeChanges(changes, s.edges) })),

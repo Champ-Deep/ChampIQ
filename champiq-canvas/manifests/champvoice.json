@@ -1,0 +1,94 @@
+{
+  "$schema": "https://champiq.dev/manifest/v2.json",
+  "manifest_version": 2,
+  "tool_id": "champvoice",
+  "name": "ChampVoice",
+  "description": "AI calling agent — initiates outbound ElevenLabs voice calls. Contact data (phone, email, name, company) flows in automatically from the upstream loop/CSV node.",
+  "category": "outreach",
+  "color": "#A855F7",
+  "icon": "phone",
+  "credentials_required": ["champvoice"],
+  "actions": [
+    {
+      "id": "initiate_call",
+      "label": "Initiate Call",
+      "description": "Start an AI voice call. Phone, name, email and company are passed automatically from the upstream loop node — no manual input needed.",
+      "input_schema": {
+        "type": "object",
+        "required": [],
+        "properties": {
+          "agent_id": {
+            "type": "string",
+            "description": "Override the ElevenLabs agent ID for this call (optional — uses credential default if blank)"
+          },
+          "call_reason": {
+            "type": "string",
+            "enum": ["cold_outreach", "email_follow_up", "sequence_completed", "replied_follow_up"],
+            "description": "Context for why this call is being made — shapes the agent's opening"
+          },
+          "script": {
+            "type": "string",
+            "description": "Custom script override injected as ElevenLabs dynamic variable"
+          }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "callId":         {"type": "string"},
+          "conversationId": {"type": "string"},
+          "status":         {"type": "string"},
+          "phone":          {"type": "string"},
+          "lead_name":      {"type": "string"},
+          "email":          {"type": "string"},
+          "company":        {"type": "string"},
+          "duration_seconds": {"type": "integer"},
+          "transcript":     {"type": "array"}
+        }
+      }
+    },
+    {
+      "id": "get_call_status",
+      "label": "Get Call Status",
+      "description": "Fetch the current state of a call including transcript and outcome.",
+      "input_schema": {
+        "type": "object",
+        "required": ["conversation_id"],
+        "properties": {
+          "conversation_id": {
+            "type": "string",
+            "description": "ElevenLabs conversation ID returned by initiate_call"
+          }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "found":           {"type": "boolean"},
+          "conversation_id": {"type": "string"},
+          "status":          {"type": "string"},
+          "transcript":      {"type": "array"},
+          "duration_seconds":{"type": "integer"},
+          "recording_url":   {"type": "string"}
+        }
+      }
+    },
+    {
+      "id": "list_calls",
+      "label": "List Calls",
+      "description": "Retrieve call history filtered by agent.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "agent_id": {"type": "string"}
+        }
+      }
+    }
+  ],
+  "triggers": [
+    {"kind": "event", "event": "call.initiated",   "label": "On Call Initiated"},
+    {"kind": "event", "event": "call.completed",   "label": "On Call Completed"},
+    {"kind": "event", "event": "call.failed",      "label": "On Call Failed"},
+    {"kind": "event", "event": "transcript.ready", "label": "On Transcript Ready"}
+  ]
+}

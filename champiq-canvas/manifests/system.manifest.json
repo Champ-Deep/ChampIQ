@@ -1,0 +1,30 @@
+{
+  "$schema": "https://champiq.dev/manifest/v2.json",
+  "manifest_version": 2,
+  "tool_id": "system",
+  "name": "Core",
+  "description": "Built-in logic and trigger nodes.",
+  "category": "core",
+  "color": "#64748B",
+  "icon": "cog",
+  "credentials_required": [],
+  "nodes": [
+    {"kind": "trigger.manual", "label": "Manual Trigger", "group": "triggers"},
+    {"kind": "trigger.webhook", "label": "Webhook Trigger", "group": "triggers"},
+    {"kind": "trigger.event", "label": "Event Trigger", "group": "triggers"},
+    {"kind": "trigger.cron", "label": "Schedule (Cron)", "group": "triggers"},
+
+    {"kind": "http", "label": "HTTP Request", "group": "data"},
+    {"kind": "set", "label": "Set / Map", "group": "data"},
+    {"kind": "merge", "label": "Merge", "group": "data"},
+
+    {"kind": "if", "label": "If", "group": "control"},
+    {"kind": "switch", "label": "Switch", "group": "control"},
+    {"kind": "loop", "label": "Loop", "group": "control"},
+    {"kind": "split", "label": "Split / A-B", "group": "control"},
+    {"kind": "wait", "label": "Wait", "group": "control"},
+
+    {"kind": "code", "label": "Code", "group": "code"},
+    {"kind": "llm", "label": "LLM (Claude)", "group": "ai"}
+  ]
+}

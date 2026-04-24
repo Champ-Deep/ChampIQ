@@ -1,95 +1,168 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://champiq.io/manifests/champvoice.manifest.json",
-  "title": "ChampVoice Tool Manifest",
-  "description": "Voice qualification tool for prospect calls",
-  "x-champiq": {
-    "tool_id": "champvoice",
-    "version": "0.1.0",
-    "category": "qualification",
-    "status": "active",
-    "canvas": {
-      "node": {
-        "label": "ChampVoice Call",
-        "icon": "Phone",
-        "color": "#A855F7",
-        "accepts_input_from": ["champgraph"]
-      }
-    },
-    "transport": {
-      "rest": {
-        "action": {
-          "endpoint": "/api/champvoice/call",
-          "method": "POST",
-          "button_label": "Start Calls",
-          "async": true
-        },
-        "health": "/api/champvoice/status",
-        "populate": {
-          "scripts": "/api/champvoice/scripts"
-        }
-      },
-      "cli": {
-        "binary": "champvoice",
-        "command": "call",
-        "args": ["--payload", "{payload}"]
-      }
-    }
-  },
-  "type": "object",
-  "properties": {
-    "input": {
-      "type": "object",
-      "description": "Receives prospect list from ChampGraph via edge",
-      "properties": {
-        "prospects": { "type": "array", "items": { "type": "object" } }
-      }
-    },
-    "config": {
-      "type": "object",
-      "title": "Call Configuration",
-      "required": ["script_id", "call_window"],
-      "properties": {
-        "script_id": {
-          "type": "string",
-          "title": "Call Script",
-          "x-champiq-field": { "widget": "select", "populate_from": "scripts" }
-        },
-        "call_window": {
-          "type": "string",
-          "title": "Call Window",
-          "default": "09:00-17:00",
-          "pattern": "^\\d{2}:\\d{2}-\\d{2}:\\d{2}$",
-          "x-champiq-field": { "widget": "text" }
-        },
-        "max_calls": {
-          "type": "integer",
-          "title": "Max Calls Per Day",
-          "minimum": 1,
-          "maximum": 200,
-          "default": 20,
-          "x-champiq-field": { "widget": "number" }
-        }
-      }
-    },
-    "output": {
-      "type": "object",
-      "properties": {
-        "job_id": { "type": "string" },
-        "calls_completed": { "type": "integer" },
-        "calls_failed": { "type": "integer" },
-        "qualification_results": {
-          "type": "array",
-          "items": {
+  "$schema": "https://champiq.dev/manifest/v2.json",
+  "manifest_version": 2,
+  "tool_id": "champvoice",
+  "name": "ChampVoice",
+  "description": "AI calling agent — initiates outbound ElevenLabs voice calls via the champiq-voice gateway. Credentials hold the gateway URL + optional X-Api-Key. Agent ID can be set globally (credential) or overridden per-call (inputs).",
+  "category": "outreach",
+  "color": "#A855F7",
+  "icon": "phone",
+  "credentials_required": ["champvoice"],
+  "actions": [
+    {
+      "id": "initiate_call",
+      "label": "Initiate Call",
+      "description": "Start an AI voice call to a prospect. Sends to the champiq-voice gateway which calls ElevenLabs. agent_id in inputs overrides the credential-level default — use different agents for different call purposes.",
+      "input_schema": {
+        "type": "object",
+        "required": ["to_number"],
+        "properties": {
+          "to_number": {
+            "type": "string",
+            "description": "Destination phone number in E.164 format, e.g. +15551234567"
+          },
+          "lead_name": {
+            "type": "string",
+            "description": "Prospect's full name — injected as ElevenLabs dynamic variable 'lead_name'"
+          },
+          "company": {
+            "type": "string",
+            "description": "Prospect's company — injected as dynamic variable 'company'"
+          },
+          "email": {
+            "type": "string",
+            "description": "Prospect's email — injected as dynamic variable 'email'"
+          },
+          "agent_id": {
+            "type": "string",
+            "description": "ElevenLabs agent ID for this call. Overrides the credential-level default. Use different IDs for cold outreach vs. follow-up vs. qualification agents."
+          },
+          "script": {
+            "type": "string",
+            "description": "Custom script override — injected as dynamic variable 'script'. Overrides the agent's built-in script."
+          },
+          "call_reason": {
+            "type": "string",
+            "enum": ["cold_outreach", "email_follow_up", "sequence_completed", "replied_follow_up"],
+            "description": "Context for why this call is being made — injected as dynamic variable 'call_reason' to shape the agent's opening."
+          },
+          "engagement_status": {
+            "type": "string",
+            "description": "Prospect engagement status from ChampGraph (e.g. 'replied', 'opened') — injected as dynamic variable so the agent can personalize the conversation."
+          },
+          "dynamic_vars": {
             "type": "object",
-            "properties": {
-              "prospect_id": { "type": "string" },
-              "qualified": { "type": "boolean" },
-              "notes": { "type": "string" }
-            }
+            "description": "Additional key-value pairs injected as ElevenLabs dynamic variables. Values must be strings. Merged with lead_name, company, email, call_reason, engagement_status."
+          },
+          "flow_id": {
+            "type": "string",
+            "description": "ChampIQ Canvas flow ID — passed to the gateway so call events reference this flow."
+          },
+          "canvas_node_id": {
+            "type": "string",
+            "description": "Canvas node ID — passed to gateway for call event routing back to this node."
           }
         }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "callId":         {"type": "string", "description": "ChampIQ call ID (call_abc...)"},
+          "conversationId": {"type": "string", "description": "ElevenLabs conversation ID"},
+          "status":         {"type": "string", "enum": ["initiated", "in_progress", "completed", "failed"]}
+        }
+      }
+    },
+    {
+      "id": "get_call_status",
+      "label": "Get Call Status",
+      "description": "Poll the champiq-voice gateway for the current state of a call, including transcript, outcome, and duration.",
+      "input_schema": {
+        "type": "object",
+        "required": ["call_id"],
+        "properties": {
+          "call_id": {
+            "type": "string",
+            "description": "ChampIQ call ID returned by initiate_call (callId field)"
+          }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "callId":          {"type": "string"},
+          "conversationId":  {"type": "string"},
+          "status":          {"type": "string", "enum": ["initiated", "in_progress", "completed", "failed"]},
+          "outcome":         {"type": "string", "enum": ["qualified", "not_qualified", "callback", "voicemail", "no_answer", "unknown"]},
+          "durationSeconds": {"type": "integer"},
+          "recordingUrl":    {"type": "string"},
+          "transcript":      {"type": "array"},
+          "agentId":         {"type": "string"},
+          "found":           {"type": "boolean"}
+        }
+      }
+    },
+    {
+      "id": "list_calls",
+      "label": "List Calls",
+      "description": "Retrieve call history from the gateway. Filter by contact phone or canvas flow ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "contact": {
+            "type": "string",
+            "description": "E.164 phone number to filter by (returns all calls to this contact)"
+          },
+          "flow_id": {
+            "type": "string",
+            "description": "Canvas flow ID to filter by"
+          }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "calls": {"type": "array", "description": "Array of CallNode objects"}
+        }
+      }
+    },
+    {
+      "id": "cancel_call",
+      "label": "Cancel Call",
+      "description": "Not supported — ElevenLabs does not expose a cancellation API for in-flight calls. This action will return an error. Use get_call_status to monitor calls.",
+      "input_schema": {
+        "type": "object",
+        "required": ["call_id"],
+        "properties": {
+          "call_id": {"type": "string"}
+        }
       }
     }
-  }
+  ],
+  "triggers": [
+    {
+      "kind": "event",
+      "event": "call.initiated",
+      "label": "On Call Initiated",
+      "description": "Fires immediately when a call is dispatched to ElevenLabs (before it connects)"
+    },
+    {
+      "kind": "event",
+      "event": "call.completed",
+      "label": "On Call Completed",
+      "description": "Fires when the call ends with outcome: qualified, not_qualified, callback, or voicemail"
+    },
+    {
+      "kind": "event",
+      "event": "call.failed",
+      "label": "On Call Failed",
+      "description": "Fires when ElevenLabs reports a failed/no-answer call"
+    },
+    {
+      "kind": "event",
+      "event": "transcript.ready",
+      "label": "On Transcript Ready",
+      "description": "Fires after call.completed when a transcript is available. Use to route to LLM summary node."
+    }
+  ]
 }

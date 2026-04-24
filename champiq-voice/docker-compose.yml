@@ -1,0 +1,26 @@
+services:
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: champiq-voice-gateway
+    ports:
+      - "${PORT:-3001}:3001"
+    environment:
+      - PORT=3001
+      - REDIS_URL=redis://champiq-redis:6379
+      - NODE_ENV=production
+      - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
+      - ELEVENLABS_AGENT_ID=${ELEVENLABS_AGENT_ID}
+      - ELEVENLABS_PHONE_NUMBER_ID=${ELEVENLABS_PHONE_NUMBER_ID}
+      - ELEVENLABS_WEBHOOK_SECRET=${ELEVENLABS_WEBHOOK_SECRET:-}
+      - CANVAS_WEBHOOK_URL=${CANVAS_WEBHOOK_URL:-}
+      - CANVAS_WEBHOOK_SECRET=${CANVAS_WEBHOOK_SECRET:-}
+      - GATEWAY_API_KEY=${GATEWAY_API_KEY:-}
+    networks:
+      - champiq-canvas_default
+    restart: unless-stopped
+
+networks:
+  champiq-canvas_default:
+    external: true
