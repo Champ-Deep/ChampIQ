@@ -27,6 +27,17 @@ class LoopExecutor(NodeExecutor):
 
     async def execute(self, ctx: NodeContext) -> NodeResult:
         items = ctx.render(ctx.config.get("items", []))
+
+        # If no items expression configured, auto-detect from upstream input.
+        # Handles the case where the loop node has empty config ({}) but the
+        # trigger passed payload.items from a CSV upload.
+        if not items and isinstance(ctx.input, dict):
+            payload = ctx.input.get("payload") or {}
+            if isinstance(payload, dict) and isinstance(payload.get("items"), list):
+                items = payload["items"]
+            elif isinstance(ctx.input.get("items"), list):
+                items = ctx.input["items"]
+
         if not isinstance(items, list):
             raise TypeError("loop.items must render to a list")
 

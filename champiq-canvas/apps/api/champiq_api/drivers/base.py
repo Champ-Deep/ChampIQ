@@ -105,10 +105,18 @@ class ToolNodeExecutor(NodeExecutor):
             raise ValueError(f"{self.kind}: node is missing 'action' in config")
 
         raw_inputs = ctx.config.get("inputs", {}) or {}
-        # Merge upstream input under an 'input' key for expression access.
         rendered = ctx.render(raw_inputs)
         if not isinstance(rendered, dict):
             raise TypeError(f"{self.kind}: inputs must render to a dict, got {type(rendered).__name__}")
+
+        # Merge the loop item fields directly into inputs so contact data
+        # (phone, email, first_name, company etc.) flows through automatically
+        # without needing explicit expressions in the node config.
+        expr_ctx = ctx.expression_context()
+        item = expr_ctx.get("item")
+        if isinstance(item, dict):
+            # Item fields are the base; node config inputs override them
+            rendered = {**item, **rendered}
 
         cred_name = ctx.config.get("credential") or ""
         credentials: dict[str, Any] = {}

@@ -99,8 +99,12 @@ class ChampVoiceDriver(HttpToolDriver):
         to_number = (
             inputs.get("to_number")
             or inputs.get("phone_number")
+            or inputs.get("phone")
             or ""
         )
+        # Ensure E.164 format
+        if to_number and not str(to_number).startswith("+"):
+            to_number = f"+{to_number}"
         if not to_number:
             raise ValueError("champvoice.initiate_call: 'to_number' is required")
 
