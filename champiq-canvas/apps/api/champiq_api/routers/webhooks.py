@@ -26,8 +26,10 @@ async def tool_webhook(tool_id: str, request: Request):
     canonical = driver.parse_webhook(body)
     if canonical is None:
         return {"ignored": True}
-    await container.event_bus.publish(canonical["event"], canonical["data"])
-    return {"published": canonical["event"]}
+    event = canonical["event"]
+    payload = {k: v for k, v in canonical.items() if k != "event"}
+    await container.event_bus.publish(event, payload)
+    return {"published": event}
 
 
 @router.post("/webhooks/wf/{workflow_id}/{trigger_id}")
