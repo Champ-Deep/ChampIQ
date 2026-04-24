@@ -1,7 +1,9 @@
 import { create } from 'zustand'
-import { subscribeWithSelector } from 'zustand/middleware'
+import { subscribeWithSelector, persist } from 'zustand/middleware'
 import { type Node, type Edge, applyNodeChanges, applyEdgeChanges } from '@xyflow/react'
 import type { NodeRuntimeState, LogEntry, ChampIQManifest, CanvasMeta } from '@/types'
+
+const PERSIST_KEY = 'champiq:canvas'
 
 interface CanvasStore {
   // ── Canvas content ────────────────────────────────────────────────────────
@@ -42,7 +44,9 @@ interface CanvasStore {
 }
 
 export const useCanvasStore = create<CanvasStore>()(
-  subscribeWithSelector((set) => ({
+  subscribeWithSelector(
+  persist(
+  (set) => ({
     nodes: [],
     edges: [],
     nodeRuntimeStates: {},
@@ -108,5 +112,17 @@ export const useCanvasStore = create<CanvasStore>()(
           n.id === nodeId ? { ...n, data: { ...n.data, config } } : n
         ),
       })),
-  }))
+  }),
+  {
+    name: PERSIST_KEY,
+    // Only persist canvas content — not runtime/UI state
+    partialize: (s) => ({
+      nodes: s.nodes,
+      edges: s.edges,
+      canvasName: s.canvasName,
+      canvasList: s.canvasList,
+      currentCanvasId: s.currentCanvasId,
+    }),
+  }
+  ))
 )
