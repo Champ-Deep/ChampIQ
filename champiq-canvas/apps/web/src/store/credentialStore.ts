@@ -22,12 +22,10 @@ export const CREDENTIAL_TYPE_FIELDS: Record<CredentialType, { key: string; label
     { key: 'password', label: 'Password', secret: true },
   ],
   champvoice: [
-    { key: 'gateway_url', label: 'Gateway URL (champiq-voice server)', },
-    { key: 'api_key', label: 'Gateway API Key (optional — X-Api-Key header)', secret: true },
     { key: 'elevenlabs_api_key', label: 'ElevenLabs API Key', secret: true },
-    { key: 'agent_id', label: 'ElevenLabs Agent ID (default — can override per call)', },
+    { key: 'agent_id', label: 'ElevenLabs Agent ID', },
     { key: 'phone_number_id', label: 'ElevenLabs Phone Number ID', },
-    { key: 'canvas_webhook_secret', label: 'Canvas Webhook Secret (optional — for signature verification)', secret: true },
+    { key: 'canvas_webhook_secret', label: 'Webhook Secret (optional — for signature verification)', secret: true },
   ],
   lakeb2b: [
     { key: 'api_key', label: 'API Key', secret: true },

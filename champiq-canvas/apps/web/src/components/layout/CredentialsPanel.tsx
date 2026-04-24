@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Trash2, Eye, EyeOff, ChevronDown, ChevronUp, Copy, Check } from '@/lib/icons'
+import { Plus, Trash2, Eye, EyeOff, ChevronDown, ChevronUp } from '@/lib/icons'
 import {
   useCredentialStore,
   CREDENTIAL_TYPE_FIELDS,
@@ -89,9 +89,14 @@ function AddCredentialForm({ initialType, onDone }: { initialType?: CredentialTy
         </div>
       ))}
 
-      {/* ChampVoice: show derived webhook URL as soon as gateway_url is entered */}
-      {type === 'champvoice' && fields['gateway_url'] && (
-        <WebhookUrlBanner gatewayUrl={fields['gateway_url']} />
+      {/* ChampVoice: show ElevenLabs webhook URL hint */}
+      {type === 'champvoice' && (
+        <p className="text-xs px-1" style={{ color: 'var(--text-3)' }}>
+          In ElevenLabs agent settings, set the post-call webhook to:<br />
+          <span className="font-mono" style={{ color: '#818cf8' }}>
+            https://champiq-production.up.railway.app/api/webhooks/tools/champvoice
+          </span>
+        </p>
       )}
 
       {/* Show/hide secrets */}
@@ -126,59 +131,12 @@ function AddCredentialForm({ initialType, onDone }: { initialType?: CredentialTy
   )
 }
 
-// ── Webhook URL Banner (ChampVoice only) ─────────────────────────────────────
-
-function WebhookUrlBanner({ gatewayUrl }: { gatewayUrl: string }) {
-  const [copied, setCopied] = useState(false)
-  const webhookUrl = `${gatewayUrl.replace(/\/$/, '')}/v1/webhook`
-
-  function handleCopy() {
-    navigator.clipboard.writeText(webhookUrl).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    })
-  }
-
-  return (
-    <div
-      className="flex flex-col gap-1.5 rounded-md p-2.5 mt-2"
-      style={{ background: 'var(--bg-surface)', border: '1px solid #6366f133' }}
-    >
-      <p className="text-xs font-semibold" style={{ color: '#818cf8' }}>
-        ElevenLabs Post-Call Webhook URL
-      </p>
-      <p className="text-xs" style={{ color: 'var(--text-3)' }}>
-        Paste this into your ElevenLabs agent → Settings → Post-call webhook
-      </p>
-      <div className="flex items-center gap-1.5">
-        <span
-          className="flex-1 text-xs font-mono truncate px-2 py-1 rounded"
-          style={{ background: 'var(--bg-sidebar)', color: 'var(--text-1)', border: '1px solid var(--border)' }}
-          title={webhookUrl}
-        >
-          {webhookUrl}
-        </span>
-        <button
-          onClick={handleCopy}
-          className="shrink-0 p-1 rounded-md flex items-center gap-1 text-xs font-medium"
-          style={{ background: copied ? '#22c55e22' : '#6366f122', color: copied ? '#22c55e' : '#818cf8', border: `1px solid ${copied ? '#22c55e44' : '#6366f144'}` }}
-          title="Copy webhook URL"
-        >
-          {copied ? <Check size={11} /> : <Copy size={11} />}
-          {copied ? 'Copied' : 'Copy'}
-        </button>
-      </div>
-    </div>
-  )
-}
-
 // ── Credential Card ───────────────────────────────────────────────────────────
 
 function CredentialCard({ cred }: { cred: Credential }) {
   const { deleteCredential } = useCredentialStore()
   const [expanded, setExpanded] = useState(false)
   const filledKeys = Object.keys(cred.fields).filter((k) => cred.fields[k])
-  const gatewayUrl = cred.type === 'champvoice' ? cred.fields['gateway_url'] : undefined
 
   return (
     <div
@@ -218,7 +176,6 @@ function CredentialCard({ cred }: { cred: Credential }) {
               </div>
             ))
           )}
-          {gatewayUrl && <WebhookUrlBanner gatewayUrl={gatewayUrl} />}
         </div>
       )}
     </div>

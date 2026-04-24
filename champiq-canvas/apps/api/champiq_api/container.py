@@ -70,8 +70,7 @@ def get_container() -> Container:
     drivers = {
         "champmail":    ChampmailDriver(settings.champmail_base_url),
         "champgraph":   ChampGraphDriver(settings.champgraph_base_url),
-        # ChampVoice gateway URL is the fallback; credentials["gateway_url"] overrides at runtime
-        "champvoice":   ChampVoiceDriver(settings.champvoice_gateway_url),
+        "champvoice":   ChampVoiceDriver(""),  # calls ElevenLabs directly; no gateway needed
         "lakeb2b_pulse": LakebPulseDriver(settings.lakeb2b_base_url),
     }
     for driver in drivers.values():

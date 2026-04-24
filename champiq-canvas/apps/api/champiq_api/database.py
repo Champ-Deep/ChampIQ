@@ -13,10 +13,6 @@ class Settings(BaseSettings):
     champmail_base_url: str = "http://localhost:8001"
     champgraph_base_url: str = "http://localhost:8002"
     lakeb2b_base_url: str = "http://localhost:8003"
-    # champiq-voice gateway (Voice-Qualified-Template-main) default URL.
-    # Credentials stored in the credential store can override this per-call
-    # via credentials["gateway_url"]. Set CHAMPVOICE_GATEWAY_URL in .env.
-    champvoice_gateway_url: str = "http://localhost:3001"
 
     champserver_email: str = ""
     champserver_password: str = ""
