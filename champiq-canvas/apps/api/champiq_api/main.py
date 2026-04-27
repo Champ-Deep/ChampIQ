@@ -112,6 +112,7 @@ _CONTENT_TYPES: dict[str, str] = {
     ".png": "image/png",
     ".jpg": "image/jpeg",
     ".webp": "image/webp",
+    ".zip": "application/zip",
 }
 
 
