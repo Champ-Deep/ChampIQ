@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .container import get_container
-from .routers import canvas, chat, credentials, events_ws, jobs, registry, tools, uploads, webhooks, workflows
+from .routers import auth_lakeb2b, canvas, chat, credentials, events_ws, jobs, registry, tools, uploads, webhooks, workflows
 
 
 @asynccontextmanager
@@ -52,6 +52,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth_lakeb2b.router, prefix="/api")
 app.include_router(canvas.router, prefix="/api")
 app.include_router(registry.router, prefix="/api")
 app.include_router(tools.router, prefix="/api")

@@ -28,7 +28,9 @@ export const CREDENTIAL_TYPE_FIELDS: Record<CredentialType, { key: string; label
     { key: 'canvas_webhook_secret', label: 'Webhook Secret (optional — for signature verification)', secret: true },
   ],
   lakeb2b: [
-    { key: 'api_key', label: 'API Key', secret: true },
+    // Fields managed by the LakeB2B login flow — not manually entered
+    { key: 'access_token', label: 'Access Token (auto-filled)', secret: true },
+    { key: 'linkedin_connected', label: 'LinkedIn Connected', },
   ],
   http: [
     { key: 'token', label: 'Bearer Token', secret: true },

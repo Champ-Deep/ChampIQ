@@ -43,6 +43,7 @@ import {
   Activity,
   // Graph / general purpose
   Network,
+  ExternalLink,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -99,5 +100,5 @@ export {
   Box, X, Plus, Trash2, Save, Play, Send, Copy, Check,
   ChevronDown, ChevronUp, Paperclip, Key, Eye, EyeOff,
   Loader2, Moon, Sun, ZoomIn, ZoomOut, Sparkles, Bot, User,
-  Network, Activity, Phone, Mail, Settings,
+  Network, Activity, Phone, Mail, Settings, ExternalLink,
 }

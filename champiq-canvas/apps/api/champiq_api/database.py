@@ -12,7 +12,7 @@ class Settings(BaseSettings):
 
     champmail_base_url: str = "http://localhost:8001"
     champgraph_base_url: str = "http://localhost:8002"
-    lakeb2b_base_url: str = "http://localhost:8003"
+    lakeb2b_base_url: str = "https://b2b-pulse.up.railway.app"
 
     champserver_email: str = ""
     champserver_password: str = ""
