@@ -71,7 +71,7 @@ def get_container() -> Container:
         "champmail":    ChampmailDriver(settings.champmail_base_url),
         "champgraph":   ChampGraphDriver(settings.champgraph_base_url),
         "champvoice":   ChampVoiceDriver(""),  # calls ElevenLabs directly; no gateway needed
-        "lakeb2b_pulse": LakebPulseDriver(settings.lakeb2b_base_url),
+        "lakeb2b_pulse": LakebPulseDriver("https://b2b-pulse.up.railway.app"),
     }
     for driver in drivers.values():
         registry.register(ToolNodeExecutor(driver))
