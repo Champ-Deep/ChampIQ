@@ -1,54 +1,47 @@
 """LakeB2B Pulse auth proxy.
 
-Keeps tokens server-side — browser never sees raw JWTs.
-All calls go through here; the frontend only stores a credential_id.
+B2B Pulse authenticates users via LinkedIn OAuth only (no email/password).
 
-Routes:
-    POST /api/auth/lakeb2b/login
-        → proxies to b2b-pulse /api/auth/linkedin (email+password login)
-        → stores encrypted {access_token, refresh_token} as a credential
-        → returns {credential_id, name}
+Auth flow:
+    1. GET  /api/auth/lakeb2b/oauth-url
+          → fetches LinkedIn OAuth URL from b2b-pulse
+          → returns {auth_url, state} to frontend
 
-    POST /api/auth/lakeb2b/linkedin-cookie
-        → takes {credential_id, li_at}
-        → posts li_at to b2b-pulse /api/integrations/linkedin/session-cookies
-          using the stored access_token
-        → updates credential with linkedin_connected: true
+    2. Frontend opens auth_url in a popup → user approves LinkedIn OAuth
+          → B2B Pulse callback at /api/auth/linkedin/callback
+          → B2B Pulse redirects to our callback:
+            /api/auth/lakeb2b/callback?token=<jwt>&refresh_token=<refresh>
 
-    GET /api/auth/lakeb2b/status/{credential_id}
-        → checks b2b-pulse /api/integrations/status using stored token
-        → returns {pulse_connected, linkedin_connected}
+    3. GET  /api/auth/lakeb2b/callback?token=...&refresh_token=...&name=...
+          → stores encrypted {access_token, refresh_token} as credential
+          → returns {credential_id} (popup can postMessage this to parent)
+
+    4. POST /api/auth/lakeb2b/linkedin-cookie
+          → takes {credential_id, li_at}
+          → posts li_at to b2b-pulse for LinkedIn scraping session
+
+    5. GET  /api/auth/lakeb2b/status/{credential_id}
+          → checks live connection status
 """
 from __future__ import annotations
 
 import json
+from urllib.parse import urlencode
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..container import get_container
 from ..credentials import CredentialService
-from ..database import get_db, get_settings
+from ..database import get_db
 from ..models import CredentialTable
 
 router = APIRouter(prefix="/auth/lakeb2b", tags=["lakeb2b-auth"])
 
 B2B_PULSE = "https://b2b-pulse.up.railway.app"
-
-
-# ── Request / Response models ─────────────────────────────────────────────────
-
-class LoginRequest(BaseModel):
-    name: str           # credential name chosen by user
-    email: str
-    password: str
-
-
-class LinkedInCookieRequest(BaseModel):
-    credential_id: int
-    li_at: str
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -61,49 +54,63 @@ async def _get_credential(credential_id: int, db: AsyncSession) -> CredentialTab
 
 
 def _decrypt(row: CredentialTable) -> dict:
-    container = get_container()
-    return json.loads(container.crypto.decrypt(row.data_encrypted))
+    return json.loads(get_container().crypto.decrypt(row.data_encrypted))
 
 
-def _encrypt(data: dict) -> str:
-    container = get_container()
-    return container.crypto.encrypt(json.dumps(data))
+# ── Request models ────────────────────────────────────────────────────────────
+
+class LinkedInCookieRequest(BaseModel):
+    credential_id: int
+    li_at: str
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 
-@router.post("/login")
-async def lakeb2b_login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
-    """Log into B2B Pulse and store encrypted JWT as a credential."""
-    async with httpx.AsyncClient(timeout=20.0) as client:
-        resp = await client.post(
-            f"{B2B_PULSE}/api/auth/linkedin",
-            json={"email": body.email, "password": body.password},
-        )
+@router.get("/oauth-url")
+async def get_oauth_url(name: str = Query(default="lakeb2b-pulse")):
+    """Fetch LinkedIn OAuth URL from B2B Pulse and return it to the frontend."""
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        resp = await client.get(f"{B2B_PULSE}/api/auth/linkedin")
 
-    if resp.status_code == 401:
-        raise HTTPException(401, "Invalid B2B Pulse email or password")
     if resp.status_code >= 400:
         raise HTTPException(502, f"B2B Pulse error {resp.status_code}: {resp.text[:200]}")
 
     data = resp.json()
-    access_token = data.get("access_token") or data.get("token") or ""
-    refresh_token = data.get("refresh_token", "")
+    auth_url = data.get("auth_url", "")
+    if not auth_url:
+        raise HTTPException(502, "B2B Pulse did not return an auth_url")
 
-    if not access_token:
-        raise HTTPException(502, "B2B Pulse did not return an access token")
+    return {"auth_url": auth_url, "name": name}
+
+
+@router.get("/callback")
+async def oauth_callback(
+    token: str = Query(default=""),
+    access_token: str = Query(default=""),
+    refresh_token: str = Query(default=""),
+    name: str = Query(default="lakeb2b-pulse"),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Receive JWT from B2B Pulse OAuth callback.
+    B2B Pulse redirects here after successful LinkedIn login.
+    Stores credential and closes the popup via postMessage.
+    """
+    # B2B Pulse may return token as `token` or `access_token`
+    jwt = token or access_token
+    if not jwt:
+        return HTMLResponse(_popup_html(error="No token received from B2B Pulse"))
 
     credential_data = {
-        "access_token": access_token,
+        "access_token": jwt,
         "refresh_token": refresh_token,
         "linkedin_connected": False,
-        "email": body.email,
     }
 
     svc = CredentialService(db, get_container().crypto)
-    row = await svc.create(body.name, "lakeb2b", credential_data)
+    row = await svc.create(name, "lakeb2b", credential_data)
 
-    return {"credential_id": row.id, "name": row.name, "linkedin_connected": False}
+    return HTMLResponse(_popup_html(credential_id=row.id, name=row.name))
 
 
 @router.post("/linkedin-cookie")
@@ -114,7 +121,7 @@ async def save_linkedin_cookie(body: LinkedInCookieRequest, db: AsyncSession = D
 
     access_token = creds.get("access_token") or creds.get("jwt", "")
     if not access_token:
-        raise HTTPException(400, "Credential has no access_token — log into B2B Pulse first")
+        raise HTTPException(400, "Credential has no access_token — complete LinkedIn OAuth first")
 
     async with httpx.AsyncClient(timeout=20.0) as client:
         resp = await client.post(
@@ -135,7 +142,7 @@ async def save_linkedin_cookie(body: LinkedInCookieRequest, db: AsyncSession = D
 
 @router.get("/status/{credential_id}")
 async def lakeb2b_status(credential_id: int, db: AsyncSession = Depends(get_db)):
-    """Check B2B Pulse + LinkedIn connection status for a credential."""
+    """Check B2B Pulse + LinkedIn connection status."""
     row = await _get_credential(credential_id, db)
     creds = _decrypt(row)
 
@@ -143,7 +150,6 @@ async def lakeb2b_status(credential_id: int, db: AsyncSession = Depends(get_db))
     pulse_connected = bool(access_token)
     linkedin_connected = creds.get("linkedin_connected", False)
 
-    # Verify token still valid + check live LinkedIn status
     if pulse_connected:
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
@@ -167,3 +173,31 @@ async def lakeb2b_status(credential_id: int, db: AsyncSession = Depends(get_db))
         "pulse_connected": pulse_connected,
         "linkedin_connected": linkedin_connected,
     }
+
+
+# ── Popup HTML helper ─────────────────────────────────────────────────────────
+
+def _popup_html(credential_id: int | None = None, name: str = "", error: str = "") -> str:
+    """Returns a minimal HTML page that postMessages the result to the opener and closes."""
+    if error:
+        msg = f'{{"type": "LAKEB2B_AUTH_ERROR", "error": {json.dumps(error)}}}'
+    else:
+        msg = f'{{"type": "LAKEB2B_AUTH_SUCCESS", "credential_id": {credential_id}, "name": {json.dumps(name)}}}'
+
+    return f"""<!DOCTYPE html>
+<html>
+<head><title>Connecting...</title></head>
+<body>
+<script>
+  try {{
+    if (window.opener) {{
+      window.opener.postMessage({msg}, '*');
+    }}
+  }} catch(e) {{}}
+  window.close();
+</script>
+<p style="font-family:sans-serif;text-align:center;margin-top:40px;color:#666;">
+  {'Connected! Closing...' if not error else f'Error: {error}'}
+</p>
+</body>
+</html>"""

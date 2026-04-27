@@ -29,8 +29,7 @@ export const CREDENTIAL_TYPE_FIELDS: Record<CredentialType, { key: string; label
   ],
   lakeb2b: [
     // Fields managed by the LakeB2B login flow — not manually entered
-    { key: 'access_token', label: 'Access Token (auto-filled)', secret: true },
-    { key: 'linkedin_connected', label: 'LinkedIn Connected', },
+    { key: 'credential_id', label: 'Server Credential ID (auto-filled)' },
   ],
   http: [
     { key: 'token', label: 'Bearer Token', secret: true },
