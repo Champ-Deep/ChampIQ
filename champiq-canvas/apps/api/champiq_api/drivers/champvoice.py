@@ -169,7 +169,8 @@ class ChampVoiceDriver(HttpToolDriver):
             "conversationId": conversation_id,
             "status": final_status,
             "phone": to_number,
-            "lead_name": dynamic_vars.get("lead_name") or dynamic_vars.get("first_name", ""),
+            "lead_name": (dynamic_vars.get("lead_name") or dynamic_vars.get("first_name")
+                          or inputs.get("first_name") or inputs.get("lead_name", "")),
             "email": dynamic_vars.get("email", ""),
             "company": dynamic_vars.get("company", ""),
             "duration_seconds": duration_seconds,
