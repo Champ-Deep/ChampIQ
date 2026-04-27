@@ -1,13 +1,15 @@
 /**
  * ChampIQ LakeB2B Connector — Background Service Worker
  *
- * Flow:
- *   1. B2B Pulse OAuth popup lands on /auth/callback#access_token=<jwt>
- *   2. We capture token, close popup, send LAKEB2B_AUTH_TOKEN to ChampIQ tab
- *   3. ChampIQ saves the credential (gets credential_id back via postMessage)
- *   4. ChampIQ tab tells us the credential_id via LAKEB2B_SAVE_LI_AT
- *   5. We read li_at from linkedin.com cookies and POST it to ChampIQ backend
- *      → no manual copy-paste needed
+ * When B2B Pulse OAuth popup lands on /auth/callback#access_token=..., we:
+ *   1. Extract the token from the hash
+ *   2. Immediately read li_at from linkedin.com cookies (while token is still fresh)
+ *   3. Close the popup
+ *   4. Send LAKEB2B_AUTH_TOKEN (with li_at included) to the ChampIQ tab
+ *
+ * The frontend then calls /api/auth/lakeb2b/callback with token + li_at together
+ * so the backend can save the credential AND call session-cookies in one go,
+ * while the token is guaranteed fresh.
  */
 
 const CHAMPIQ_ORIGINS = [
@@ -21,19 +23,8 @@ const CHAMPIQ_ORIGINS = [
   'localhost:8000',
 ]
 
-const CHAMPIQ_API = 'https://champiq-production.up.railway.app'
-
 function isChampIQTab(url) {
   return CHAMPIQ_ORIGINS.some(o => url.includes(o))
-}
-
-function getChampIQOrigin(url) {
-  for (const o of CHAMPIQ_ORIGINS) {
-    if (url.includes(o)) {
-      return url.startsWith('https') ? `https://${o}` : `http://${o}`
-    }
-  }
-  return CHAMPIQ_API
 }
 
 function extractHashParams(url) {
@@ -51,7 +42,7 @@ function extractHashParams(url) {
   }
 }
 
-// Step 1 & 2: Watch for OAuth callback, capture token, close popup
+// Watch for B2B Pulse OAuth callback redirect
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   const url = changeInfo.url || tab.url
   if (!url) return
@@ -61,22 +52,32 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (!token || token.length < 20) return
   if (!pathname.includes('/auth/callback') && !pathname.includes('/callback') && pathname !== '/login') return
 
+  // Close the popup immediately
   chrome.tabs.remove(tabId).catch(() => {})
 
-  chrome.tabs.query({}, (tabs) => {
-    for (const t of tabs) {
-      if (t.id && t.url && isChampIQTab(t.url)) {
-        chrome.tabs.sendMessage(t.id, {
-          type: 'LAKEB2B_AUTH_TOKEN',
-          token,
-          refresh_token: refreshToken,
-        }).catch(() => {})
-      }
+  // Read li_at from LinkedIn cookies right now — token is fresh at this moment
+  chrome.cookies.get({ url: 'https://www.linkedin.com', name: 'li_at' }, (cookie) => {
+    const li_at = cookie?.value || ''
+
+    const message = {
+      type: 'LAKEB2B_AUTH_TOKEN',
+      token,
+      refresh_token: refreshToken,
+      li_at,  // included so frontend can save it immediately while token is fresh
     }
+
+    // Broadcast to all ChampIQ tabs
+    chrome.tabs.query({}, (tabs) => {
+      for (const t of tabs) {
+        if (t.id && t.url && isChampIQTab(t.url)) {
+          chrome.tabs.sendMessage(t.id, message).catch(() => {})
+        }
+      }
+    })
   })
 })
 
-// Step 4 & 5: ChampIQ tab sends credential_id after saving — we fetch li_at and POST it
+// Handle explicit LAKEB2B_SAVE_LI_AT requests (from Reconnect LinkedIn button)
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'LAKEB2B_PING_BG') {
     sendResponse({ ok: true })
@@ -85,23 +86,20 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   if (msg.type === 'LAKEB2B_SAVE_LI_AT') {
     const { credential_id, champiq_origin } = msg
-    const apiBase = champiq_origin || CHAMPIQ_API
+    const apiBase = champiq_origin || 'https://champiq-production.up.railway.app'
 
-    // Read li_at cookie from linkedin.com
     chrome.cookies.get({ url: 'https://www.linkedin.com', name: 'li_at' }, async (cookie) => {
-      if (!cookie || !cookie.value) {
-        // li_at not found — notify the tab
+      if (!cookie?.value) {
         if (sender.tab?.id) {
           chrome.tabs.sendMessage(sender.tab.id, {
             type: 'LAKEB2B_LI_AT_RESULT',
             success: false,
-            error: 'LinkedIn li_at cookie not found. Please open linkedin.com and log in first.',
+            error: 'LinkedIn li_at cookie not found. Make sure you are logged into LinkedIn in this browser.',
           }).catch(() => {})
         }
         return
       }
 
-      // POST li_at to ChampIQ backend
       try {
         const res = await fetch(`${apiBase}/api/auth/lakeb2b/linkedin-cookie`, {
           method: 'POST',

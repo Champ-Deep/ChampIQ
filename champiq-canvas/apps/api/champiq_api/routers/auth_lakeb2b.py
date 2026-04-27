@@ -89,22 +89,38 @@ async def oauth_callback(
     access_token: str = Query(default=""),
     refresh_token: str = Query(default=""),
     name: str = Query(default="lakeb2b-pulse"),
+    li_at: str = Query(default=""),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Receive JWT from B2B Pulse OAuth callback.
-    B2B Pulse redirects here after successful LinkedIn login.
-    Stores credential and closes the popup via postMessage.
+    Optionally accepts li_at cookie to save LinkedIn session immediately
+    while the token is guaranteed fresh.
     """
-    # B2B Pulse may return token as `token` or `access_token`
     jwt = token or access_token
     if not jwt:
         return HTMLResponse(_popup_html(error="No token received from B2B Pulse"))
 
+    linkedin_connected = False
+
+    # If li_at provided, save it to B2B Pulse immediately while token is fresh
+    if li_at:
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                resp = await client.post(
+                    f"{B2B_PULSE}/api/integrations/linkedin/session-cookies",
+                    json={"li_at": li_at},
+                    headers={"Authorization": f"Bearer {jwt}"},
+                )
+            if resp.status_code == 200:
+                linkedin_connected = True
+        except Exception:
+            pass  # Save credential anyway; user can reconnect via the card button
+
     credential_data = {
         "access_token": jwt,
         "refresh_token": refresh_token,
-        "linkedin_connected": False,
+        "linkedin_connected": linkedin_connected,
     }
 
     svc = CredentialService(db, get_container().crypto)

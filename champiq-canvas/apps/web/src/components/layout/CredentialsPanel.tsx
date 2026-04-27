@@ -38,11 +38,14 @@ function LakeB2BLoginFlow({ onDone }: { onDone: () => void }) {
   const [error, setError] = useState('')
   const [liAtStatus, setLiAtStatus] = useState<'pending' | 'ok' | 'error'>('pending')
 
-  async function saveToken(token: string, refreshToken: string) {
+  async function saveToken(token: string, refreshToken: string, li_at: string) {
     const credName = name.trim()
-    await fetch(
-      `/api/auth/lakeb2b/callback?token=${encodeURIComponent(token)}&refresh_token=${encodeURIComponent(refreshToken)}&name=${encodeURIComponent(credName)}`
-    )
+
+    // Save credential server-side. Pass li_at too so backend can call session-cookies
+    // immediately while token is guaranteed fresh (extension captured both together).
+    const url = `/api/auth/lakeb2b/callback?token=${encodeURIComponent(token)}&refresh_token=${encodeURIComponent(refreshToken)}&name=${encodeURIComponent(credName)}${li_at ? `&li_at=${encodeURIComponent(li_at)}` : ''}`
+    await fetch(url)
+
     const credsRes = await fetch('/api/credentials')
     const creds = await credsRes.json()
     const latest = Array.isArray(creds)
@@ -52,34 +55,31 @@ function LakeB2BLoginFlow({ onDone }: { onDone: () => void }) {
     setCredentialId(latest.id)
     addCredential(latest.name || credName, 'lakeb2b', { credential_id: String(latest.id) })
 
-    // Tell the extension to read li_at from LinkedIn cookies and POST it to our backend
-    setStep('li_at')
-    setLiAtStatus('pending')
-
-    // Listen for the result from the extension
-    const liAtHandler = (ev: MessageEvent) => {
-      if (ev.data?.type !== 'LAKEB2B_LI_AT_RESULT') return
-      window.removeEventListener('message', liAtHandler)
-      if (ev.data.success) {
-        setLiAtStatus('ok')
-        setTimeout(() => setStep('done'), 800)
-      } else {
-        setLiAtStatus('error')
-        setError(ev.data.error || 'Could not capture LinkedIn session')
+    if (li_at) {
+      // li_at was captured by extension and saved atomically — done
+      setStep('done')
+    } else {
+      // No li_at yet — show the li_at step and ask extension to capture it now
+      setStep('li_at')
+      setLiAtStatus('pending')
+      const liAtHandler = (ev: MessageEvent) => {
+        if (ev.data?.type !== 'LAKEB2B_LI_AT_RESULT') return
+        window.removeEventListener('message', liAtHandler)
+        if (ev.data.success) {
+          setLiAtStatus('ok')
+          setTimeout(() => setStep('done'), 800)
+        } else {
+          setLiAtStatus('error')
+          setError(ev.data.error || 'Could not capture LinkedIn session')
+        }
       }
-    }
-    window.addEventListener('message', liAtHandler)
-
-    // Trigger the extension to capture li_at (content script forwards to background)
-    window.postMessage({ type: 'LAKEB2B_SAVE_LI_AT', credential_id: latest.id }, '*')
-
-    // Timeout fallback: if extension doesn't respond in 5s, still proceed
-    setTimeout(() => {
-      window.removeEventListener('message', liAtHandler)
-      if (liAtStatus === 'pending') {
+      window.addEventListener('message', liAtHandler)
+      window.postMessage({ type: 'LAKEB2B_SAVE_LI_AT', credential_id: latest.id }, '*')
+      setTimeout(() => {
+        window.removeEventListener('message', liAtHandler)
         setStep('done')
-      }
-    }, 5000)
+      }, 5000)
+    }
   }
 
   async function handleLinkedInLogin() {
@@ -108,11 +108,11 @@ function LakeB2BLoginFlow({ onDone }: { onDone: () => void }) {
         if (!keepLoading) setLoading(false)
       }
 
-      const onToken = async (token: string, refresh: string) => {
+      const onToken = async (token: string, refresh: string, li_at: string) => {
         cleanup(true)
         popup?.close()
         try {
-          await saveToken(token, refresh)
+          await saveToken(token, refresh, li_at)
         } catch {
           setError('Failed to save credential. Try again.')
           setStep('login')
@@ -120,10 +120,10 @@ function LakeB2BLoginFlow({ onDone }: { onDone: () => void }) {
         setLoading(false)
       }
 
-      // postMessage from /auth/callback (popup path)
+      // postMessage from /auth/callback or extension (includes li_at captured simultaneously)
       const msgHandler = (ev: MessageEvent) => {
         if (ev.data?.type === 'LAKEB2B_AUTH_TOKEN' && ev.data.token) {
-          onToken(ev.data.token, ev.data.refresh_token || '')
+          onToken(ev.data.token, ev.data.refresh_token || '', ev.data.li_at || '')
         }
       }
       window.addEventListener('message', msgHandler)
@@ -131,7 +131,7 @@ function LakeB2BLoginFlow({ onDone }: { onDone: () => void }) {
       // BroadcastChannel from /auth/callback (tab-redirect path)
       const bcHandler = (ev: MessageEvent) => {
         if (ev.data?.type === 'LAKEB2B_AUTH_TOKEN' && ev.data.token) {
-          onToken(ev.data.token, ev.data.refresh_token || '')
+          onToken(ev.data.token, ev.data.refresh_token || '', ev.data.li_at || '')
         }
       }
       bc.addEventListener('message', bcHandler)
