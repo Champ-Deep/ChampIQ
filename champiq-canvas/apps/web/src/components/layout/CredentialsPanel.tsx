@@ -84,7 +84,7 @@ function LakeB2BLoginFlow({ onDone }: { onDone: () => void }) {
     setError('')
     try {
       const res = await fetch(`/api/auth/lakeb2b/oauth-url?name=${encodeURIComponent(name.trim())}`)
-      if (!res.ok) throw new Error(`Failed to get OAuth URL (${res.status})`)
+      if (!res.ok) throw new Error(`Server error ${res.status} — please try again in a moment`)
       const data = await res.json()
 
       // Open the B2B Pulse LinkedIn OAuth popup
