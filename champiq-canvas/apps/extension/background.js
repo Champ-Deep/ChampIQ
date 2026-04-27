@@ -71,6 +71,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
       token,
       refresh_token: refreshToken,
       li_at,
+      li_at_debug: li_at ? `len=${li_at.length} start=${li_at.slice(0,8)}` : 'NOT_FOUND',
     }
     chrome.tabs.query({}, (tabs) => {
       for (const t of tabs) {

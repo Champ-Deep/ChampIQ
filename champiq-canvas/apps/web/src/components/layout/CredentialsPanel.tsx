@@ -108,7 +108,8 @@ function LakeB2BLoginFlow({ onDone }: { onDone: () => void }) {
         if (!keepLoading) setLoading(false)
       }
 
-      const onToken = async (token: string, refresh: string, li_at: string) => {
+      const onToken = async (token: string, refresh: string, li_at: string, li_at_debug?: string) => {
+        if (li_at_debug) console.log('[LakeB2B] li_at debug:', li_at_debug)
         cleanup(true)
         popup?.close()
         try {
@@ -123,7 +124,7 @@ function LakeB2BLoginFlow({ onDone }: { onDone: () => void }) {
       // postMessage from /auth/callback or extension (includes li_at captured simultaneously)
       const msgHandler = (ev: MessageEvent) => {
         if (ev.data?.type === 'LAKEB2B_AUTH_TOKEN' && ev.data.token) {
-          onToken(ev.data.token, ev.data.refresh_token || '', ev.data.li_at || '')
+          onToken(ev.data.token, ev.data.refresh_token || '', ev.data.li_at || '', ev.data.li_at_debug)
         }
       }
       window.addEventListener('message', msgHandler)
@@ -131,7 +132,7 @@ function LakeB2BLoginFlow({ onDone }: { onDone: () => void }) {
       // BroadcastChannel from /auth/callback (tab-redirect path)
       const bcHandler = (ev: MessageEvent) => {
         if (ev.data?.type === 'LAKEB2B_AUTH_TOKEN' && ev.data.token) {
-          onToken(ev.data.token, ev.data.refresh_token || '', ev.data.li_at || '')
+          onToken(ev.data.token, ev.data.refresh_token || '', ev.data.li_at || '', ev.data.li_at_debug)
         }
       }
       bc.addEventListener('message', bcHandler)
