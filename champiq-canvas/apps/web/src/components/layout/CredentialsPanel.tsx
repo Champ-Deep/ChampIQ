@@ -56,28 +56,63 @@ function LakeB2BLoginFlow({ onDone }: { onDone: () => void }) {
     addCredential(latest.name || credName, 'lakeb2b', { credential_id: String(latest.id) })
 
     if (li_at) {
-      // li_at was captured by extension and saved atomically — done
-      setStep('done')
-    } else {
-      // No li_at yet — show the li_at step and ask extension to capture it now
+      // Extension captured li_at during OAuth — save it from the page (not service worker)
       setStep('li_at')
       setLiAtStatus('pending')
-      const liAtHandler = (ev: MessageEvent) => {
-        if (ev.data?.type !== 'LAKEB2B_LI_AT_RESULT') return
-        window.removeEventListener('message', liAtHandler)
-        if (ev.data.success) {
+      try {
+        const res = await fetch('/api/auth/lakeb2b/linkedin-cookie', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ credential_id: latest.id, li_at }),
+        })
+        if (res.ok) {
           setLiAtStatus('ok')
-          setTimeout(() => setStep('done'), 800)
+          setTimeout(() => setStep('done'), 600)
         } else {
+          const err = await res.json().catch(() => ({}))
           setLiAtStatus('error')
-          setError(ev.data.error || 'Could not capture LinkedIn session')
+          setError(err.detail || 'LinkedIn session save failed')
+        }
+      } catch {
+        setLiAtStatus('error')
+        setError('Failed to save LinkedIn session')
+      }
+    } else {
+      // No li_at captured — ask extension now via page-context message
+      setStep('li_at')
+      setLiAtStatus('pending')
+      const liAtHandler = async (ev: MessageEvent) => {
+        if (ev.data?.type !== 'LAKEB2B_LI_AT_VALUE') return
+        window.removeEventListener('message', liAtHandler)
+        if (!ev.data.found || !ev.data.li_at) {
+          setLiAtStatus('error')
+          setError('LinkedIn li_at not found — make sure you are logged into LinkedIn')
+          return
+        }
+        try {
+          const res = await fetch('/api/auth/lakeb2b/linkedin-cookie', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ credential_id: latest.id, li_at: ev.data.li_at }),
+          })
+          if (res.ok) {
+            setLiAtStatus('ok')
+            setTimeout(() => setStep('done'), 600)
+          } else {
+            const err = await res.json().catch(() => ({}))
+            setLiAtStatus('error')
+            setError(err.detail || 'LinkedIn session save failed')
+          }
+        } catch {
+          setLiAtStatus('error')
+          setError('Failed to save LinkedIn session')
         }
       }
       window.addEventListener('message', liAtHandler)
-      window.postMessage({ type: 'LAKEB2B_SAVE_LI_AT', credential_id: latest.id }, '*')
+      window.postMessage({ type: 'LAKEB2B_GET_LI_AT' }, '*')
       setTimeout(() => {
         window.removeEventListener('message', liAtHandler)
-        setStep('done')
+        if (liAtStatus === 'pending') setStep('done')
       }, 5000)
     }
   }
@@ -441,24 +476,28 @@ function LakeB2BReconnect({ credId }: { credId: number }) {
 
   function reconnectViaExtension() {
     if (!credId) { setMsg('No credential ID'); return }
-    setMsg('Opening LinkedIn — please wait…')
-    const tab = window.open('https://www.linkedin.com', '_blank')
-    setTimeout(() => {
-      tab?.close()
-      setMsg('Capturing session via extension…')
-      const handler = (ev: MessageEvent) => {
-        if (ev.data?.type !== 'LAKEB2B_LI_AT_RESULT') return
-        window.removeEventListener('message', handler)
-        setMsg(ev.data.success ? '✓ LinkedIn session connected' : `Error: ${ev.data.error}`)
-      }
-      window.addEventListener('message', handler)
-      window.postMessage({ type: 'LAKEB2B_SAVE_LI_AT', credential_id: credId }, '*')
-      setTimeout(() => {
-        window.removeEventListener('message', handler)
-        setMsg((m) => m === 'Capturing session via extension…' ? 'Extension not responding — try pasting manually below' : m)
+    setMsg('Capturing LinkedIn session…')
+
+    // Ask extension (via content script) to read li_at from cookies
+    // Background reads the cookie and sends back LAKEB2B_LI_AT_VALUE
+    // We then call the API from this page context (no service worker fetch issues)
+    const handler = async (ev: MessageEvent) => {
+      if (ev.data?.type !== 'LAKEB2B_LI_AT_VALUE') return
+      window.removeEventListener('message', handler)
+      if (!ev.data.found || !ev.data.li_at) {
+        setMsg('li_at not found — make sure you are logged into LinkedIn in this browser')
         setShowPaste(true)
-      }, 5000)
-    }, 4000)
+        return
+      }
+      await saveLiAt(ev.data.li_at)
+    }
+    window.addEventListener('message', handler)
+    window.postMessage({ type: 'LAKEB2B_GET_LI_AT' }, '*')
+
+    setTimeout(() => {
+      window.removeEventListener('message', handler)
+      setMsg((m) => m === 'Capturing LinkedIn session…' ? 'Extension not responding — reload it at chrome://extensions' : m)
+    }, 5000)
   }
 
   return (
