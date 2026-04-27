@@ -55,18 +55,23 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   // Close the popup immediately
   chrome.tabs.remove(tabId).catch(() => {})
 
-  // Read li_at from LinkedIn cookies right now — token is fresh at this moment
-  chrome.cookies.get({ url: 'https://www.linkedin.com', name: 'li_at' }, (cookie) => {
-    const li_at = cookie?.value || ''
+  // Read li_at from LinkedIn cookies (try www and root domain)
+  function getLiAt(callback) {
+    chrome.cookies.get({ url: 'https://www.linkedin.com', name: 'li_at' }, (c) => {
+      if (c?.value) { callback(c.value); return }
+      chrome.cookies.get({ url: 'https://linkedin.com', name: 'li_at' }, (c2) => {
+        callback(c2?.value || '')
+      })
+    })
+  }
 
+  getLiAt((li_at) => {
     const message = {
       type: 'LAKEB2B_AUTH_TOKEN',
       token,
       refresh_token: refreshToken,
-      li_at,  // included so frontend can save it immediately while token is fresh
+      li_at,
     }
-
-    // Broadcast to all ChampIQ tabs
     chrome.tabs.query({}, (tabs) => {
       for (const t of tabs) {
         if (t.id && t.url && isChampIQTab(t.url)) {
@@ -88,13 +93,22 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     const { credential_id, champiq_origin } = msg
     const apiBase = champiq_origin || 'https://champiq-production.up.railway.app'
 
-    chrome.cookies.get({ url: 'https://www.linkedin.com', name: 'li_at' }, async (cookie) => {
-      if (!cookie?.value) {
+    function getLiAtForSave(callback) {
+      chrome.cookies.get({ url: 'https://www.linkedin.com', name: 'li_at' }, (c) => {
+        if (c?.value) { callback(c.value); return }
+        chrome.cookies.get({ url: 'https://linkedin.com', name: 'li_at' }, (c2) => {
+          callback(c2?.value || '')
+        })
+      })
+    }
+
+    getLiAtForSave(async (li_at) => {
+      if (!li_at) {
         if (sender.tab?.id) {
           chrome.tabs.sendMessage(sender.tab.id, {
             type: 'LAKEB2B_LI_AT_RESULT',
             success: false,
-            error: 'LinkedIn li_at cookie not found. Make sure you are logged into LinkedIn in this browser.',
+            error: 'LinkedIn li_at cookie not found. Open linkedin.com and make sure you are logged in.',
           }).catch(() => {})
         }
         return
@@ -104,7 +118,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         const res = await fetch(`${apiBase}/api/auth/lakeb2b/linkedin-cookie`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ credential_id, li_at: cookie.value }),
+          body: JSON.stringify({ credential_id, li_at }),
         })
         const data = await res.json().catch(() => ({}))
         if (sender.tab?.id) {

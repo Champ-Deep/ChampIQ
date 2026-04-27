@@ -417,21 +417,29 @@ function CredentialCard({ cred }: { cred: Credential }) {
   const filledKeys = Object.keys(cred.fields).filter((k) => cred.fields[k])
 
   function reconnectLinkedIn() {
-    setLiAtMsg('Capturing LinkedIn session…')
     const credId = parseInt(cred.fields.credential_id || '0', 10)
     if (!credId) { setLiAtMsg('No server credential ID found'); return }
 
-    const handler = (ev: MessageEvent) => {
-      if (ev.data?.type !== 'LAKEB2B_LI_AT_RESULT') return
-      window.removeEventListener('message', handler)
-      setLiAtMsg(ev.data.success ? '✓ LinkedIn session connected' : `Error: ${ev.data.error}`)
-    }
-    window.addEventListener('message', handler)
-    window.postMessage({ type: 'LAKEB2B_SAVE_LI_AT', credential_id: credId }, '*')
+    // Open LinkedIn to ensure a fresh li_at is stored in the browser before capturing
+    setLiAtMsg('Opening LinkedIn to refresh session — please wait…')
+    const liTab = window.open('https://www.linkedin.com', '_blank')
+
+    // Give LinkedIn 4 seconds to load and set fresh cookies, then capture
     setTimeout(() => {
-      window.removeEventListener('message', handler)
-      setLiAtMsg((m) => m === 'Capturing LinkedIn session…' ? 'No response from extension — reload it at chrome://extensions' : m)
-    }, 5000)
+      liTab?.close()
+      setLiAtMsg('Capturing LinkedIn session…')
+      const handler = (ev: MessageEvent) => {
+        if (ev.data?.type !== 'LAKEB2B_LI_AT_RESULT') return
+        window.removeEventListener('message', handler)
+        setLiAtMsg(ev.data.success ? '✓ LinkedIn session connected' : `Error: ${ev.data.error}`)
+      }
+      window.addEventListener('message', handler)
+      window.postMessage({ type: 'LAKEB2B_SAVE_LI_AT', credential_id: credId }, '*')
+      setTimeout(() => {
+        window.removeEventListener('message', handler)
+        setLiAtMsg((m) => m === 'Capturing LinkedIn session…' ? 'No response — reload extension at chrome://extensions' : m)
+      }, 5000)
+    }, 4000)
   }
 
   return (
