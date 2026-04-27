@@ -408,39 +408,111 @@ function AddCredentialForm({ initialType, onDone }: { initialType?: CredentialTy
   )
 }
 
-// ── Credential Card ───────────────────────────────────────────────────────────
+// ── LakeB2B Reconnect (inside credential card) ────────────────────────────────
 
-function CredentialCard({ cred }: { cred: Credential }) {
-  const { deleteCredential } = useCredentialStore()
-  const [expanded, setExpanded] = useState(false)
-  const [liAtMsg, setLiAtMsg] = useState('')
-  const filledKeys = Object.keys(cred.fields).filter((k) => cred.fields[k])
+function LakeB2BReconnect({ credId }: { credId: number }) {
+  const [msg, setMsg] = useState('')
+  const [showPaste, setShowPaste] = useState(false)
+  const [liAt, setLiAt] = useState('')
+  const [saving, setSaving] = useState(false)
 
-  function reconnectLinkedIn() {
-    const credId = parseInt(cred.fields.credential_id || '0', 10)
-    if (!credId) { setLiAtMsg('No server credential ID found'); return }
+  async function saveLiAt(value: string) {
+    setSaving(true)
+    setMsg('Saving LinkedIn session…')
+    try {
+      const res = await fetch('/api/auth/lakeb2b/linkedin-cookie', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential_id: credId, li_at: value }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setMsg('✓ LinkedIn session connected')
+        setShowPaste(false)
+      } else {
+        setMsg(`Error: ${data.detail || res.status}`)
+      }
+    } catch (e) {
+      setMsg(`Error: ${e instanceof Error ? e.message : 'Failed'}`)
+    } finally {
+      setSaving(false)
+    }
+  }
 
-    // Open LinkedIn to ensure a fresh li_at is stored in the browser before capturing
-    setLiAtMsg('Opening LinkedIn to refresh session — please wait…')
-    const liTab = window.open('https://www.linkedin.com', '_blank')
-
-    // Give LinkedIn 4 seconds to load and set fresh cookies, then capture
+  function reconnectViaExtension() {
+    if (!credId) { setMsg('No credential ID'); return }
+    setMsg('Opening LinkedIn — please wait…')
+    const tab = window.open('https://www.linkedin.com', '_blank')
     setTimeout(() => {
-      liTab?.close()
-      setLiAtMsg('Capturing LinkedIn session…')
+      tab?.close()
+      setMsg('Capturing session via extension…')
       const handler = (ev: MessageEvent) => {
         if (ev.data?.type !== 'LAKEB2B_LI_AT_RESULT') return
         window.removeEventListener('message', handler)
-        setLiAtMsg(ev.data.success ? '✓ LinkedIn session connected' : `Error: ${ev.data.error}`)
+        setMsg(ev.data.success ? '✓ LinkedIn session connected' : `Error: ${ev.data.error}`)
       }
       window.addEventListener('message', handler)
       window.postMessage({ type: 'LAKEB2B_SAVE_LI_AT', credential_id: credId }, '*')
       setTimeout(() => {
         window.removeEventListener('message', handler)
-        setLiAtMsg((m) => m === 'Capturing LinkedIn session…' ? 'No response — reload extension at chrome://extensions' : m)
+        setMsg((m) => m === 'Capturing session via extension…' ? 'Extension not responding — try pasting manually below' : m)
+        setShowPaste(true)
       }, 5000)
     }, 4000)
   }
+
+  return (
+    <div className="flex flex-col gap-1.5 pt-1">
+      <button
+        onClick={reconnectViaExtension}
+        className="text-xs py-1 rounded-md font-medium"
+        style={{ background: '#0A66C2', color: '#fff' }}
+      >
+        Reconnect LinkedIn session
+      </button>
+      {msg && (
+        <p className="text-xs" style={{ color: msg.startsWith('✓') ? '#22c55e' : '#f59e0b' }}>{msg}</p>
+      )}
+      <button
+        onClick={() => setShowPaste(v => !v)}
+        className="text-xs"
+        style={{ color: 'var(--text-3)' }}
+      >
+        {showPaste ? 'Hide' : 'Paste li_at cookie manually'}
+      </button>
+      {showPaste && (
+        <div className="flex flex-col gap-1">
+          <p className="text-xs" style={{ color: 'var(--text-3)' }}>
+            Open linkedin.com → F12 → Application → Cookies → linkedin.com → copy <span className="font-mono">li_at</span> value
+          </p>
+          <input
+            type="password"
+            className="text-xs p-1.5 rounded-md font-mono focus:outline-none"
+            style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-1)' }}
+            placeholder="AQEDATd..."
+            value={liAt}
+            onChange={e => setLiAt(e.target.value)}
+          />
+          <button
+            onClick={() => saveLiAt(liAt)}
+            disabled={saving || liAt.length < 10}
+            className="text-xs py-1 rounded-md font-medium disabled:opacity-50"
+            style={{ background: '#0EA5E9', color: '#fff' }}
+          >
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Credential Card ───────────────────────────────────────────────────────────
+
+function CredentialCard({ cred }: { cred: Credential }) {
+  const { deleteCredential } = useCredentialStore()
+  const [expanded, setExpanded] = useState(false)
+  const filledKeys = Object.keys(cred.fields).filter((k) => cred.fields[k])
 
   return (
     <div
@@ -481,20 +553,7 @@ function CredentialCard({ cred }: { cred: Credential }) {
             ))
           )}
           {cred.type === 'lakeb2b' && (
-            <div className="flex flex-col gap-1 pt-1">
-              <button
-                onClick={reconnectLinkedIn}
-                className="text-xs py-1 rounded-md font-medium"
-                style={{ background: '#0A66C2', color: '#fff' }}
-              >
-                Reconnect LinkedIn session
-              </button>
-              {liAtMsg && (
-                <p className="text-xs" style={{ color: liAtMsg.startsWith('✓') ? '#22c55e' : '#f59e0b' }}>
-                  {liAtMsg}
-                </p>
-              )}
-            </div>
+            <LakeB2BReconnect credId={parseInt(cred.fields.credential_id || '0', 10)} />
           )}
         </div>
       )}
