@@ -40,6 +40,7 @@ function LakeB2BLoginFlow({ onDone }: { onDone: () => void }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [checking, setChecking] = useState(false)
+  const [needsReload, setNeedsReload] = useState(false)
 
   // Ping the extension via postMessage. Content script replies with LAKEB2B_PONG.
   function checkExtension(): Promise<boolean> {
@@ -47,7 +48,7 @@ function LakeB2BLoginFlow({ onDone }: { onDone: () => void }) {
       const timeout = setTimeout(() => {
         window.removeEventListener('message', handler)
         resolve(false)
-      }, 1000)
+      }, 1500)
       function handler(ev: MessageEvent) {
         if (ev.data?.type === 'LAKEB2B_PONG') {
           clearTimeout(timeout)
@@ -63,12 +64,16 @@ function LakeB2BLoginFlow({ onDone }: { onDone: () => void }) {
   async function handleCheckExtension() {
     setChecking(true)
     setError('')
+    setNeedsReload(false)
     const found = await checkExtension()
     setChecking(false)
     if (found) {
       setStep('login')
     } else {
-      setError('Extension not detected. Install it and click "I installed it" again.')
+      // Extension content scripts only inject into tabs that loaded AFTER install.
+      // Show a reload prompt so the user can refresh without losing their place.
+      setNeedsReload(true)
+      setError('Extension installed but not yet active on this tab.')
     }
   }
 
@@ -269,16 +274,26 @@ function LakeB2BLoginFlow({ onDone }: { onDone: () => void }) {
         <ExternalLink size={11} /> Download Extension
       </a>
 
-      {error && <p className="text-xs" style={{ color: '#f87171' }}>{error}</p>}
+      {error && <p className="text-xs" style={{ color: '#f59e0b' }}>{error}</p>}
 
-      <button
-        onClick={handleCheckExtension}
-        disabled={checking}
-        className="text-xs py-1.5 rounded-md font-medium disabled:opacity-50"
-        style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-1)' }}
-      >
-        {checking ? 'Checking…' : 'I installed it — continue →'}
-      </button>
+      {needsReload ? (
+        <button
+          onClick={() => window.location.reload()}
+          className="text-xs py-1.5 rounded-md font-medium"
+          style={{ background: '#f59e0b', color: '#000' }}
+        >
+          Reload page to activate extension →
+        </button>
+      ) : (
+        <button
+          onClick={handleCheckExtension}
+          disabled={checking}
+          className="text-xs py-1.5 rounded-md font-medium disabled:opacity-50"
+          style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-1)' }}
+        >
+          {checking ? 'Checking…' : 'I installed it — continue →'}
+        </button>
+      )}
 
       <button onClick={onDone} className="text-xs" style={{ color: 'var(--text-3)' }}>
         Cancel
