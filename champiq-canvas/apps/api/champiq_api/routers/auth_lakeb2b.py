@@ -64,6 +64,18 @@ class LinkedInCookieRequest(BaseModel):
     li_at: str
 
 
+class LinkedInLoginStartRequest(BaseModel):
+    credential_id: int
+    email: str
+    password: str
+
+
+class LinkedInLoginVerifyRequest(BaseModel):
+    credential_id: int
+    session_id: str
+    code: str
+
+
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 @router.get("/oauth-url")
@@ -154,6 +166,66 @@ async def save_linkedin_cookie(body: LinkedInCookieRequest, db: AsyncSession = D
     await svc.update(body.credential_id, creds)
 
     return {"credential_id": body.credential_id, "linkedin_connected": True}
+
+
+@router.post("/linkedin-login-start")
+async def linkedin_login_start(body: LinkedInLoginStartRequest, db: AsyncSession = Depends(get_db)):
+    """Start LinkedIn login via B2B Pulse's Playwright browser (server-side).
+    B2B Pulse logs into LinkedIn from its own IP — no IP mismatch issue.
+    Returns session_id if 2FA PIN is required, or success if login completed directly.
+    """
+    row = await _get_credential(body.credential_id, db)
+    creds = _decrypt(row)
+    access_token = creds.get("access_token") or creds.get("jwt", "")
+    if not access_token:
+        raise HTTPException(400, "Complete B2B Pulse OAuth first")
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        resp = await client.post(
+            f"{B2B_PULSE}/api/integrations/linkedin/login-start",
+            json={"email": body.email, "password": body.password},
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+
+    if resp.status_code >= 400:
+        raise HTTPException(502, f"B2B Pulse error {resp.status_code}: {resp.text[:300]}")
+
+    data = resp.json()
+    # If login succeeded without 2FA, mark linkedin_connected
+    if data.get("status") == "success":
+        creds["linkedin_connected"] = True
+        svc = CredentialService(db, get_container().crypto)
+        await svc.update(body.credential_id, creds)
+
+    return data
+
+
+@router.post("/linkedin-login-verify")
+async def linkedin_login_verify(body: LinkedInLoginVerifyRequest, db: AsyncSession = Depends(get_db)):
+    """Verify LinkedIn 2FA PIN after login-start returned a session_id."""
+    row = await _get_credential(body.credential_id, db)
+    creds = _decrypt(row)
+    access_token = creds.get("access_token") or creds.get("jwt", "")
+    if not access_token:
+        raise HTTPException(400, "Complete B2B Pulse OAuth first")
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        resp = await client.post(
+            f"{B2B_PULSE}/api/integrations/linkedin/login-verify",
+            json={"session_id": body.session_id, "code": body.code},
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+
+    if resp.status_code >= 400:
+        raise HTTPException(502, f"B2B Pulse error {resp.status_code}: {resp.text[:300]}")
+
+    data = resp.json()
+    if data.get("status") == "success":
+        creds["linkedin_connected"] = True
+        svc = CredentialService(db, get_container().crypto)
+        await svc.update(body.credential_id, creds)
+
+    return data
 
 
 @router.get("/status/{credential_id}")

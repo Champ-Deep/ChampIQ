@@ -448,102 +448,138 @@ function AddCredentialForm({ initialType, onDone }: { initialType?: CredentialTy
 // ── LakeB2B Reconnect (inside credential card) ────────────────────────────────
 
 function LakeB2BReconnect({ credId }: { credId: number }) {
+  const [phase, setPhase] = useState<'idle' | 'form' | 'pin' | 'done'>('idle')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [pin, setPin] = useState('')
+  const [sessionId, setSessionId] = useState('')
+  const [loading, setLoading] = useState(false)
   const [msg, setMsg] = useState('')
-  const [showPaste, setShowPaste] = useState(false)
-  const [liAt, setLiAt] = useState('')
-  const [saving, setSaving] = useState(false)
 
-  async function saveLiAt(value: string) {
-    setSaving(true)
-    setMsg('Saving LinkedIn session…')
+  async function startLogin() {
+    if (!email.trim() || !password.trim()) { setMsg('Email and password required'); return }
+    setLoading(true)
+    setMsg('')
     try {
-      const res = await fetch('/api/auth/lakeb2b/linkedin-cookie', {
+      const res = await fetch('/api/auth/lakeb2b/linkedin-login-start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ credential_id: credId, li_at: value }),
+        body: JSON.stringify({ credential_id: credId, email: email.trim(), password }),
       })
       const data = await res.json().catch(() => ({}))
-      if (res.ok) {
+      if (!res.ok) { setMsg(data.detail || `Error ${res.status}`); return }
+
+      if (data.status === 'success') {
+        setPhase('done')
         setMsg('✓ LinkedIn session connected')
-        setShowPaste(false)
+      } else if (data.session_id) {
+        setSessionId(data.session_id)
+        setPhase('pin')
+        setMsg(data.message || 'Enter the PIN sent to your email/phone')
       } else {
-        setMsg(`Error: ${data.detail || res.status}`)
+        setMsg(data.message || 'Unexpected response — try again')
       }
     } catch (e) {
-      setMsg(`Error: ${e instanceof Error ? e.message : 'Failed'}`)
+      setMsg(e instanceof Error ? e.message : 'Failed')
     } finally {
-      setSaving(false)
+      setLoading(false)
     }
   }
 
-  function reconnectViaExtension() {
-    if (!credId) { setMsg('No credential ID'); return }
-    setMsg('Capturing LinkedIn session…')
-
-    // Ask extension (via content script) to read li_at from cookies
-    // Background reads the cookie and sends back LAKEB2B_LI_AT_VALUE
-    // We then call the API from this page context (no service worker fetch issues)
-    const handler = async (ev: MessageEvent) => {
-      if (ev.data?.type !== 'LAKEB2B_LI_AT_VALUE') return
-      window.removeEventListener('message', handler)
-      if (!ev.data.found || !ev.data.li_at) {
-        setMsg('li_at not found — make sure you are logged into LinkedIn in this browser')
-        setShowPaste(true)
-        return
-      }
-      await saveLiAt(ev.data.li_at)
+  async function verifyPin() {
+    if (!pin.trim()) { setMsg('PIN required'); return }
+    setLoading(true)
+    setMsg('')
+    try {
+      const res = await fetch('/api/auth/lakeb2b/linkedin-login-verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential_id: credId, session_id: sessionId, code: pin.trim() }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { setMsg(data.detail || `Error ${res.status}`); return }
+      setPhase('done')
+      setMsg('✓ LinkedIn session connected')
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : 'Failed')
+    } finally {
+      setLoading(false)
     }
-    window.addEventListener('message', handler)
-    window.postMessage({ type: 'LAKEB2B_GET_LI_AT' }, '*')
-
-    setTimeout(() => {
-      window.removeEventListener('message', handler)
-      setMsg((m) => m === 'Capturing LinkedIn session…' ? 'Extension not responding — reload it at chrome://extensions' : m)
-    }, 5000)
   }
+
+  if (phase === 'done') return (
+    <p className="text-xs pt-1 font-medium" style={{ color: '#22c55e' }}>✓ LinkedIn session connected</p>
+  )
+
+  if (phase === 'pin') return (
+    <div className="flex flex-col gap-1.5 pt-1">
+      <p className="text-xs" style={{ color: 'var(--text-3)' }}>{msg}</p>
+      <input
+        className="text-xs p-1.5 rounded-md focus:outline-none"
+        style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-1)' }}
+        placeholder="6-digit PIN"
+        value={pin}
+        onChange={e => setPin(e.target.value)}
+      />
+      <button
+        onClick={verifyPin}
+        disabled={loading}
+        className="text-xs py-1 rounded-md font-medium disabled:opacity-50"
+        style={{ background: '#0A66C2', color: '#fff' }}
+      >
+        {loading ? 'Verifying…' : 'Verify PIN'}
+      </button>
+    </div>
+  )
+
+  if (phase === 'form') return (
+    <div className="flex flex-col gap-1.5 pt-1">
+      <p className="text-xs" style={{ color: 'var(--text-3)' }}>
+        B2B Pulse logs into LinkedIn from its own server — no IP issues.
+      </p>
+      <input
+        className="text-xs p-1.5 rounded-md focus:outline-none"
+        style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-1)' }}
+        placeholder="LinkedIn email"
+        value={email}
+        onChange={e => setEmail(e.target.value)}
+      />
+      <input
+        type="password"
+        className="text-xs p-1.5 rounded-md focus:outline-none"
+        style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-1)' }}
+        placeholder="LinkedIn password"
+        value={password}
+        onChange={e => setPassword(e.target.value)}
+      />
+      {msg && <p className="text-xs" style={{ color: '#f87171' }}>{msg}</p>}
+      <div className="flex gap-1.5">
+        <button
+          onClick={startLogin}
+          disabled={loading}
+          className="flex-1 text-xs py-1 rounded-md font-medium disabled:opacity-50"
+          style={{ background: '#0A66C2', color: '#fff' }}
+        >
+          {loading ? 'Connecting…' : 'Connect LinkedIn'}
+        </button>
+        <button onClick={() => setPhase('idle')} className="text-xs py-1 px-2 rounded-md"
+          style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-2)' }}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
 
   return (
-    <div className="flex flex-col gap-1.5 pt-1">
+    <div className="flex flex-col gap-1 pt-1">
       <button
-        onClick={reconnectViaExtension}
+        onClick={() => setPhase('form')}
         className="text-xs py-1 rounded-md font-medium"
         style={{ background: '#0A66C2', color: '#fff' }}
       >
-        Reconnect LinkedIn session
+        Connect LinkedIn session
       </button>
-      {msg && (
-        <p className="text-xs" style={{ color: msg.startsWith('✓') ? '#22c55e' : '#f59e0b' }}>{msg}</p>
-      )}
-      <button
-        onClick={() => setShowPaste(v => !v)}
-        className="text-xs"
-        style={{ color: 'var(--text-3)' }}
-      >
-        {showPaste ? 'Hide' : 'Paste li_at cookie manually'}
-      </button>
-      {showPaste && (
-        <div className="flex flex-col gap-1">
-          <p className="text-xs" style={{ color: 'var(--text-3)' }}>
-            Open linkedin.com → F12 → Application → Cookies → linkedin.com → copy <span className="font-mono">li_at</span> value
-          </p>
-          <input
-            type="password"
-            className="text-xs p-1.5 rounded-md font-mono focus:outline-none"
-            style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-1)' }}
-            placeholder="AQEDATd..."
-            value={liAt}
-            onChange={e => setLiAt(e.target.value)}
-          />
-          <button
-            onClick={() => saveLiAt(liAt)}
-            disabled={saving || liAt.length < 10}
-            className="text-xs py-1 rounded-md font-medium disabled:opacity-50"
-            style={{ background: '#0EA5E9', color: '#fff' }}
-          >
-            {saving ? 'Saving…' : 'Save'}
-          </button>
-        </div>
-      )}
+      {msg && <p className="text-xs" style={{ color: msg.startsWith('✓') ? '#22c55e' : '#f59e0b' }}>{msg}</p>}
     </div>
   )
 }
