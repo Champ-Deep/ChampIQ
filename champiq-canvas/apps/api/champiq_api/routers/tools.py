@@ -36,14 +36,6 @@ STUB_POPULATE: dict[str, dict] = {
 async def tool_status(tool: str):
     if tool not in VALID_TOOLS:
         return {"status": "unknown", "tool": tool}
-    if tool == "lakeb2b_pulse":
-        import httpx as _httpx
-        try:
-            async with _httpx.AsyncClient(timeout=8.0) as c:
-                r = await c.get("https://b2b-pulse.up.railway.app/health")
-            return {"status": "ok", "tool": tool, "b2b_reachable": True, "b2b_status": r.status_code}
-        except Exception as e:
-            return {"status": "ok", "tool": tool, "b2b_reachable": False, "b2b_error": str(e)}
     return {"status": "ok", "tool": tool}
 
 
