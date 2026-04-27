@@ -412,7 +412,26 @@ function AddCredentialForm({ initialType, onDone }: { initialType?: CredentialTy
 function CredentialCard({ cred }: { cred: Credential }) {
   const { deleteCredential } = useCredentialStore()
   const [expanded, setExpanded] = useState(false)
+  const [liAtMsg, setLiAtMsg] = useState('')
   const filledKeys = Object.keys(cred.fields).filter((k) => cred.fields[k])
+
+  function reconnectLinkedIn() {
+    setLiAtMsg('Capturing LinkedIn session…')
+    const credId = parseInt(cred.fields.credential_id || '0', 10)
+    if (!credId) { setLiAtMsg('No server credential ID found'); return }
+
+    const handler = (ev: MessageEvent) => {
+      if (ev.data?.type !== 'LAKEB2B_LI_AT_RESULT') return
+      window.removeEventListener('message', handler)
+      setLiAtMsg(ev.data.success ? '✓ LinkedIn session connected' : `Error: ${ev.data.error}`)
+    }
+    window.addEventListener('message', handler)
+    window.postMessage({ type: 'LAKEB2B_SAVE_LI_AT', credential_id: credId }, '*')
+    setTimeout(() => {
+      window.removeEventListener('message', handler)
+      setLiAtMsg((m) => m === 'Capturing LinkedIn session…' ? 'No response from extension — reload it at chrome://extensions' : m)
+    }, 5000)
+  }
 
   return (
     <div
@@ -441,7 +460,7 @@ function CredentialCard({ cred }: { cred: Credential }) {
       </div>
 
       {expanded && (
-        <div className="px-3 pb-3 flex flex-col gap-1" style={{ borderTop: '1px solid var(--border)' }}>
+        <div className="px-3 pb-3 flex flex-col gap-2" style={{ borderTop: '1px solid var(--border)' }}>
           {filledKeys.length === 0 ? (
             <p className="text-xs pt-2" style={{ color: 'var(--text-3)' }}>No fields set.</p>
           ) : (
@@ -451,6 +470,22 @@ function CredentialCard({ cred }: { cred: Credential }) {
                 <span className="text-xs font-mono" style={{ color: 'var(--text-2)' }}>••••••</span>
               </div>
             ))
+          )}
+          {cred.type === 'lakeb2b' && (
+            <div className="flex flex-col gap-1 pt-1">
+              <button
+                onClick={reconnectLinkedIn}
+                className="text-xs py-1 rounded-md font-medium"
+                style={{ background: '#0A66C2', color: '#fff' }}
+              >
+                Reconnect LinkedIn session
+              </button>
+              {liAtMsg && (
+                <p className="text-xs" style={{ color: liAtMsg.startsWith('✓') ? '#22c55e' : '#f59e0b' }}>
+                  {liAtMsg}
+                </p>
+              )}
+            </div>
           )}
         </div>
       )}
