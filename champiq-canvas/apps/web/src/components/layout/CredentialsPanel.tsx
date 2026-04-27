@@ -44,7 +44,9 @@ function LakeB2BLoginFlow({ onDone }: { onDone: () => void }) {
     // Save credential server-side. Pass li_at too so backend can call session-cookies
     // immediately while token is guaranteed fresh (extension captured both together).
     const url = `/api/auth/lakeb2b/callback?token=${encodeURIComponent(token)}&refresh_token=${encodeURIComponent(refreshToken)}&name=${encodeURIComponent(credName)}${li_at ? `&li_at=${encodeURIComponent(li_at)}` : ''}`
-    await fetch(url)  // returns HTML — ignore body, just fire it
+    await fetch(url)  // returns HTML — fires svc.create() server-side
+    // Small delay to ensure DB commit is visible before listing credentials
+    await new Promise(r => setTimeout(r, 600))
 
     const credsRes = await fetch('/api/credentials')
     const creds = await credsRes.json()
