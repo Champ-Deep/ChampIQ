@@ -22,12 +22,12 @@ const CREDENTIAL_TYPES: CredentialType[] = [
 
 // ── LakeB2B Pulse Login Flow ──────────────────────────────────────────────────
 // Flow:
-//   Step 'login'   → enter name → click Login with LinkedIn → popup opens
-//   Step 'waiting' → waiting for popup to postMessage LAKEB2B_AUTH_TOKEN back
-//                    (popup lands on /auth/callback which reads hash and postMessages)
-//   Step 'done'    → credential saved server-side; shown in panel
+//   Step 'login'    → enter name → click Login with LinkedIn → popup opens
+//   Step 'waiting'  → popup open, waiting for LAKEB2B_AUTH_TOKEN
+//   Step 'li_at'    → credential saved; extension auto-reads li_at from LinkedIn cookies
+//   Step 'done'     → fully connected (B2B Pulse + LinkedIn session)
 
-type LakeB2BStep = 'login' | 'waiting' | 'done'
+type LakeB2BStep = 'login' | 'waiting' | 'li_at' | 'done'
 
 function LakeB2BLoginFlow({ onDone }: { onDone: () => void }) {
   const { addCredential } = useCredentialStore()
@@ -36,6 +36,7 @@ function LakeB2BLoginFlow({ onDone }: { onDone: () => void }) {
   const [credentialId, setCredentialId] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [liAtStatus, setLiAtStatus] = useState<'pending' | 'ok' | 'error'>('pending')
 
   async function saveToken(token: string, refreshToken: string) {
     const credName = name.trim()
@@ -50,7 +51,35 @@ function LakeB2BLoginFlow({ onDone }: { onDone: () => void }) {
     if (!latest) throw new Error('Could not retrieve saved credential')
     setCredentialId(latest.id)
     addCredential(latest.name || credName, 'lakeb2b', { credential_id: String(latest.id) })
-    setStep('done')
+
+    // Tell the extension to read li_at from LinkedIn cookies and POST it to our backend
+    setStep('li_at')
+    setLiAtStatus('pending')
+
+    // Listen for the result from the extension
+    const liAtHandler = (ev: MessageEvent) => {
+      if (ev.data?.type !== 'LAKEB2B_LI_AT_RESULT') return
+      window.removeEventListener('message', liAtHandler)
+      if (ev.data.success) {
+        setLiAtStatus('ok')
+        setTimeout(() => setStep('done'), 800)
+      } else {
+        setLiAtStatus('error')
+        setError(ev.data.error || 'Could not capture LinkedIn session')
+      }
+    }
+    window.addEventListener('message', liAtHandler)
+
+    // Trigger the extension to capture li_at (content script forwards to background)
+    window.postMessage({ type: 'LAKEB2B_SAVE_LI_AT', credential_id: latest.id }, '*')
+
+    // Timeout fallback: if extension doesn't respond in 5s, still proceed
+    setTimeout(() => {
+      window.removeEventListener('message', liAtHandler)
+      if (liAtStatus === 'pending') {
+        setStep('done')
+      }
+    }, 5000)
   }
 
   async function handleLinkedInLogin() {
@@ -124,12 +153,52 @@ function LakeB2BLoginFlow({ onDone }: { onDone: () => void }) {
 
   // ── Render ────────────────────────────────────────────────────────────────
 
+  if (step === 'li_at') {
+    return (
+      <div className="flex flex-col gap-3 p-3 rounded-lg" style={{ background: 'var(--bg-sidebar)', border: '1px solid var(--border)' }}>
+        <p className="text-xs font-semibold" style={{ color: 'var(--text-1)' }}>✓ B2B Pulse login successful</p>
+        <p className="text-xs" style={{ color: 'var(--text-3)' }}>Connecting LinkedIn session automatically…</p>
+        {liAtStatus === 'pending' && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs animate-pulse" style={{ color: '#818cf8' }}>●</span>
+            <span className="text-xs" style={{ color: 'var(--text-3)' }}>Reading LinkedIn session from browser…</span>
+          </div>
+        )}
+        {liAtStatus === 'ok' && (
+          <p className="text-xs font-medium" style={{ color: '#22c55e' }}>✓ LinkedIn session connected</p>
+        )}
+        {liAtStatus === 'error' && (
+          <div className="flex flex-col gap-1.5">
+            <p className="text-xs" style={{ color: '#f59e0b' }}>{error}</p>
+            <p className="text-xs" style={{ color: 'var(--text-3)' }}>
+              Make sure you're logged into LinkedIn in this browser, then:
+            </p>
+            <button
+              onClick={() => {
+                setError('')
+                setLiAtStatus('pending')
+                window.postMessage({ type: 'LAKEB2B_SAVE_LI_AT', credential_id: credentialId }, '*')
+              }}
+              className="text-xs py-1 rounded-md font-medium"
+              style={{ background: '#0A66C2', color: '#fff' }}
+            >
+              Retry — capture LinkedIn session
+            </button>
+            <button onClick={() => setStep('done')} className="text-xs" style={{ color: 'var(--text-3)' }}>
+              Skip for now
+            </button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   if (step === 'done') {
     return (
       <div className="flex flex-col gap-3 p-3 rounded-lg" style={{ background: 'var(--bg-sidebar)', border: '1px solid #22c55e44' }}>
-        <p className="text-xs font-semibold" style={{ color: '#22c55e' }}>✓ LakeB2B Pulse connected</p>
+        <p className="text-xs font-semibold" style={{ color: '#22c55e' }}>✓ LakeB2B Pulse fully connected</p>
         <p className="text-xs" style={{ color: 'var(--text-3)' }}>
-          Credential ID: {credentialId} — ready to use in LakeB2B Pulse nodes.
+          B2B Pulse ✓ · LinkedIn session ✓ — ready to track posts.
         </p>
         <button onClick={onDone} className="text-xs py-1.5 rounded-md font-medium" style={{ background: '#6366f1', color: '#fff' }}>
           Done

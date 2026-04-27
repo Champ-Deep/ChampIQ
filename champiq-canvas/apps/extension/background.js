@@ -1,14 +1,13 @@
 /**
  * ChampIQ LakeB2B Connector — Background Service Worker
  *
- * B2B Pulse redirects the OAuth popup to:
- *   http://localhost:5173/login?token=<jwt>&refresh_token=<refresh>
- *
- * This worker watches ALL tab navigations. When it sees a tab loading a URL
- * with ?token= that came from the B2B Pulse auth flow, it:
- *   1. Extracts the tokens
- *   2. Closes the popup tab
- *   3. Broadcasts LAKEB2B_AUTH_TOKEN to all ChampIQ tabs via content script
+ * Flow:
+ *   1. B2B Pulse OAuth popup lands on /auth/callback#access_token=<jwt>
+ *   2. We capture token, close popup, send LAKEB2B_AUTH_TOKEN to ChampIQ tab
+ *   3. ChampIQ saves the credential (gets credential_id back via postMessage)
+ *   4. ChampIQ tab tells us the credential_id via LAKEB2B_SAVE_LI_AT
+ *   5. We read li_at from linkedin.com cookies and POST it to ChampIQ backend
+ *      → no manual copy-paste needed
  */
 
 const CHAMPIQ_ORIGINS = [
@@ -16,57 +15,54 @@ const CHAMPIQ_ORIGINS = [
   'localhost:3001',
   'localhost:5173',
   'localhost:5174',
+  'localhost:5175',
+  'localhost:5176',
   'localhost:4173',
   'localhost:8000',
 ]
 
+const CHAMPIQ_API = 'https://champiq-production.up.railway.app'
+
 function isChampIQTab(url) {
+  return CHAMPIQ_ORIGINS.some(o => url.includes(o))
+}
+
+function getChampIQOrigin(url) {
+  for (const o of CHAMPIQ_ORIGINS) {
+    if (url.includes(o)) {
+      return url.startsWith('https') ? `https://${o}` : `http://${o}`
+    }
+  }
+  return CHAMPIQ_API
+}
+
+function extractHashParams(url) {
   try {
-    const { hostname, port } = new URL(url)
-    const hostport = port ? `${hostname}:${port}` : hostname
-    return CHAMPIQ_ORIGINS.some(o => url.includes(o))
+    const parsed = new URL(url)
+    const hash = parsed.hash.startsWith('#') ? parsed.hash.slice(1) : parsed.hash
+    const params = new URLSearchParams(hash)
+    return {
+      token: params.get('access_token') || params.get('token') || '',
+      refreshToken: params.get('refresh_token') || '',
+      pathname: parsed.pathname,
+    }
   } catch {
-    return false
+    return { token: '', refreshToken: '', pathname: '' }
   }
 }
 
+// Step 1 & 2: Watch for OAuth callback, capture token, close popup
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status !== 'loading') return
   const url = changeInfo.url || tab.url
   if (!url) return
+  if (!url.includes('access_token=') && !url.includes('token=')) return
 
-  // We're looking for the B2B Pulse → frontend redirect which contains the token.
-  // B2B Pulse redirects to their configured frontend URL with ?token=...
-  // This can be localhost:5173/login?token=... or any other URL.
-  if (!url.includes('token=') && !url.includes('access_token=')) return
+  const { token, refreshToken, pathname } = extractHashParams(url)
+  if (!token || token.length < 20) return
+  if (!pathname.includes('/auth/callback') && !pathname.includes('/callback') && pathname !== '/login') return
 
-  let parsed
-  try {
-    parsed = new URL(url)
-  } catch {
-    return
-  }
-
-  const token = parsed.searchParams.get('token') || parsed.searchParams.get('access_token')
-  const refreshToken = parsed.searchParams.get('refresh_token') || ''
-
-  // Only fire if this looks like a B2B Pulse auth redirect
-  // (has token param, is NOT a ChampIQ tab itself, came from /login path or similar)
-  if (!token) return
-
-  // Avoid intercepting ChampIQ's own token handling
-  // B2B Pulse redirects to localhost:5173/login which IS our app — but only in popup context.
-  // We intercept ALL ?token= navigations in non-ChampIQ-looking URLs,
-  // OR navigations to /login?token= on any origin.
-  const isLoginCallback = parsed.pathname === '/login' || parsed.pathname.includes('/callback')
-  const isAuthRedirect = isLoginCallback && token.length > 20
-
-  if (!isAuthRedirect) return
-
-  // This tab is the OAuth popup. Close it and broadcast the token.
   chrome.tabs.remove(tabId).catch(() => {})
 
-  // Broadcast to all ChampIQ tabs
   chrome.tabs.query({}, (tabs) => {
     for (const t of tabs) {
       if (t.id && t.url && isChampIQTab(t.url)) {
@@ -80,9 +76,55 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   })
 })
 
-// Respond to ping from content script to confirm extension is alive
+// Step 4 & 5: ChampIQ tab sends credential_id after saving — we fetch li_at and POST it
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'LAKEB2B_PING_BG') {
     sendResponse({ ok: true })
+    return
+  }
+
+  if (msg.type === 'LAKEB2B_SAVE_LI_AT') {
+    const { credential_id, champiq_origin } = msg
+    const apiBase = champiq_origin || CHAMPIQ_API
+
+    // Read li_at cookie from linkedin.com
+    chrome.cookies.get({ url: 'https://www.linkedin.com', name: 'li_at' }, async (cookie) => {
+      if (!cookie || !cookie.value) {
+        // li_at not found — notify the tab
+        if (sender.tab?.id) {
+          chrome.tabs.sendMessage(sender.tab.id, {
+            type: 'LAKEB2B_LI_AT_RESULT',
+            success: false,
+            error: 'LinkedIn li_at cookie not found. Please open linkedin.com and log in first.',
+          }).catch(() => {})
+        }
+        return
+      }
+
+      // POST li_at to ChampIQ backend
+      try {
+        const res = await fetch(`${apiBase}/api/auth/lakeb2b/linkedin-cookie`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ credential_id, li_at: cookie.value }),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (sender.tab?.id) {
+          chrome.tabs.sendMessage(sender.tab.id, {
+            type: 'LAKEB2B_LI_AT_RESULT',
+            success: res.ok,
+            error: res.ok ? null : (data.detail || `Server error ${res.status}`),
+          }).catch(() => {})
+        }
+      } catch (e) {
+        if (sender.tab?.id) {
+          chrome.tabs.sendMessage(sender.tab.id, {
+            type: 'LAKEB2B_LI_AT_RESULT',
+            success: false,
+            error: e.message,
+          }).catch(() => {})
+        }
+      }
+    })
   }
 })
