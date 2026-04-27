@@ -141,6 +141,30 @@ async def oauth_callback(
     return HTMLResponse(_popup_html(credential_id=row.id, name=row.name))
 
 
+@router.post("/pair")
+async def get_pairing_token(credential_id: int, db: AsyncSession = Depends(get_db)):
+    """Get a short-lived pairing token from B2B Pulse for the browser extension.
+    The extension uses this token to POST li_at directly to B2B Pulse's
+    /api/integrations/extension/session-cookies endpoint.
+    """
+    row = await _get_credential(credential_id, db)
+    creds = _decrypt(row)
+    access_token = creds.get("access_token") or creds.get("jwt", "")
+    if not access_token:
+        raise HTTPException(400, "Complete B2B Pulse OAuth first")
+
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        resp = await client.post(
+            f"{B2B_PULSE}/api/integrations/extension/pair",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+
+    if resp.status_code >= 400:
+        raise HTTPException(502, f"B2B Pulse error {resp.status_code}: {resp.text[:200]}")
+
+    return resp.json()  # {pairing_token, expires_at, api_base}
+
+
 @router.post("/linkedin-cookie")
 async def save_linkedin_cookie(body: LinkedInCookieRequest, db: AsyncSession = Depends(get_db)):
     """Post the li_at cookie to B2B Pulse and mark credential as LinkedIn-connected."""
@@ -226,6 +250,20 @@ async def linkedin_login_verify(body: LinkedInLoginVerifyRequest, db: AsyncSessi
         await svc.update(body.credential_id, creds)
 
     return data
+
+
+@router.get("/ws-token/{credential_id}")
+async def get_ws_token(credential_id: int, db: AsyncSession = Depends(get_db)):
+    """Return the B2B Pulse access token so the frontend can open a WebSocket
+    directly to wss://b2b-pulse.up.railway.app/api/ws/events?token=<jwt>
+    without exposing the token in ChampIQ's own WS proxy.
+    """
+    row = await _get_credential(credential_id, db)
+    creds = _decrypt(row)
+    access_token = creds.get("access_token") or creds.get("jwt", "")
+    if not access_token:
+        raise HTTPException(400, "Complete B2B Pulse OAuth first")
+    return {"access_token": access_token, "ws_url": f"{B2B_PULSE}/api/ws/events"}
 
 
 @router.get("/status/{credential_id}")

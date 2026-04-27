@@ -1,9 +1,21 @@
 /**
  * ChampIQ LakeB2B Connector — Background Service Worker
  *
- * The background worker reads li_at from cookies and sends it to the ChampIQ
- * page via content script. The PAGE (not the background) calls the API —
- * this avoids service worker fetch restrictions / CORS issues.
+ * Two flows supported:
+ *
+ * Flow A — OAuth token capture (fires automatically):
+ *   B2B Pulse OAuth popup lands on /auth/callback#access_token=...
+ *   → background reads li_at from LinkedIn cookies
+ *   → sends LAKEB2B_AUTH_TOKEN (with li_at) to ChampIQ tab
+ *   → ChampIQ page calls its own backend to save credential
+ *
+ * Flow B — Pairing token flow (extension/pair):
+ *   ChampIQ page calls /api/auth/lakeb2b/pair → gets {pairing_token, api_base}
+ *   → sends LAKEB2B_PAIR message to background with pairing_token + api_base
+ *   → background reads li_at from LinkedIn cookies
+ *   → POSTs directly to B2B Pulse's /api/integrations/extension/session-cookies
+ *     with X-Pairing-Token header (B2B Pulse validates and stores internally)
+ *   → sends LAKEB2B_PAIR_RESULT back to ChampIQ page
  */
 
 const CHAMPIQ_ORIGINS = [
@@ -55,8 +67,7 @@ function broadcastToChampIQ(message) {
   })
 }
 
-// Step 1: OAuth popup lands on /auth/callback#access_token=...
-// Read li_at immediately and send BOTH to the ChampIQ tab
+// ── Flow A: OAuth popup callback ──────────────────────────────────────────────
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   const url = changeInfo.url || tab.url
   if (!url) return
@@ -70,7 +81,6 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 
   const li_at = await getLiAt()
 
-  // Send to ChampIQ tab — page handles the API call (no fetch from service worker)
   broadcastToChampIQ({
     type: 'LAKEB2B_AUTH_TOKEN',
     token,
@@ -79,8 +89,8 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   })
 })
 
-// Step 2: When Reconnect button is clicked, page asks background for li_at
-// Background reads it and sends it back — page makes the API call
+// ── Flow B: Pairing token + extension/session-cookies ────────────────────────
+// Also handles LAKEB2B_GET_LI_AT (simple cookie read for reconnect button)
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'LAKEB2B_PING_BG') {
     sendResponse({ ok: true })
@@ -88,7 +98,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   if (msg.type === 'LAKEB2B_GET_LI_AT') {
-    // Page asked for li_at — read it and send back via content script
     getLiAt().then((li_at) => {
       if (sender.tab?.id) {
         chrome.tabs.sendMessage(sender.tab.id, {
@@ -96,6 +105,53 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           li_at,
           found: !!li_at,
         }).catch(() => {})
+      }
+    })
+    return
+  }
+
+  if (msg.type === 'LAKEB2B_PAIR') {
+    const { pairing_token, api_base } = msg
+    // Read li_at then POST directly to B2B Pulse with pairing token
+    getLiAt().then(async (li_at) => {
+      if (!li_at) {
+        if (sender.tab?.id) {
+          chrome.tabs.sendMessage(sender.tab.id, {
+            type: 'LAKEB2B_PAIR_RESULT',
+            success: false,
+            error: 'LinkedIn li_at cookie not found — make sure you are logged into LinkedIn.',
+          }).catch(() => {})
+        }
+        return
+      }
+
+      try {
+        const res = await fetch(`${api_base}/api/integrations/extension/session-cookies`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Pairing-Token': pairing_token,
+          },
+          body: JSON.stringify({ li_at }),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (sender.tab?.id) {
+          chrome.tabs.sendMessage(sender.tab.id, {
+            type: 'LAKEB2B_PAIR_RESULT',
+            success: res.ok,
+            user_name: data.user_name || null,
+            extension_token: data.extension_token || null,
+            error: res.ok ? null : (data.detail || `Error ${res.status}`),
+          }).catch(() => {})
+        }
+      } catch (e) {
+        if (sender.tab?.id) {
+          chrome.tabs.sendMessage(sender.tab.id, {
+            type: 'LAKEB2B_PAIR_RESULT',
+            success: false,
+            error: e.message,
+          }).catch(() => {})
+        }
       }
     })
   }

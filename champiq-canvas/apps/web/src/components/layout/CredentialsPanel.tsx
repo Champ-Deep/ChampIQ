@@ -448,36 +448,45 @@ function AddCredentialForm({ initialType, onDone }: { initialType?: CredentialTy
 // ── LakeB2B Reconnect (inside credential card) ────────────────────────────────
 
 function LakeB2BReconnect({ credId }: { credId: number }) {
-  const [phase, setPhase] = useState<'idle' | 'form' | 'pin' | 'done'>('idle')
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [pin, setPin] = useState('')
-  const [sessionId, setSessionId] = useState('')
   const [loading, setLoading] = useState(false)
   const [msg, setMsg] = useState('')
 
-  async function startLogin() {
-    if (!email.trim() || !password.trim()) { setMsg('Email and password required'); return }
+  async function connectViaPairing() {
+    if (!credId) { setMsg('No credential ID'); return }
     setLoading(true)
-    setMsg('')
+    setMsg('Getting pairing token…')
     try {
-      const res = await fetch('/api/auth/lakeb2b/linkedin-login-start', {
+      // 1. Get pairing token from our backend (proxies to B2B Pulse /pair)
+      const pairRes = await fetch('/api/auth/lakeb2b/pair', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ credential_id: credId, email: email.trim(), password }),
+        body: JSON.stringify({ credential_id: credId }),
       })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) { setMsg(data.detail || `Error ${res.status}`); return }
+      const pairData = await pairRes.json().catch(() => ({}))
+      if (!pairRes.ok) { setMsg(pairData.detail || `Error ${pairRes.status}`); return }
 
-      if (data.status === 'success') {
-        setPhase('done')
-        setMsg('✓ LinkedIn session connected')
-      } else if (data.session_id) {
-        setSessionId(data.session_id)
-        setPhase('pin')
-        setMsg(data.message || 'Enter the PIN sent to your email/phone')
+      const { pairing_token, api_base } = pairData
+      setMsg('Extension reading LinkedIn session…')
+
+      // 2. Tell extension to read li_at and POST directly to B2B Pulse with pairing token
+      const result = await new Promise<{ success: boolean; error?: string; user_name?: string }>((resolve) => {
+        const handler = (ev: MessageEvent) => {
+          if (ev.data?.type !== 'LAKEB2B_PAIR_RESULT') return
+          window.removeEventListener('message', handler)
+          resolve({ success: ev.data.success, error: ev.data.error, user_name: ev.data.user_name })
+        }
+        window.addEventListener('message', handler)
+        window.postMessage({ type: 'LAKEB2B_PAIR', pairing_token, api_base }, '*')
+        setTimeout(() => {
+          window.removeEventListener('message', handler)
+          resolve({ success: false, error: 'Extension did not respond — reload at chrome://extensions' })
+        }, 10000)
+      })
+
+      if (result.success) {
+        setMsg(`✓ LinkedIn session connected${result.user_name ? ` as ${result.user_name}` : ''}`)
       } else {
-        setMsg(data.message || 'Unexpected response — try again')
+        setMsg(result.error || 'Failed to connect LinkedIn session')
       }
     } catch (e) {
       setMsg(e instanceof Error ? e.message : 'Failed')
@@ -486,100 +495,19 @@ function LakeB2BReconnect({ credId }: { credId: number }) {
     }
   }
 
-  async function verifyPin() {
-    if (!pin.trim()) { setMsg('PIN required'); return }
-    setLoading(true)
-    setMsg('')
-    try {
-      const res = await fetch('/api/auth/lakeb2b/linkedin-login-verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ credential_id: credId, session_id: sessionId, code: pin.trim() }),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) { setMsg(data.detail || `Error ${res.status}`); return }
-      setPhase('done')
-      setMsg('✓ LinkedIn session connected')
-    } catch (e) {
-      setMsg(e instanceof Error ? e.message : 'Failed')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  if (phase === 'done') return (
-    <p className="text-xs pt-1 font-medium" style={{ color: '#22c55e' }}>✓ LinkedIn session connected</p>
-  )
-
-  if (phase === 'pin') return (
-    <div className="flex flex-col gap-1.5 pt-1">
-      <p className="text-xs" style={{ color: 'var(--text-3)' }}>{msg}</p>
-      <input
-        className="text-xs p-1.5 rounded-md focus:outline-none"
-        style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-1)' }}
-        placeholder="6-digit PIN"
-        value={pin}
-        onChange={e => setPin(e.target.value)}
-      />
+  return (
+    <div className="flex flex-col gap-1 pt-1">
       <button
-        onClick={verifyPin}
+        onClick={connectViaPairing}
         disabled={loading}
         className="text-xs py-1 rounded-md font-medium disabled:opacity-50"
         style={{ background: '#0A66C2', color: '#fff' }}
       >
-        {loading ? 'Verifying…' : 'Verify PIN'}
+        {loading ? msg || 'Connecting…' : 'Connect LinkedIn session'}
       </button>
-    </div>
-  )
-
-  if (phase === 'form') return (
-    <div className="flex flex-col gap-1.5 pt-1">
-      <p className="text-xs" style={{ color: 'var(--text-3)' }}>
-        B2B Pulse logs into LinkedIn from its own server — no IP issues.
-      </p>
-      <input
-        className="text-xs p-1.5 rounded-md focus:outline-none"
-        style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-1)' }}
-        placeholder="LinkedIn email"
-        value={email}
-        onChange={e => setEmail(e.target.value)}
-      />
-      <input
-        type="password"
-        className="text-xs p-1.5 rounded-md focus:outline-none"
-        style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-1)' }}
-        placeholder="LinkedIn password"
-        value={password}
-        onChange={e => setPassword(e.target.value)}
-      />
-      {msg && <p className="text-xs" style={{ color: '#f87171' }}>{msg}</p>}
-      <div className="flex gap-1.5">
-        <button
-          onClick={startLogin}
-          disabled={loading}
-          className="flex-1 text-xs py-1 rounded-md font-medium disabled:opacity-50"
-          style={{ background: '#0A66C2', color: '#fff' }}
-        >
-          {loading ? 'Connecting…' : 'Connect LinkedIn'}
-        </button>
-        <button onClick={() => setPhase('idle')} className="text-xs py-1 px-2 rounded-md"
-          style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-2)' }}>
-          Cancel
-        </button>
-      </div>
-    </div>
-  )
-
-  return (
-    <div className="flex flex-col gap-1 pt-1">
-      <button
-        onClick={() => setPhase('form')}
-        className="text-xs py-1 rounded-md font-medium"
-        style={{ background: '#0A66C2', color: '#fff' }}
-      >
-        Connect LinkedIn session
-      </button>
-      {msg && <p className="text-xs" style={{ color: msg.startsWith('✓') ? '#22c55e' : '#f59e0b' }}>{msg}</p>}
+      {!loading && msg && (
+        <p className="text-xs" style={{ color: msg.startsWith('✓') ? '#22c55e' : '#f59e0b' }}>{msg}</p>
+      )}
     </div>
   )
 }

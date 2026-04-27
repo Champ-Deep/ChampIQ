@@ -56,6 +56,8 @@ export const api = {
       body: JSON.stringify({ name, type, data }),
     }),
   deleteCredential: (id: number) => req(`/api/credentials/${id}`, { method: 'DELETE' }),
+  getLakeB2BWsToken: (credentialId: number) =>
+    req<{ access_token: string; ws_url: string }>(`/api/auth/lakeb2b/ws-token/${credentialId}`),
 
   // --- chat ---
   chatHistory: (sessionId = 'default') =>
