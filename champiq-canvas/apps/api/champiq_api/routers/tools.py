@@ -81,7 +81,11 @@ async def run_action(tool: str, action: str, payload: dict = {}, db: AsyncSessio
             result = await driver.invoke(action, inputs, credentials)
             job_store[job_id] = {"job_id": job_id, "status": "done", "progress": 100, "result": result}
         except Exception as exc:
-            job_store[job_id] = {"job_id": job_id, "status": "failed", "progress": 100, "result": {"error": str(exc)}}
+            import traceback
+            err_msg = str(exc) or f"{type(exc).__name__}: {repr(exc)}"
+            if not err_msg.strip():
+                err_msg = traceback.format_exc()
+            job_store[job_id] = {"job_id": job_id, "status": "failed", "progress": 100, "result": {"error": err_msg}}
 
     job_store[job_id] = {"job_id": job_id, "status": "running", "progress": 0, "result": None, "created_at": datetime.now(timezone.utc).isoformat()}
     asyncio.create_task(_run())
