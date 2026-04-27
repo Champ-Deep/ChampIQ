@@ -74,7 +74,8 @@ class HttpToolDriver(ABC):
         elif body_kind == "form":
             data_payload = inputs
 
-        async with httpx.AsyncClient(timeout=self._timeout) as client:
+        timeout = httpx.Timeout(connect=10.0, read=self._timeout, write=10.0, pool=5.0)
+        async with httpx.AsyncClient(timeout=timeout) as client:
             response = await client.request(
                 method, url, headers=headers, json=json_payload, data=data_payload, params=params
             )
