@@ -67,9 +67,7 @@ app.include_router(events_ws.router)
 
 @app.get("/health")
 async def health():
-    from .container import get_container
-    c = get_container()
-    return {"status": "ok", "lakeb2b_base_url": c.settings.lakeb2b_base_url}
+    return {"status": "ok"}
 
 
 # ---------------------------------------------------------------------------
