@@ -17,13 +17,13 @@ class LakebPulseDriver(HttpToolDriver):
     tool_id = "lakeb2b_pulse"
 
     actions: dict[str, dict[str, Any]] = {
-        "track_page":           {"method": "POST", "path": "/api/tracked-pages",                     "auth": "bearer"},
-        "list_tracked_pages":   {"method": "GET",  "path": "/api/tracked-pages",                     "auth": "bearer"},
-        "list_posts":           {"method": "GET",  "path": "/api/tracked-pages/{page_id}/posts",      "auth": "bearer"},
-        "schedule_engagement":  {"method": "POST", "path": "/api/automation/generate-comment",        "auth": "bearer"},
-        "get_engagement_status":{"method": "GET",  "path": "/api/audit",                              "auth": "bearer"},
-        "get_integration_status":{"method": "GET", "path": "/api/integrations/status",                "auth": "bearer"},
-        "list_team":            {"method": "GET",  "path": "/api/org/teams",                          "auth": "bearer"},
+        "track_page":            {"method": "POST", "path": "/api/tracked-pages",                       "auth": "bearer"},
+        "list_tracked_pages":    {"method": "GET",  "path": "/api/tracked-pages",                       "auth": "bearer"},
+        "poll_page":             {"method": "POST", "path": "/api/tracked-pages/{page_id}/poll-now",    "auth": "bearer"},
+        "list_posts":            {"method": "GET",  "path": "/api/tracked-pages/{page_id}/posts",       "auth": "bearer"},
+        "schedule_engagement":   {"method": "POST", "path": "/api/automation/generate-comment",         "auth": "bearer"},
+        "get_engagement_status": {"method": "GET",  "path": "/api/audit",                               "auth": "bearer"},
+        "get_integration_status":{"method": "GET",  "path": "/api/integrations/status",                 "auth": "bearer"},
     }
 
     def _build_headers(self, auth_kind: str, credentials: dict[str, Any]) -> dict[str, str]:

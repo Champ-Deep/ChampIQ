@@ -2,7 +2,7 @@
   "$schema": "https://champiq.dev/manifest/v2.json",
   "manifest_version": 2,
   "tool_id": "lakeb2b_pulse",
-  "name": "Lakeb2b Pulse",
+  "name": "LakeB2B Pulse",
   "description": "LinkedIn engagement automation: track pages, detect posts, schedule likes/comments.",
   "category": "engagement",
   "color": "#0EA5E9",
@@ -14,24 +14,27 @@
       "label": "Track LinkedIn Page",
       "input_schema": {
         "type": "object",
-        "required": ["page_url"],
+        "required": ["url"],
         "properties": {
-          "page_url": {"type": "string"},
-          "team_id": {"type": "string"}
+          "url":       {"type": "string", "description": "LinkedIn profile or company page URL"},
+          "name":      {"type": "string", "description": "Label for this page (optional)"},
+          "page_type": {"type": "string", "enum": ["personal", "company"], "default": "personal"}
         }
       }
     },
     {
-      "id": "schedule_engagement",
-      "label": "Schedule Engagement",
+      "id": "list_tracked_pages",
+      "label": "List Tracked Pages",
+      "input_schema": {"type": "object", "properties": {}}
+    },
+    {
+      "id": "poll_page",
+      "label": "Poll Page for New Posts",
       "input_schema": {
         "type": "object",
-        "required": ["post_id", "action"],
+        "required": ["page_id"],
         "properties": {
-          "post_id": {"type": "string"},
-          "action": {"type": "string", "enum": ["like", "comment", "both"]},
-          "comment_text": {"type": "string"},
-          "stagger_minutes": {"type": "integer", "default": 30}
+          "page_id": {"type": "string", "description": "UUID of the tracked page"}
         }
       }
     },
@@ -40,25 +43,41 @@
       "label": "List Recent Posts",
       "input_schema": {
         "type": "object",
+        "required": ["page_id"],
         "properties": {
-          "page_id": {"type": "string"},
-          "since": {"type": "string", "format": "date-time"}
+          "page_id": {"type": "string", "description": "UUID of the tracked page"},
+          "since":   {"type": "string", "format": "date-time"}
+        }
+      }
+    },
+    {
+      "id": "schedule_engagement",
+      "label": "Schedule Engagement (Like / Comment)",
+      "input_schema": {
+        "type": "object",
+        "required": ["post_id", "action"],
+        "properties": {
+          "post_id":         {"type": "string"},
+          "action":          {"type": "string", "enum": ["like", "comment", "both"]},
+          "comment_text":    {"type": "string"},
+          "stagger_minutes": {"type": "integer", "default": 30}
         }
       }
     },
     {
       "id": "get_engagement_status",
-      "label": "Get Engagement Status",
-      "input_schema": {
-        "type": "object",
-        "required": ["engagement_id"],
-        "properties": {"engagement_id": {"type": "string"}}
-      }
+      "label": "Get Engagement Audit Log",
+      "input_schema": {"type": "object", "properties": {}}
+    },
+    {
+      "id": "get_integration_status",
+      "label": "Get Integration Status",
+      "input_schema": {"type": "object", "properties": {}}
     }
   ],
   "triggers": [
-    {"kind": "event", "event": "pulse.post.detected", "label": "On New Post"},
+    {"kind": "event", "event": "pulse.post.detected",        "label": "On New Post Detected"},
     {"kind": "event", "event": "pulse.engagement.completed", "label": "On Engagement Done"},
-    {"kind": "event", "event": "pulse.cap.hit", "label": "On Daily Cap Hit"}
+    {"kind": "event", "event": "pulse.cap.hit",              "label": "On Daily Cap Hit"}
   ]
 }
