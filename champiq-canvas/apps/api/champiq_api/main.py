@@ -9,6 +9,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from .champmail.routers import (
+    analytics as cm_analytics,
+    enrollments as cm_enrollments,
+    prospects as cm_prospects,
+    sends as cm_sends,
+    senders as cm_senders,
+    sequences as cm_sequences,
+    templates as cm_templates,
+    unsubscribe as cm_unsubscribe,
+    webhooks as cm_webhooks,
+)
 from .container import get_container
 from .routers import auth_lakeb2b, canvas, chat, credentials, events_ws, jobs, registry, tools, uploads, webhooks, workflows
 
@@ -18,9 +29,11 @@ async def lifespan(app: FastAPI):
     container = get_container()
     await container.cron.start()
     await container.event_listener.start()
+    container.cadence_job.start()
     try:
         yield
     finally:
+        container.cadence_job.stop()
         await container.cron.shutdown()
         await container.event_listener.shutdown()
 
@@ -62,6 +75,18 @@ app.include_router(credentials.router, prefix="/api")
 app.include_router(webhooks.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 app.include_router(uploads.router, prefix="/api")
+
+# ChampMail inline (under /api/champmail/*)
+app.include_router(cm_prospects.router, prefix="/api")
+app.include_router(cm_senders.router, prefix="/api")
+app.include_router(cm_templates.router, prefix="/api")
+app.include_router(cm_sequences.router, prefix="/api")
+app.include_router(cm_enrollments.router, prefix="/api")
+app.include_router(cm_sends.router, prefix="/api")
+app.include_router(cm_webhooks.router, prefix="/api")
+app.include_router(cm_unsubscribe.router, prefix="/api")
+app.include_router(cm_analytics.router, prefix="/api")
+
 app.include_router(events_ws.router)
 
 

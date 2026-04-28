@@ -10,6 +10,8 @@ from functools import lru_cache
 from typing import Any
 
 from .champmail.rendering import TemplateRenderer, UnsubscribeTokens
+from .champmail.scheduling import CadenceJob
+from .champmail.services import CadenceService
 from .champmail.transport import EmeliaTransport, MailTransport, StubTransport
 from .credentials import CredentialService, FernetCrypto, SqlCredentialResolver
 from .database import get_session_factory, get_settings
@@ -55,6 +57,7 @@ class Container:
     unsubscribe_tokens: UnsubscribeTokens
     emelia_default_sender_ids: list[str]
     emelia_webhook_secret: str
+    cadence_job: CadenceJob
 
     def credential_service(self) -> CredentialService:
         from .database import get_session_factory
@@ -133,6 +136,9 @@ def get_container() -> Container:
     unsubscribe_tokens = UnsubscribeTokens(secret=unsubscribe_secret)
     sender_ids = [s.strip() for s in (settings.emelia_default_sender_ids or "").split(",") if s.strip()]
 
+    cadence_service = CadenceService(session_factory, mail_transport, mail_renderer)
+    cadence_job = CadenceJob(cron.scheduler, cadence_service, interval_seconds=60)
+
     return Container(
         crypto=crypto,
         registry=registry,
@@ -149,4 +155,5 @@ def get_container() -> Container:
         unsubscribe_tokens=unsubscribe_tokens,
         emelia_default_sender_ids=sender_ids,
         emelia_webhook_secret=settings.emelia_webhook_secret,
+        cadence_job=cadence_job,
     )
