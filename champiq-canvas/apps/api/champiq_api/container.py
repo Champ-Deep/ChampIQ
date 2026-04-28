@@ -9,13 +9,14 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any
 
+from .champmail.nodes import ChampmailLocalExecutor
 from .champmail.rendering import TemplateRenderer, UnsubscribeTokens
 from .champmail.scheduling import CadenceJob
 from .champmail.services import CadenceService
 from .champmail.transport import EmeliaTransport, MailTransport, StubTransport
 from .credentials import CredentialService, FernetCrypto, SqlCredentialResolver
 from .database import get_session_factory, get_settings
-from .drivers import ChampGraphDriver, ChampmailDriver, ChampVoiceDriver, LakebPulseDriver, ToolNodeExecutor
+from .drivers import ChampGraphDriver, ChampVoiceDriver, LakebPulseDriver, ToolNodeExecutor
 from .expressions import SimpleExpressionEvaluator
 from .llm import LLMProvider, OpenRouterProvider
 from .nodes import (
@@ -77,9 +78,9 @@ def get_container() -> Container:
 
     registry = NodeRegistry()
 
-    # Tool drivers.
+    # Tool drivers (HTTP-backed). NOTE: champmail used to be here but is now
+    # replaced by the inline ChampmailLocalExecutor — see below.
     drivers = {
-        "champmail":    ChampmailDriver(settings.champmail_base_url),
         "champgraph":   ChampGraphDriver(settings.champgraph_base_url),
         "champvoice":   ChampVoiceDriver(""),  # calls ElevenLabs directly; no gateway needed
         "lakeb2b_pulse": LakebPulseDriver("https://b2b-pulse.up.railway.app"),
@@ -138,6 +139,11 @@ def get_container() -> Container:
 
     cadence_service = CadenceService(session_factory, mail_transport, mail_renderer)
     cadence_job = CadenceJob(cron.scheduler, cadence_service, interval_seconds=60)
+
+    # Register the inline ChampMail node executor — replaces the old HTTP-based
+    # ChampmailDriver. Same `kind: champmail`, identical config schema, but now
+    # runs against local services instead of the external VPS.
+    registry.register(ChampmailLocalExecutor(mail_transport, mail_renderer))
 
     return Container(
         crypto=crypto,
