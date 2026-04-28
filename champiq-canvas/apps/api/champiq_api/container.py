@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any
 
+from .champmail.rendering import TemplateRenderer, UnsubscribeTokens
+from .champmail.transport import EmeliaTransport, MailTransport, StubTransport
 from .credentials import CredentialService, FernetCrypto, SqlCredentialResolver
 from .database import get_session_factory, get_settings
 from .drivers import ChampGraphDriver, ChampmailDriver, ChampVoiceDriver, LakebPulseDriver, ToolNodeExecutor
@@ -47,6 +49,12 @@ class Container:
     event_listener: EventTriggerListener
     drivers: dict[str, Any]
     llm: LLMProvider
+    # ChampMail inline
+    mail_transport: MailTransport
+    mail_renderer: TemplateRenderer
+    unsubscribe_tokens: UnsubscribeTokens
+    emelia_default_sender_ids: list[str]
+    emelia_webhook_secret: str
 
     def credential_service(self) -> CredentialService:
         from .database import get_session_factory
@@ -115,6 +123,16 @@ def get_container() -> Container:
         app_title=settings.openrouter_app_title,
     )
 
+    # ChampMail inline — Emelia transport (or Stub if no API key, so dev/CI never break)
+    if settings.emelia_api_key:
+        mail_transport: MailTransport = EmeliaTransport(api_key=settings.emelia_api_key)
+    else:
+        mail_transport = StubTransport()
+    mail_renderer = TemplateRenderer()
+    unsubscribe_secret = settings.champmail_unsubscribe_secret or settings.fernet_key or "dev-secret-do-not-use"
+    unsubscribe_tokens = UnsubscribeTokens(secret=unsubscribe_secret)
+    sender_ids = [s.strip() for s in (settings.emelia_default_sender_ids or "").split(",") if s.strip()]
+
     return Container(
         crypto=crypto,
         registry=registry,
@@ -126,4 +144,9 @@ def get_container() -> Container:
         event_listener=event_listener,
         drivers=drivers,
         llm=llm,
+        mail_transport=mail_transport,
+        mail_renderer=mail_renderer,
+        unsubscribe_tokens=unsubscribe_tokens,
+        emelia_default_sender_ids=sender_ids,
+        emelia_webhook_secret=settings.emelia_webhook_secret,
     )

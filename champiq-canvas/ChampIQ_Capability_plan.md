@@ -235,13 +235,50 @@ On page load, chat history is fetched from the DB and each assistant message re-
 
 ---
 
+## Non-Email Use Cases (fully working without SMTP)
+
+| UC | Name | Status | Notes |
+|----|------|--------|-------|
+| UC-11 | Daily Cron → list prospects → call each (ChampVoice) | ✅ | Workflow #39 on production. Click "Activate" in TopBar to register cron. |
+| UC-12 | Webhook → create prospect → immediate call | ✅ | Workflow #37. Inbound: POST /api/webhooks/wf/37/trigger-webhook-lead. Live call to +919098474926 verified. |
+| UC-13 | Manual → get_prospect_status → switch → call hot / track cold | ✅ | Workflow #38. Switch routing verified: replied/opened → call, cold/not_found → LinkedIn. |
+
+---
+
+## Cron Activation (fixed 2026-04-28)
+
+The canvas "Run All" only fires ad-hoc executions — cron nodes on the canvas are not registered with APScheduler until the workflow is saved as an active persistent workflow.
+
+**Solution:** "Activate" button (CalendarClock icon) in the TopBar:
+- Extracts `trigger.cron` nodes from the canvas
+- Creates/updates a `WorkflowTable` row with `active=True` and `triggers` array
+- APScheduler calls `CronScheduler.sync()` → jobs registered automatically
+- Button turns green and shows "Active" after activation
+
+---
+
+## Duplicate Node Fix (fixed 2026-04-28)
+
+`applyPatch.ts` now deduplicates nodes and edges: if the LLM patch `add_nodes` an ID that already exists, it merges the config instead of creating a second copy. Edge deduplication uses a Map by ID. Previously canvas accumulated 72 nodes with many duplicates.
+
+---
+
+## Credential Manager (upgraded 2026-04-28)
+
+CredentialManager now supports multiple types with type-appropriate fields:
+- **champmail** — email + password (also used for ChampGraph)
+- **champvoice** — elevenlabs_api_key + agent_id + phone_number_id
+- **http_bearer** — token
+- **http_basic** — username + password
+
+---
+
 ## Known Issues / Blockers
 
 | Issue | Severity | Detail |
 |-------|----------|--------|
-| ChampMail SMTP sending blocked | High | test@accountsonline.biz password wrong (Champ@123456 rejected). TurboSMTP API key invalid. Correct credentials needed from the mail server admin. |
-| TurboSMTP credentials invalid | High | `768b7b5c38904f7381b0` / `fTcbZNk6Jym0I2OYzHRp` returns "invalid username/password combination" on all ports |
-| mail.privatemail.com unreachable | Medium | Network unreachable from this server (charlie.evans@infobase360.com IMAP) |
+| ChampMail SMTP sending blocked | High | test@accountsonline.biz password wrong. Correct credentials needed from mail server admin. |
+| ChampGraph create_prospect credential | Medium | Needs champmail-admin credential on production to create prospects via API. |
 
 ---
 
@@ -261,4 +298,4 @@ On page load, chat history is fetched from the DB and each assistant message re-
 
 ---
 
-*Last updated: 2026-04-22*
+*Last updated: 2026-04-28*

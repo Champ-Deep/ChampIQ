@@ -17,6 +17,14 @@ class Settings(BaseSettings):
     champserver_email: str = ""
     champserver_password: str = ""
 
+    # ChampMail (inline) — Emelia transport
+    emelia_api_key: str = ""
+    emelia_default_sender_ids: str = ""  # comma-separated UUIDs
+    emelia_webhook_secret: str = ""
+    emelia_default_from_email: str = ""
+    emelia_default_from_name: str = "ChampIQ"
+    champmail_unsubscribe_secret: str = ""  # signs unsubscribe tokens; defaults to fernet_key if empty
+
     openrouter_api_key: str = ""
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     openrouter_model: str = "anthropic/claude-sonnet-4"
