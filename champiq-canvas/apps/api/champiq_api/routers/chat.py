@@ -242,6 +242,8 @@ UC-12: WEBHOOK → CREATE PROSPECT → IMMEDIATE CALL
       "company": "{{ trigger.payload.company }}",
       "email": "{{ trigger.payload.email }}"
     }
+  After Activate: webhook fires at POST /api/webhooks/wf/{workflow_id}/{trigger_node_id}
+  e.g. POST /api/webhooks/wf/37/trigger-webhook-lead  with { email, first_name, phone, company, title }
 
 UC-13: MANUAL → GET STATUS → SMART ROUTE (call hot prospects, track cold on LinkedIn)
   trigger.manual { "label": "Route Prospects by Engagement", "items": [] }
