@@ -5,8 +5,18 @@ import { useTheme } from '@/hooks/useTheme'
 import { getToolId } from '@/lib/manifest'
 import { saveCurrentCanvas } from '@/hooks/usePersistence'
 import { Button } from '@/components/ui/button'
-import { Save, Play, ZoomIn, ZoomOut, Moon, Sun, Check, Loader2 } from '@/lib/icons'
+import { Save, Play, ZoomIn, ZoomOut, Moon, Sun, Check, Loader2, CalendarClock, Power } from '@/lib/icons'
 import { useReactFlow } from '@xyflow/react'
+import type { Node } from '@xyflow/react'
+
+function extractCronTriggers(nodes: Node[]): Record<string, unknown>[] {
+  return nodes
+    .filter((n) => (n.data as Record<string, unknown>).kind === 'trigger.cron')
+    .map((n) => {
+      const cfg = ((n.data as Record<string, unknown>).config as Record<string, unknown>) ?? {}
+      return { id: n.id, kind: 'cron', cron: cfg.cron ?? '0 9 * * 1-5', timezone: cfg.timezone ?? 'UTC' }
+    })
+}
 
 export function TopBar() {
   const { canvasName, nodes, edges, toolHealthStatus, manifests, setCanvasName, setNodeRuntime, addLog } = useCanvasStore()
@@ -15,6 +25,8 @@ export function TopBar() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [running, setRunning] = useState(false)
+  const [activating, setActivating] = useState(false)
+  const [activeWorkflowId, setActiveWorkflowId] = useState<number | null>(null)
 
   async function handleSave() {
     if (saving) return
@@ -89,6 +101,43 @@ export function TopBar() {
     }
   }
 
+  async function handleActivate() {
+    if (activating || nodes.length === 0) return
+    setActivating(true)
+    addLog({ nodeId: 'activate', nodeName: 'Activate', status: 'running', message: 'Registering workflow as scheduled…' })
+    try {
+      const triggers = extractCronTriggers(nodes)
+      const body = {
+        name: canvasName,
+        description: `Activated from canvas: ${canvasName}`,
+        active: true,
+        nodes,
+        edges,
+        triggers,
+      }
+      let wf: Record<string, unknown>
+      if (activeWorkflowId) {
+        wf = await api.updateWorkflow(activeWorkflowId, body) as Record<string, unknown>
+      } else {
+        wf = await api.createWorkflow(body) as Record<string, unknown>
+        setActiveWorkflowId(wf.id as number)
+      }
+      const hasCron = triggers.length > 0
+      addLog({
+        nodeId: 'activate',
+        nodeName: 'Activate',
+        status: 'success',
+        message: hasCron
+          ? `Workflow #${wf.id as number} active — ${triggers.length} cron schedule(s) registered`
+          : `Workflow #${wf.id as number} active (no cron triggers — use Run All to fire manually)`,
+      })
+    } catch (e) {
+      addLog({ nodeId: 'activate', nodeName: 'Activate', status: 'error', message: String(e) })
+    } finally {
+      setActivating(false)
+    }
+  }
+
   return (
     <div
       className="flex items-center justify-between h-12 px-4 border-b shrink-0"
@@ -145,6 +194,20 @@ export function TopBar() {
           {running
             ? <><Loader2 size={14} className="mr-1 animate-spin" /> Running…</>
             : <><Play size={14} className="mr-1" /> Run All</>}
+        </Button>
+        <Button
+          variant="ghost" size="sm"
+          onClick={handleActivate}
+          disabled={activating || nodes.length === 0}
+          aria-label="Activate as scheduled workflow"
+          title={activeWorkflowId ? `Re-sync workflow #${activeWorkflowId}` : 'Register cron triggers and activate workflow'}
+          style={{ color: activating ? '#a78bfa' : activeWorkflowId ? '#4ade80' : 'var(--text-2)' }}
+        >
+          {activating
+            ? <><Loader2 size={14} className="mr-1 animate-spin" /> Activating…</>
+            : activeWorkflowId
+              ? <><Power size={14} className="mr-1" /> Active</>
+              : <><CalendarClock size={14} className="mr-1" /> Activate</>}
         </Button>
         <Button
           size="sm"

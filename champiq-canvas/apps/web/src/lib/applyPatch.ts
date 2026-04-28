@@ -38,7 +38,22 @@ export function applyWorkflowPatch(patch: WorkflowPatch): { added: number; remov
       data: (n.data as Record<string, unknown>) ?? {},
     } as Node
   })
-  nodes = [...nodes, ...addedNodes]
+  // Deduplicate: if an add_node ID already exists, treat it as an update instead.
+  const existingIds = new Set(nodes.map((n) => n.id))
+  const trulyNew: Node[] = []
+  for (const n of addedNodes) {
+    if (existingIds.has(n.id)) {
+      nodes = nodes.map((existing) =>
+        existing.id === n.id
+          ? { ...existing, data: { ...(existing.data as object), ...(n.data as object) } }
+          : existing
+      )
+    } else {
+      trulyNew.push(n)
+      existingIds.add(n.id)
+    }
+  }
+  nodes = [...nodes, ...trulyNew]
 
   const addedEdges = (patch.add_edges ?? []).map((raw, i) => {
     const e = raw as EdgePatch
@@ -51,10 +66,13 @@ export function applyWorkflowPatch(patch: WorkflowPatch): { added: number; remov
       data: (e as { data?: Record<string, unknown> }).data ?? { state: 'waiting' },
     } as Edge
   })
-  edges = [...edges, ...addedEdges]
+  // Deduplicate edges by ID too
+  const edgeMap = new Map(edges.map((e) => [e.id, e]))
+  for (const e of addedEdges) edgeMap.set(e.id, e)
+  edges = Array.from(edgeMap.values())
 
   useCanvasStore.setState({ nodes, edges })
-  return { added: addedNodes.length, removed: removeIds.size, updated, addedIds: addedNodes.map((n) => n.id) }
+  return { added: trulyNew.length, removed: removeIds.size, updated, addedIds: trulyNew.map((n) => n.id) }
 }
 
 // Linear left-to-right layout: each new node steps 280px right from the rightmost existing node.

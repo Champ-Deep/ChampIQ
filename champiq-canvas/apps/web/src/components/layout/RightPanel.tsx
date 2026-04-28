@@ -55,42 +55,58 @@ const ACTION_FIELDS: Record<string, Record<string, FieldDef[]>> = {
     list_templates: [],
   },
   champgraph: {
-    ingest_prospect: [
+    create_prospect: [
       { key: 'email', label: 'Email', type: 'text', placeholder: '{{item.email}}' },
       { key: 'first_name', label: 'First name', type: 'text', placeholder: '{{item.first_name}}' },
       { key: 'last_name', label: 'Last name', type: 'text', placeholder: '{{item.last_name}}' },
-      { key: 'company', label: 'Company', type: 'text', placeholder: '{{item.company}}' },
+      { key: 'company_name', label: 'Company', type: 'text', placeholder: '{{item.company}}' },
       { key: 'title', label: 'Title', type: 'text', placeholder: '{{item.title}}' },
     ],
-    get_prospect_status: [
-      { key: 'email', label: 'Email', type: 'text', placeholder: '{{item.email}}' },
-    ],
-    ingest_company: [
-      { key: 'name', label: 'Company name', type: 'text', placeholder: '{{item.company}}' },
-      { key: 'domain', label: 'Domain', type: 'text', placeholder: '{{item.domain}}' },
-      { key: 'industry', label: 'Industry', type: 'text', placeholder: '{{item.industry}}' },
-    ],
-    semantic_search: [
-      { key: 'query', label: 'Query', type: 'text', placeholder: '{{prev.search_term}}' },
+    list_prospects: [
       { key: 'limit', label: 'Max results', type: 'number' },
+      { key: 'status', label: 'Filter by status (optional)', type: 'text', placeholder: 'cold' },
     ],
-    nl_query: [
-      { key: 'query', label: 'Natural-language query', type: 'textarea',
-        placeholder: 'Find all prospects at enterprise companies in fintech' },
+    get_prospect_status: [
+      { key: 'email', label: 'Email', type: 'text', placeholder: '{{item.email}}',
+        hint: 'Returns engagement_status: replied | opened | cold | not_found — use in downstream switch/if.' },
     ],
-    add_relationship: [
-      { key: 'from_email', label: 'From (email)', type: 'text', placeholder: '{{prev.email}}' },
-      { key: 'to_email', label: 'To (email)', type: 'text', placeholder: '{{prev.target_email}}' },
-      { key: 'relationship', label: 'Relationship type', type: 'text', placeholder: 'knows / colleague' },
+    bulk_import: [
+      { key: 'prospects', label: 'Prospects (JSON array)', type: 'textarea',
+        placeholder: '[{"email":"a@b.com","first_name":"Alice"}]' },
     ],
+    research_prospects: [
+      { key: 'prospect_ids', label: 'Prospect UUIDs (JSON array)', type: 'textarea',
+        placeholder: '["uuid1","uuid2"]' },
+      { key: 'concurrency', label: 'Concurrency', type: 'number' },
+    ],
+    campaign_essence: [
+      { key: 'description', label: 'Campaign description', type: 'textarea',
+        placeholder: 'Cold outreach to SaaS CTOs about our AI tool' },
+      { key: 'target_audience', label: 'Target audience', type: 'text',
+        placeholder: 'CTO at B2B SaaS companies' },
+    ],
+    enroll_sequence: [
+      { key: 'sequence_id', label: 'Sequence ID', type: 'text', placeholder: 'seq_abc123' },
+      { key: 'prospect_email', label: 'Prospect email', type: 'text', placeholder: '{{item.email}}' },
+    ],
+    analytics_overview: [],
+    list_sequences: [],
+    list_campaigns: [],
   },
   champvoice: {
     initiate_call: [
-      { key: 'agent_id', label: 'Agent ID override (optional)', type: 'text',
-        placeholder: '{{item.agent_id}}', hint: 'Overrides the credential default. Leave blank to use the credential agent.' },
+      { key: 'to_number', label: 'Phone number (E.164)', type: 'text',
+        placeholder: '{{item.phone}}', hint: 'Include country code. e.g. +14155551234 or {{item.phone_number}}' },
+      { key: 'lead_name', label: 'Lead name', type: 'text', placeholder: '{{item.first_name}}' },
+      { key: 'company', label: 'Company', type: 'text', placeholder: '{{item.company}}' },
+      { key: 'email', label: 'Lead email', type: 'text', placeholder: '{{item.email}}' },
+      { key: 'engagement_status', label: 'Engagement status (optional)', type: 'text',
+        placeholder: '{{prev.engagement_status}}',
+        hint: 'Passed as a dynamic variable to the AI agent so it can tailor its opener.' },
       { key: 'call_reason', label: 'Call reason (optional)', type: 'select',
-        options: ['', 'cold_outreach', 'email_follow_up', 'sequence_completed', 'replied_follow_up'],
-        hint: 'Shapes the AI agent opening. Phone, name, email and company flow in automatically from the loop.' },
+        options: ['', 'cold_outreach', 'email_follow_up', 'sequence_completed', 'replied_follow_up'] },
+      { key: 'agent_id', label: 'Agent ID override (optional)', type: 'text',
+        placeholder: 'Leave blank to use credential default' },
     ],
     get_call_status: [
       { key: 'conversation_id', label: 'Conversation ID', type: 'text', placeholder: '{{prev.conversationId}}',
@@ -213,8 +229,11 @@ const KIND_FIELDS: Record<string, FieldDef[]> = {
   ],
   'champgraph': [
     { key: 'action', label: 'Action', type: 'select',
-      options: ['ingest_prospect', 'get_prospect_status', 'ingest_company', 'semantic_search', 'nl_query', 'add_relationship'] },
-    { key: 'credential', label: 'ChampGraph credential (optional)', type: 'credential' },
+      options: ['create_prospect', 'list_prospects', 'get_prospect_status', 'bulk_import',
+                'research_prospects', 'campaign_essence', 'enroll_sequence',
+                'analytics_overview', 'list_sequences', 'list_campaigns'] },
+    { key: 'credential', label: 'ChampGraph credential', type: 'credential',
+      hint: 'Same email+password as ChampMail admin. Use champmail-admin credential.' },
   ],
   'champvoice': [
     { key: 'action', label: 'Action', type: 'select',

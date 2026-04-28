@@ -210,6 +210,84 @@ PROSPECTING RESEARCH (CSV upload → create + research per prospect):
         Use an LLM node after champgraph for AI-generated openers without needing UUIDs.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+NON-EMAIL USE CASES (prospecting + calling — no SMTP required)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+UC-11: DAILY CRON → LIST PROSPECTS → VOICE CALL EACH
+  trigger.cron { "cron": "0 9 * * 1-5", "timezone": "UTC" }
+  → champgraph list_prospects {}
+  → loop { "items": "{{ prev.prospects }}", "concurrency": 2,
+           "each": { "email": "{{ item.email }}", "first_name": "{{ item.first_name }}",
+                     "phone_number": "{{ item.phone }}", "company": "{{ item.company }}" } }
+    → champgraph get_prospect_status { "email": "{{ item.email }}" }
+    → if { "condition": "{{ prev.engagement_status }} in ('replied','opened','sequence_completed')" }
+      true → champvoice initiate_call { "to_number": "{{ item.phone_number }}", "lead_name": "{{ item.first_name }}",
+                                        "company": "{{ item.company }}", "email": "{{ item.email }}" }
+  After building: user must click "Activate" button (CalendarClock) to register cron schedule.
+  ChampVoice credential type: "champvoice" — fields: elevenlabs_api_key, agent_id, phone_number_id.
+
+UC-12: WEBHOOK → CREATE PROSPECT → IMMEDIATE CALL
+  trigger.webhook { "path": "/hooks/new-lead", "secret": "" }
+  → champgraph create_prospect {
+      "email": "{{ trigger.payload.email }}",
+      "first_name": "{{ trigger.payload.first_name }}",
+      "last_name": "{{ trigger.payload.last_name }}",
+      "company_name": "{{ trigger.payload.company }}",
+      "title": "{{ trigger.payload.title }}"
+    }
+  → wait { "seconds": 30 }
+  → champvoice initiate_call {
+      "to_number": "{{ trigger.payload.phone }}",
+      "lead_name": "{{ trigger.payload.first_name }}",
+      "company": "{{ trigger.payload.company }}",
+      "email": "{{ trigger.payload.email }}"
+    }
+
+UC-13: MANUAL → GET STATUS → SMART ROUTE (call hot prospects, track cold on LinkedIn)
+  trigger.manual { "label": "Route Prospects by Engagement", "items": [] }
+  → loop { "items": "{{ trigger.payload.items }}", "concurrency": 3,
+           "each": { "email": "{{ item.email }}", "phone": "{{ item.phone }}",
+                     "first_name": "{{ item.first_name }}", "linkedin_url": "{{ item.linkedin_url }}" } }
+    → champgraph get_prospect_status { "email": "{{ item.email }}" }
+    → switch {
+        "value": "{{ prev.engagement_status }}",
+        "cases": [
+          { "match": "replied",            "branch": "call_now" },
+          { "match": "sequence_completed", "branch": "call_now" },
+          { "match": "opened",             "branch": "call_now" },
+          { "match": "cold",               "branch": "track_linkedin" },
+          { "match": "not_found",          "branch": "create_first" }
+        ],
+        "default_branch": "track_linkedin"
+      }
+    call_now    → champvoice initiate_call { "to_number": "{{ item.phone }}", "lead_name": "{{ item.first_name }}", "email": "{{ item.email }}" }
+    track_linkedin → lakeb2b_pulse track_page { "page_url": "{{ item.linkedin_url }}" }
+    create_first   → champgraph create_prospect { "email": "{{ item.email }}", "first_name": "{{ item.first_name }}" }
+
+champvoice FULL CONFIG SCHEMA:
+  { "action": "initiate_call",
+    "credential": "champvoice-cred",
+    "inputs": {
+      "to_number": "{{ item.phone_number }}",
+      "lead_name": "{{ item.first_name }}",
+      "company": "{{ item.company }}",
+      "email": "{{ item.email }}",
+      "engagement_status": "{{ prev.engagement_status }}"
+    } }
+  Credential type: "champvoice" — required fields: elevenlabs_api_key, agent_id, phone_number_id
+  Other actions: get_call_status { conversation_id }, list_calls {}
+
+champgraph get_prospect_status output fields:
+  found, engagement_status ("replied"|"sequence_completed"|"sequence_active"|"opened"|"sent"|"cold"|"not_found"),
+  email_sent, email_opened, email_replied, sequence_active, sequence_completed
+  Use {{ prev.engagement_status }} in downstream switch/if to route calls vs LinkedIn vs create.
+
+CRON ACTIVATION REMINDER:
+  Any workflow with a trigger.cron node needs to be activated as a persistent workflow.
+  After building, always tell the user: "Click the 'Activate' button (CalendarClock icon in the top bar)
+  to register the cron schedule — the workflow won't fire automatically until activated."
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 REPLY FORMAT — MUST FOLLOW EXACTLY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 

@@ -9,11 +9,12 @@ import type { ChatMessage } from '@/types'
 const SESSION_ID = 'default'
 
 const SUGGESTIONS = [
+  'Every weekday at 9am, list prospects from ChampGraph and call each one with ChampVoice.',
+  'When a new lead submits a form (webhook), create them in ChampGraph and call immediately.',
+  'Route prospects by engagement: call anyone who replied or opened, track cold leads on LinkedIn.',
   'Build a workflow: upload contacts CSV → enroll each in a Champmail sequence',
   'When a Champmail reply comes in, classify it with an LLM and pause the sequence if positive.',
-  'Every morning at 8am, fetch new prospects from ChampGraph and start a sequence.',
   'A/B test two subject lines: split my list in half and send variant A to one half, B to the other.',
-  'Parallel outreach: hit prospects on email AND LinkedIn at the same time.',
 ]
 
 export function parseAssistant(raw: string): { explanation: string; patch?: unknown } {
@@ -48,10 +49,47 @@ interface CredentialRow {
   created_at: string
 }
 
+const CRED_TYPES: Record<string, { label: string; defaultName: string; fields: { key: string; label: string; type: string; placeholder: string }[] }> = {
+  champmail: {
+    label: 'ChampMail / ChampGraph',
+    defaultName: 'champmail-admin',
+    fields: [
+      { key: 'email', label: 'Admin Email', type: 'email', placeholder: 'admin@yourcompany.com' },
+      { key: 'password', label: 'Admin Password', type: 'password', placeholder: '••••••••' },
+    ],
+  },
+  champvoice: {
+    label: 'ChampVoice (ElevenLabs)',
+    defaultName: 'champvoice-cred',
+    fields: [
+      { key: 'elevenlabs_api_key', label: 'ElevenLabs API Key', type: 'password', placeholder: 'sk_…' },
+      { key: 'agent_id', label: 'Agent ID', type: 'text', placeholder: 'agent_…' },
+      { key: 'phone_number_id', label: 'Phone Number ID', type: 'text', placeholder: 'phone_…' },
+    ],
+  },
+  http_bearer: {
+    label: 'HTTP Bearer Token',
+    defaultName: 'http-token',
+    fields: [
+      { key: 'token', label: 'Bearer Token', type: 'password', placeholder: 'Bearer token value' },
+    ],
+  },
+  http_basic: {
+    label: 'HTTP Basic Auth',
+    defaultName: 'http-basic',
+    fields: [
+      { key: 'username', label: 'Username', type: 'text', placeholder: 'username' },
+      { key: 'password', label: 'Password', type: 'password', placeholder: '••••••••' },
+    ],
+  },
+}
+
 function CredentialManager({ onClose }: { onClose: () => void }) {
   const [creds, setCreds] = useState<CredentialRow[]>([])
   const [adding, setAdding] = useState(false)
-  const [form, setForm] = useState({ name: 'champmail-admin', type: 'champmail', email: '', password: '' })
+  const [credType, setCredType] = useState('champmail')
+  const [name, setName] = useState('champmail-admin')
+  const [fieldValues, setFieldValues] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
@@ -59,15 +97,26 @@ function CredentialManager({ onClose }: { onClose: () => void }) {
     api.listCredentials().then((rows) => setCreds(rows as unknown as CredentialRow[])).catch(() => {})
   }, [])
 
+  function handleTypeChange(t: string) {
+    setCredType(t)
+    setName(CRED_TYPES[t]?.defaultName ?? t)
+    setFieldValues({})
+    setErr(null)
+  }
+
   async function save() {
-    if (!form.email || !form.password) { setErr('Email and password are required.'); return }
+    const schema = CRED_TYPES[credType]
+    const missing = schema?.fields.filter((f) => !fieldValues[f.key]).map((f) => f.label)
+    if (missing?.length) { setErr(`Required: ${missing.join(', ')}`); return }
     setSaving(true); setErr(null)
     try {
-      await api.createCredential(form.name, form.type, { email: form.email, password: form.password })
+      await api.createCredential(name, credType, fieldValues)
       const rows = await api.listCredentials()
       setCreds(rows as unknown as CredentialRow[])
       setAdding(false)
-      setForm({ name: 'champmail-admin', type: 'champmail', email: '', password: '' })
+      setCredType('champmail')
+      setName('champmail-admin')
+      setFieldValues({})
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Save failed')
     } finally {
@@ -80,6 +129,8 @@ function CredentialManager({ onClose }: { onClose: () => void }) {
     setCreds((prev) => prev.filter((c) => c.id !== id))
   }
 
+  const schema = CRED_TYPES[credType]
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
@@ -87,7 +138,7 @@ function CredentialManager({ onClose }: { onClose: () => void }) {
       onClick={onClose}
     >
       <div
-        className="w-96 rounded-xl p-5 flex flex-col gap-4"
+        className="w-96 rounded-xl p-5 flex flex-col gap-4 max-h-[90vh] overflow-y-auto"
         style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -109,28 +160,28 @@ function CredentialManager({ onClose }: { onClose: () => void }) {
 
         {adding ? (
           <div className="flex flex-col gap-2">
-            <label className="text-xs" style={{ color: 'var(--text-2)' }}>Credential name</label>
-            <input className="text-xs p-2 rounded-md focus:outline-none"
-              style={{ background: 'var(--bg-base)', border: '1px solid var(--border)', color: 'var(--text-1)' }}
-              value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
             <label className="text-xs" style={{ color: 'var(--text-2)' }}>Type</label>
             <select className="text-xs p-2 rounded-md focus:outline-none"
               style={{ background: 'var(--bg-base)', border: '1px solid var(--border)', color: 'var(--text-1)' }}
-              value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}>
-              <option value="champmail">champmail</option>
-              <option value="http_bearer">http_bearer</option>
-              <option value="http_basic">http_basic</option>
+              value={credType} onChange={(e) => handleTypeChange(e.target.value)}>
+              {Object.entries(CRED_TYPES).map(([k, v]) => (
+                <option key={k} value={k}>{v.label}</option>
+              ))}
             </select>
-            <label className="text-xs" style={{ color: 'var(--text-2)' }}>ChampMail Admin Email</label>
-            <input type="email" className="text-xs p-2 rounded-md focus:outline-none"
+            <label className="text-xs" style={{ color: 'var(--text-2)' }}>Credential name</label>
+            <input className="text-xs p-2 rounded-md focus:outline-none"
               style={{ background: 'var(--bg-base)', border: '1px solid var(--border)', color: 'var(--text-1)' }}
-              placeholder="admin@yourcompany.com"
-              value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
-            <label className="text-xs" style={{ color: 'var(--text-2)' }}>ChampMail Admin Password</label>
-            <input type="password" className="text-xs p-2 rounded-md focus:outline-none"
-              style={{ background: 'var(--bg-base)', border: '1px solid var(--border)', color: 'var(--text-1)' }}
-              placeholder="••••••••"
-              value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} />
+              value={name} onChange={(e) => setName(e.target.value)} />
+            {schema?.fields.map((f) => (
+              <div key={f.key} className="flex flex-col gap-1">
+                <label className="text-xs" style={{ color: 'var(--text-2)' }}>{f.label}</label>
+                <input type={f.type} className="text-xs p-2 rounded-md focus:outline-none"
+                  style={{ background: 'var(--bg-base)', border: '1px solid var(--border)', color: 'var(--text-1)' }}
+                  placeholder={f.placeholder}
+                  value={fieldValues[f.key] ?? ''}
+                  onChange={(e) => setFieldValues((fv) => ({ ...fv, [f.key]: e.target.value }))} />
+              </div>
+            ))}
             {err && <p className="text-xs" style={{ color: '#f87171' }}>{err}</p>}
             <div className="flex gap-2">
               <button onClick={save} disabled={saving}
@@ -149,7 +200,7 @@ function CredentialManager({ onClose }: { onClose: () => void }) {
           <button onClick={() => setAdding(true)}
             className="py-1.5 rounded text-sm"
             style={{ border: '1px solid var(--border)', color: 'var(--text-2)' }}>
-            + Add ChampMail Credential
+            + Add Credential
           </button>
         )}
       </div>
