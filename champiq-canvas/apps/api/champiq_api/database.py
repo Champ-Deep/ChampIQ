@@ -10,8 +10,8 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     fernet_key: str = ""
 
-    champmail_base_url: str = "http://localhost:8001"
-    champgraph_base_url: str = "http://localhost:8002"
+    champmail_base_url: str = "http://103.170.162.2:8000"
+    champgraph_base_url: str = "http://103.170.162.2:8081"
     lakeb2b_base_url: str = "https://b2b-pulse.up.railway.app"
 
     champserver_email: str = ""
