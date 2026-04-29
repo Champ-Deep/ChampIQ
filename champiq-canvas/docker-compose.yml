@@ -25,6 +25,17 @@ services:
       OPENROUTER_MODEL: ${OPENROUTER_MODEL:-anthropic/claude-sonnet-4}
       OPENROUTER_REFERRER: ${OPENROUTER_REFERRER:-https://champiq.local}
       OPENROUTER_APP_TITLE: ${OPENROUTER_APP_TITLE:-ChampIQ Canvas}
+      # ChampMail (inline) — Emelia transport
+      EMELIA_API_KEY: ${EMELIA_API_KEY:-}
+      EMELIA_DEFAULT_SENDER_IDS: ${EMELIA_DEFAULT_SENDER_IDS:-}
+      EMELIA_WEBHOOK_SECRET: ${EMELIA_WEBHOOK_SECRET:-}
+      EMELIA_DEFAULT_FROM_EMAIL: ${EMELIA_DEFAULT_FROM_EMAIL:-}
+      EMELIA_DEFAULT_FROM_NAME: ${EMELIA_DEFAULT_FROM_NAME:-ChampIQ}
+      CHAMPMAIL_UNSUBSCRIBE_SECRET: ${CHAMPMAIL_UNSUBSCRIBE_SECRET:-}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8000}
+      # ChampGraph (Graphiti) — empty URL = graph/campaign actions degrade
+      CHAMPGRAPH_URL: ${CHAMPGRAPH_URL:-}
+      CHAMPGRAPH_API_KEY: ${CHAMPGRAPH_API_KEY:-}
     ports:
       - "8000:8000"
     extra_hosts:

@@ -9,14 +9,20 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any
 
+from .champgraph import ChampGraphLocalExecutor, ChampGraphService, GraphitiClient
 from .champmail.nodes import ChampmailLocalExecutor
 from .champmail.rendering import TemplateRenderer, UnsubscribeTokens
 from .champmail.scheduling import CadenceJob
 from .champmail.services import CadenceService
-from .champmail.transport import EmeliaTransport, MailTransport, StubTransport
+from .champmail.transport import (
+    EmeliaTransport,
+    MailTransport,
+    MailTransportFactory,
+    StubTransport,
+)
 from .credentials import CredentialService, FernetCrypto, SqlCredentialResolver
 from .database import get_session_factory, get_settings
-from .drivers import ChampGraphDriver, ChampVoiceDriver, LakebPulseDriver, ToolNodeExecutor
+from .drivers import ChampVoiceDriver, LakebPulseDriver, ToolNodeExecutor
 from .expressions import SimpleExpressionEvaluator
 from .llm import LLMProvider, OpenRouterProvider
 from .nodes import (
@@ -54,11 +60,14 @@ class Container:
     llm: LLMProvider
     # ChampMail inline
     mail_transport: MailTransport
+    mail_transport_factory: MailTransportFactory
     mail_renderer: TemplateRenderer
     unsubscribe_tokens: UnsubscribeTokens
     emelia_default_sender_ids: list[str]
     emelia_webhook_secret: str
     cadence_job: CadenceJob
+    # ChampGraph dispatcher (prospect-CRUD local, graph + AI campaign via Graphiti)
+    champgraph: ChampGraphService
 
     def credential_service(self) -> CredentialService:
         from .database import get_session_factory
@@ -78,10 +87,10 @@ def get_container() -> Container:
 
     registry = NodeRegistry()
 
-    # Tool drivers (HTTP-backed). NOTE: champmail used to be here but is now
-    # replaced by the inline ChampmailLocalExecutor — see below.
+    # Tool drivers (HTTP-backed). Champmail and champgraph are no longer here —
+    # they're inline modules dispatched via ChampmailLocalExecutor / the
+    # ChampGraphService respectively (registered below).
     drivers = {
-        "champgraph":   ChampGraphDriver(settings.champgraph_base_url),
         "champvoice":   ChampVoiceDriver(""),  # calls ElevenLabs directly; no gateway needed
         "lakeb2b_pulse": LakebPulseDriver("https://b2b-pulse.up.railway.app"),
     }
@@ -133,17 +142,35 @@ def get_container() -> Container:
     else:
         mail_transport = StubTransport()
     mail_renderer = TemplateRenderer()
+    mail_transport_factory = MailTransportFactory(default_transport=mail_transport, crypto=crypto)
     unsubscribe_secret = settings.champmail_unsubscribe_secret or settings.fernet_key or "dev-secret-do-not-use"
     unsubscribe_tokens = UnsubscribeTokens(secret=unsubscribe_secret)
     sender_ids = [s.strip() for s in (settings.emelia_default_sender_ids or "").split(",") if s.strip()]
 
-    cadence_service = CadenceService(session_factory, mail_transport, mail_renderer)
+    cadence_service = CadenceService(
+        session_factory, mail_transport, mail_renderer,
+        unsubscribe_tokens=unsubscribe_tokens,
+        unsubscribe_base_url=settings.public_base_url,
+        transport_factory=mail_transport_factory,
+    )
     cadence_job = CadenceJob(cron.scheduler, cadence_service, interval_seconds=60)
 
     # Register the inline ChampMail node executor — replaces the old HTTP-based
     # ChampmailDriver. Same `kind: champmail`, identical config schema, but now
     # runs against local services instead of the external VPS.
-    registry.register(ChampmailLocalExecutor(mail_transport, mail_renderer))
+    registry.register(ChampmailLocalExecutor(
+        mail_transport, mail_renderer, transport_factory=mail_transport_factory,
+    ))
+
+    # ChampGraph dispatcher — prospect actions hit local Postgres,
+    # graph/intel/campaign actions hit Graphiti (BlueOcean VPS). Empty URL =
+    # graph actions return {"available": false} instead of crashing.
+    graphiti_client = GraphitiClient(
+        base_url=settings.champgraph_url,
+        api_key=settings.champgraph_api_key,
+    )
+    champgraph = ChampGraphService(session_factory, graphiti_client)
+    registry.register(ChampGraphLocalExecutor(champgraph))
 
     return Container(
         crypto=crypto,
@@ -156,7 +183,9 @@ def get_container() -> Container:
         event_listener=event_listener,
         drivers=drivers,
         llm=llm,
+        champgraph=champgraph,
         mail_transport=mail_transport,
+        mail_transport_factory=mail_transport_factory,
         mail_renderer=mail_renderer,
         unsubscribe_tokens=unsubscribe_tokens,
         emelia_default_sender_ids=sender_ids,

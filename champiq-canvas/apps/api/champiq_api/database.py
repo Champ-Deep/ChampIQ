@@ -11,8 +11,16 @@ class Settings(BaseSettings):
     fernet_key: str = ""
 
     champmail_base_url: str = "http://10.10.21.19:8000"
+    # Legacy VPS ChampGraph (port 8081, JWT) — unused in this build, kept here
+    # only so old workflows that read settings.champgraph_base_url don't blow up.
     champgraph_base_url: str = "http://10.10.21.19:8081"
     lakeb2b_base_url: str = "https://b2b-pulse.up.railway.app"
+
+    # Graphiti knowledge graph (the new, real ChampGraph backend) — port 8080,
+    # X-API-Key header. URL empty = champgraph graph/campaign actions return
+    # {"available": false} instead of crashing the canvas.
+    champgraph_url: str = ""
+    champgraph_api_key: str = ""
 
     champserver_email: str = ""
     champserver_password: str = ""
@@ -24,6 +32,7 @@ class Settings(BaseSettings):
     emelia_default_from_email: str = ""
     emelia_default_from_name: str = "ChampIQ"
     champmail_unsubscribe_secret: str = ""  # signs unsubscribe tokens; defaults to fernet_key if empty
+    public_base_url: str = ""  # e.g. https://champiq-production.up.railway.app — used for unsubscribe URLs
 
     openrouter_api_key: str = ""
     openrouter_base_url: str = "https://openrouter.ai/api/v1"

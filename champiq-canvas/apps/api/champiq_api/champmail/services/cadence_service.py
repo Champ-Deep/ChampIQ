@@ -22,7 +22,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from ..models import CMEnrollment, CMEvent, CMSequenceStep, CMTemplate
-from ..rendering import TemplateRenderer
+from ..rendering import TemplateRenderer, UnsubscribeTokens
 from ..repositories import (
     EnrollmentRepository,
     EventRepository,
@@ -30,7 +30,7 @@ from ..repositories import (
     SequenceRepository,
     TemplateRepository,
 )
-from ..transport import MailTransport
+from ..transport import MailTransport, MailTransportFactory
 from .enrollment_service import EnrollmentService
 from .send_service import SendService
 from .sender_picker import SenderPicker
@@ -46,10 +46,17 @@ class CadenceService:
         session_factory: async_sessionmaker[AsyncSession],
         transport: MailTransport,
         renderer: TemplateRenderer,
+        *,
+        unsubscribe_tokens: Optional[UnsubscribeTokens] = None,
+        unsubscribe_base_url: str = "",
+        transport_factory: Optional[MailTransportFactory] = None,
     ) -> None:
         self._session_factory = session_factory
         self._transport = transport
+        self._transport_factory = transport_factory
         self._renderer = renderer
+        self._unsubscribe_tokens = unsubscribe_tokens
+        self._unsubscribe_base_url = unsubscribe_base_url
 
     async def tick(self, *, batch_limit: int = 200) -> dict[str, int]:
         """Process one batch of due enrollments. Returns counters for logging."""
@@ -62,7 +69,12 @@ class CadenceService:
             prospects = ProspectRepository(session)
             events = EventRepository(session)
             picker = SenderPicker(session)
-            send_service = SendService(session, self._transport, self._renderer)
+            send_service = SendService(
+                session, self._transport, self._renderer,
+                unsubscribe_tokens=self._unsubscribe_tokens,
+                unsubscribe_base_url=self._unsubscribe_base_url,
+                transport_factory=self._transport_factory,
+            )
             enrollment_service = EnrollmentService(session)
 
             due = await enrollments.list_due(limit=batch_limit)

@@ -40,10 +40,51 @@ async def tool_status(tool: str):
 
 
 @router.get("/tools/{tool}/{resource}")
-async def populate_resource(tool: str, resource: str):
+async def populate_resource(tool: str, resource: str, db: AsyncSession = Depends(get_db)):
     if tool not in VALID_TOOLS:
         return []
+    # Real lookups for the inline champmail module — replaces the old stubs.
+    if tool == "champmail":
+        from ..champmail.repositories import SequenceRepository, TemplateRepository  # noqa: PLC0415
+        if resource == "templates":
+            rows = await TemplateRepository(db).list()
+            return [{"value": str(r.id), "label": r.name} for r in rows]
+        if resource == "sequences":
+            rows = await SequenceRepository(db).list()
+            return [{"value": str(r.id), "label": r.name} for r in rows]
     return STUB_POPULATE.get(tool, {}).get(resource, [])
+
+
+async def _invoke_champmail_local(action: str, inputs: dict) -> dict:
+    """Run a champmail action through the local executor's dispatcher.
+
+    The legacy HTTP-driver pathway is gone; champmail now lives inline so we
+    bypass the driver dict and call the action handlers directly against a
+    fresh DB session. Credentials are not consulted — single-tenant means
+    we don't need them anymore.
+    """
+    from ..champmail.nodes.champmail_node import _ACTION_HANDLERS, ChampmailLocalExecutor  # noqa: PLC0415
+    from ..database import get_session_factory  # noqa: PLC0415
+
+    handler = _ACTION_HANDLERS.get(action)
+    if handler is None:
+        raise KeyError(f"champmail: unknown action {action!r}")
+
+    container = get_container()
+    executor = ChampmailLocalExecutor(
+        container.mail_transport,
+        container.mail_renderer,
+        transport_factory=container.mail_transport_factory,
+    )
+    session_factory = get_session_factory()
+    async with session_factory() as session:
+        try:
+            result = await handler(executor, inputs or {}, session)
+            await session.commit()
+            return result
+        except Exception:
+            await session.rollback()
+            raise
 
 
 @router.post("/tools/{tool}/{action}")
@@ -52,25 +93,35 @@ async def run_action(tool: str, action: str, payload: dict = {}, db: AsyncSessio
         raise HTTPException(400, f"Unknown tool: {tool}")
 
     container = get_container()
-    driver = container.drivers.get(tool)
-    if driver is None:
-        raise HTTPException(500, f"No driver registered for tool: {tool}")
 
-    # Resolve credentials — accept credential_id (int) or credential name (str)
+    # Champmail and champgraph are inline now — no entries in the drivers dict.
+    is_champmail = tool == "champmail"
+    is_champgraph = tool == "champgraph"
+    inline_tool = is_champmail or is_champgraph
+    driver = None
+    if not inline_tool:
+        driver = container.drivers.get(tool)
+        if driver is None:
+            raise HTTPException(500, f"No driver registered for tool: {tool}")
+
+    # Resolve credentials — accept credential_id (int) or credential name (str).
+    # Inline tools (champmail/champgraph) authenticate via env or credential records
+    # they manage themselves; this credential block is only for HTTP drivers.
     credentials: dict = {}
-    cred_ref = payload.get("credential_id") or payload.get("credential")
-    if cred_ref is not None:
-        try:
-            if isinstance(cred_ref, int):
-                from ..models import CredentialTable  # noqa: PLC0415
-                row = await db.get(CredentialTable, cred_ref)
-                if row is None:
-                    raise HTTPException(404, f"Credential {cred_ref} not found")
-                credentials = json.loads(container.crypto.decrypt(row.data_encrypted))
-            else:
-                credentials = await container.credential_resolver.resolve(str(cred_ref))
-        except KeyError as e:
-            raise HTTPException(404, str(e))
+    if not inline_tool:
+        cred_ref = payload.get("credential_id") or payload.get("credential")
+        if cred_ref is not None:
+            try:
+                if isinstance(cred_ref, int):
+                    from ..models import CredentialTable  # noqa: PLC0415
+                    row = await db.get(CredentialTable, cred_ref)
+                    if row is None:
+                        raise HTTPException(404, f"Credential {cred_ref} not found")
+                    credentials = json.loads(container.crypto.decrypt(row.data_encrypted))
+                else:
+                    credentials = await container.credential_resolver.resolve(str(cred_ref))
+            except KeyError as e:
+                raise HTTPException(404, str(e))
 
     inputs = payload.get("inputs", {})
 
@@ -78,7 +129,12 @@ async def run_action(tool: str, action: str, payload: dict = {}, db: AsyncSessio
 
     async def _run():
         try:
-            result = await driver.invoke(action, inputs, credentials)
+            if is_champmail:
+                result = await _invoke_champmail_local(action, inputs)
+            elif is_champgraph:
+                result = await container.champgraph.invoke(action, inputs)
+            else:
+                result = await driver.invoke(action, inputs, credentials)
             job_store[job_id] = {"job_id": job_id, "status": "done", "progress": 100, "result": result}
         except Exception as exc:
             import traceback

@@ -4,6 +4,7 @@ import { getToolId, getNodeMeta } from '@/lib/manifest'
 import { saveCurrentCanvas } from '@/hooks/usePersistence'
 import { resolveIcon, Plus, Trash2 } from '@/lib/icons'
 import { CredentialsPanel } from './CredentialsPanel'
+import { ChampMailPanel } from './ChampMailPanel'
 import type { ChampIQManifest, CanvasMeta } from '@/types'
 import type { Node, Edge } from '@xyflow/react'
 
@@ -210,6 +211,11 @@ export function LeftSidebar() {
 
       {/* ── Credentials ───────────────────────────────────────────────────── */}
       <CredentialsPanel />
+
+      <div style={{ borderTop: '1px solid var(--border)' }} />
+
+      {/* ── ChampMail (inline) ────────────────────────────────────────────── */}
+      <ChampMailPanel />
 
       {/* ── Node palette ──────────────────────────────────────────────────── */}
       {buildPalette(manifests).map(({ group, items }) => (

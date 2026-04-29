@@ -29,7 +29,12 @@ class CadenceJob:
         self._interval = interval_seconds
 
     def start(self) -> None:
-        """Register the cadence tick. Idempotent — safe to call on every reload."""
+        """Register the cadence tick. Idempotent — safe to call on every reload.
+
+        Don't pass `next_run_time=None` — APScheduler treats that as "don't
+        schedule" rather than "use the default". Letting APScheduler compute
+        the first run from the interval is what we want.
+        """
         self._scheduler.add_job(
             self._fire,
             trigger="interval",
@@ -38,7 +43,6 @@ class CadenceJob:
             replace_existing=True,
             coalesce=True,
             max_instances=1,
-            next_run_time=None,  # first fire after interval
         )
         log.info("Cadence job registered (every %ds)", self._interval)
 

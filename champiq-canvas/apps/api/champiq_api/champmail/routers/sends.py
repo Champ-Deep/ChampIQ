@@ -41,7 +41,12 @@ async def send_oneoff(body: SingleSendIn, db: AsyncSession = Depends(get_db)):
         if sender is None:
             raise HTTPException(503, "no senders available (all exhausted or none configured)")
 
-    svc = SendService(db, container.mail_transport, container.mail_renderer)
+    svc = SendService(
+        db,
+        container.mail_transport,
+        container.mail_renderer,
+        transport_factory=container.mail_transport_factory,
+    )
     result = await svc.send_oneoff(
         prospect=prospect,
         template=template,

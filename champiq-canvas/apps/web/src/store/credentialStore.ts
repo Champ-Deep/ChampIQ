@@ -14,8 +14,11 @@ export interface Credential {
 // Actual secret values are stored here only for reference — the API resolves them.
 export const CREDENTIAL_TYPE_FIELDS: Record<CredentialType, { key: string; label: string; secret?: boolean }[]> = {
   champmail: [
-    { key: 'email', label: 'Email' },
-    { key: 'password', label: 'Password', secret: true },
+    // Legacy fields — the modern flow is the "Connect Emelia" wizard which
+    // posts {api_key, default_sender_id} server-side. These keys still appear
+    // on credentials migrated from the VPS era.
+    { key: 'api_key', label: 'Emelia API Key', secret: true },
+    { key: 'default_sender_id', label: 'Default Emelia provider id (optional)' },
   ],
   champgraph: [
     { key: 'email', label: 'Email' },

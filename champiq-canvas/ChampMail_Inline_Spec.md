@@ -1,6 +1,6 @@
 # ChampMail Inline Module — Build Spec
 
-> **Status:** v1 build in progress (started 2026-04-28)
+> **Status:** Backend v1 complete (2026-04-29). Phase 6 (frontend panels) and final hardening pending.
 > **Goal:** Absorb ChampMail's full sending/sequencing functionality into ChampIQ as a SOLID-designed internal module, replacing the external VPS-hosted ChampMail. Email transport via Emelia (https://emelia.io).
 
 ---
@@ -17,9 +17,9 @@ This document is the contract for that work. Update it as decisions evolve.
 
 | # | Question | Decision |
 |---|----------|----------|
-| 1 | Sequence cadence model | **Local cadence — Emelia is a dumb transactional sender.** Our scheduler ticks every minute and decides what to send. |
+| 1 | Sequence cadence model | **Local cadence — Emelia is a per-send shuttle.** Our scheduler ticks every minute. Each send creates a single-step, single-contact Emelia campaign named `champiq:<send_id>-<hash>` and starts it. Emelia has no transactional API, so this is the cheapest way to keep our SOLID surface unchanged. (Revised 2026-04-29 after API discovery.) |
 | 2 | Inbound replies | **Emelia webhooks** — no IMAP polling. Events: sent, opened, clicked, replied, bounced, unsubscribed. |
-| 3 | Multi-tenant | **Single-tenant** — no users/teams/auth scoping. |
+| 3 | Multi-tenant | **Single-tenant data, credential-driven transport.** Prospects/sequences/templates are still global, but each `champmail_senders` row carries an optional `credential_id` so different operators can sign in with their own Emelia API key from the UI. (Refined 2026-04-29.) |
 | 4 | Email accounts | **Round-robin pool** — multiple Emelia senders, cadence engine picks the next available one per send. |
 | 5 | Frontend UI | **Hybrid** — dedicated panels for Prospects + Templates; Sequences and Analytics live on the canvas. |
 | 6 | Rate limits | **Local enforcement** — daily cap per sender + global rate cap, both configurable. |
@@ -185,51 +185,53 @@ apps/api/champiq_api/champmail/
 
 ### Phase 1 — Foundation (DB + transport + send)
 - [x] Spec doc written
-- [ ] Models + Alembic migration `0003_champmail.py`
-- [ ] Pydantic schemas
-- [ ] Repositories (CRUD)
-- [ ] Transport interface + EmeliaTransport implementation + StubTransport
-- [ ] SendService — high-level "send email to prospect" entry point
-- [ ] Wire into `Container` (DI)
+- [x] Models + Alembic migration `0003_champmail.py`
+- [x] Pydantic schemas
+- [x] Repositories (CRUD)
+- [x] Transport interface + EmeliaTransport implementation + StubTransport
+- [x] SendService — high-level "send email to prospect" entry point
+- [x] Wire into `Container` (DI)
 - [ ] Smoke test: send 1 email via stub transport
 
 ### Phase 2 — Cadence + lifecycle
-- [ ] CadenceService — scheduler tick logic
-- [ ] APScheduler job registered in container
-- [ ] EnrollmentService — enroll/pause/resume/complete
-- [ ] Idempotency enforcement
-- [ ] Round-robin sender picker with daily-cap accounting
-- [ ] Working-hours / timezone gate
+- [x] CadenceService — scheduler tick logic
+- [x] APScheduler job registered in container
+- [x] EnrollmentService — enroll/pause/resume/complete
+- [x] Idempotency enforcement
+- [x] Round-robin sender picker with daily-cap accounting
+- [x] Working-hours / timezone gate
 
 ### Phase 3 — Inbound events
-- [ ] WebhookService — Emelia event ingestion
-- [ ] Signature verification
-- [ ] Auto-pause on reply / bounce / unsubscribe
-- [ ] Reply classification wiring (existing `champmail_reply` node)
-- [ ] Open / click event recording
+- [x] WebhookService — Emelia event ingestion
+- [x] Signature verification
+- [x] Auto-pause on reply / bounce / unsubscribe
+- [x] Reply classification wiring (existing `champmail_reply` node) — 2026-04-29 rewired to local services
+- [x] Open / click event recording
 
 ### Phase 4 — Public API
-- [ ] FastAPI routers (prospects, sequences, templates, senders, enrollments, sends, webhooks, unsubscribe, analytics)
-- [ ] Mounted under `/api/champmail/*`
-- [ ] OpenAPI documented
+- [x] FastAPI routers (prospects, sequences, templates, senders, enrollments, sends, webhooks, unsubscribe, analytics)
+- [x] Mounted under `/api/champmail/*`
+- [x] OpenAPI documented (auto via FastAPI)
 
 ### Phase 5 — Canvas integration
-- [ ] New `ChampmailLocalExecutor` — replaces HTTP-based driver
-- [ ] Same node config schema (no chat.py prompt changes)
-- [ ] Register under `champmail` kind in registry
-- [ ] Old `ChampmailDriver` deleted (Phase 3 cleanup)
+- [x] New `ChampmailLocalExecutor` — replaces HTTP-based driver
+- [x] Same node config schema (no chat.py prompt changes)
+- [x] Register under `champmail` kind in registry
+- [x] Old `ChampmailDriver` deleted — 2026-04-29 (`drivers/champmail.py` removed; `/api/tools/champmail/*` now routes to local executor)
 
 ### Phase 6 — Frontend UI panels
+- [x] **Connect Emelia wizard** in Credentials panel (paste key → test → pick inbox → save) — added 2026-04-29
 - [ ] Prospects panel (table + bulk import)
 - [ ] Templates panel (list + Jinja-aware editor with variable picker)
-- [ ] Senders panel (list connected Emelia inboxes + daily-cap config)
+- [ ] Senders panel (list connected Emelia inboxes + daily-cap config + credential picker)
 - [ ] Sequences and Analytics remain canvas-only
 
 ### Phase 7 — Production hardening
-- [ ] Rate limits (per-sender daily + global per-second)
-- [ ] Unsubscribe link generation + handler
-- [ ] Bounce handling
-- [ ] Logging / metrics
+- [x] Rate limits — per-sender daily cap enforced in `SenderPicker`; auto-disable after 5 consecutive bounces
+- [x] Unsubscribe link generation + handler (signed token, `GET /api/champmail/unsubscribe/{token}`)
+- [x] Bounce handling (sender counter + auto-disable, prospect status, enrollment auto-pause)
+- [ ] Global per-second rate limit (deferred — daily caps are sufficient for v1)
+- [ ] Structured logging / metrics
 - [ ] End-to-end test via real Emelia (when creds provided)
 
 ---
@@ -273,4 +275,36 @@ This means the chat.py system prompt and existing canvas workflows continue to w
 
 ---
 
-*Last updated: 2026-04-28 — Phase 1 starting*
+*Last updated: 2026-04-29 — Phases 1–5 + most of 7 complete and verified end-to-end against the live Emelia API. Phase 6 (frontend panels) is the remaining build item.*
+
+---
+
+## Verified end-to-end on 2026-04-29
+
+Sent 4 successful messages through real Emelia (account `lakeb2bdeveloper@gmail.com`, provider `69f1e13ae98b6b4a618c1cf4`) via:
+- Direct API: `POST /api/champmail/sends`
+- Canvas tool route: `POST /api/tools/champmail/send_single_email`
+- Cadence engine: enrollment-driven send through `CadenceJob` ticking every 60s
+
+Each ChampIQ send produces one Emelia campaign named `champiq:<send_id>-<hash>` with one step + one contact, started immediately.
+
+## Emelia REST API — discovered shapes
+
+| Action | Method + Path | Body |
+|---|---|---|
+| Create campaign | `POST /emails/campaigns` | `{name, provider}` |
+| Update steps | `PATCH /emails/campaigns/{id}/steps` | `{steps:[{delay:{amount,unit},versions:[{subject,message}]}]}` |
+| Add contact | `POST /emails/campaign/contacts` | `{id, contact:{email, firstName,...}}` ← field is **`id`**, not `campaignId` |
+| Start | `POST /emails/campaigns/{id}/start` | — |
+| Pause | `POST /emails/campaigns/{id}/pause` | — |
+| List | `GET /emails/campaigns` | — |
+| List providers (inboxes) | GraphQL `{ providers { _id imap{port} smtp{port} } }` at `https://graphql.emelia.io/graphql` | — |
+
+Auth: raw API key in `Authorization` header (no `Bearer`). REST base: `https://api.emelia.io`. GraphQL base: `https://graphql.emelia.io/graphql`.
+
+## Emelia constraints to know
+
+- **No transactional API.** Sending requires a campaign — see "Locked-in decision #1" above for our per-send-campaign workaround.
+- **Default schedule is 08:00–17:00 Europe/Brussels Mon–Fri.** Sends queued outside this window wait for the next slot. Override via `dailyContact`/`schedule.start`/`schedule.end` on campaign create if you need 24/7 (not yet implemented).
+- **GraphQL introspection is disabled in production.** Schema discovery is by trial-and-error.
+- **Campaign-not-found surfaces as a generic 400.** It usually means a wrong field name, not a missing record. Check field names first.

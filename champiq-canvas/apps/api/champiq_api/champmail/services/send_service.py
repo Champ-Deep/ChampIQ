@@ -28,14 +28,14 @@ from typing import Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models import CMEnrollment, CMProspect, CMSender, CMTemplate
-from ..rendering import TemplateRenderer
+from ..rendering import TemplateRenderer, UnsubscribeTokens
 from ..repositories import (
     EventRepository,
     ProspectRepository,
     SendRepository,
     TemplateRepository,
 )
-from ..transport import EmailEnvelope, MailTransport, SendResult
+from ..transport import EmailEnvelope, MailTransport, MailTransportFactory, SendResult
 
 log = logging.getLogger(__name__)
 
@@ -54,10 +54,17 @@ class SendService:
         session: AsyncSession,
         transport: MailTransport,
         renderer: TemplateRenderer,
+        *,
+        unsubscribe_tokens: Optional[UnsubscribeTokens] = None,
+        unsubscribe_base_url: str = "",
+        transport_factory: Optional[MailTransportFactory] = None,
     ) -> None:
         self._session = session
         self._transport = transport
+        self._transport_factory = transport_factory
         self._renderer = renderer
+        self._unsubscribe_tokens = unsubscribe_tokens
+        self._unsubscribe_base_url = unsubscribe_base_url.rstrip("/")
         self._templates = TemplateRepository(session)
         self._sends = SendRepository(session)
         self._prospects = ProspectRepository(session)
@@ -138,6 +145,25 @@ class SendService:
             extra_vars=extra_vars,
         )
 
+        # Append a one-click unsubscribe footer if configured. Doing it in the
+        # service (not the renderer) keeps templates clean of legal boilerplate
+        # and ensures every send carries a valid token even if the template
+        # author forgot.
+        if self._unsubscribe_tokens and self._unsubscribe_base_url:
+            token = self._unsubscribe_tokens.issue(prospect.id)
+            unsub_url = f"{self._unsubscribe_base_url}/api/champmail/unsubscribe/{token}"
+            footer = (
+                f'<hr style="margin-top:24px;border:none;border-top:1px solid #e5e5e5">'
+                f'<p style="font-size:11px;color:#888;margin-top:8px;">'
+                f'Don\'t want these emails? <a href="{unsub_url}">Unsubscribe</a>.'
+                f'</p>'
+            )
+            rendered = type(rendered)(
+                subject=rendered.subject,
+                body_html=rendered.body_html + footer,
+                body_text=rendered.body_text,
+            )
+
         send_row = await self._sends.create(
             enrollment_id=enrollment_id,
             step_id=step_id,
@@ -161,8 +187,19 @@ class SendService:
             tracking_id=str(send_row.id),
         )
 
+        # Resolve the transport for this sender — credential-bound senders get
+        # their own EmeliaTransport (multi-account); others fall back to the
+        # default singleton.
+        transport: MailTransport = self._transport
+        if self._transport_factory is not None:
+            try:
+                transport = await self._transport_factory.for_sender(sender, self._session)
+            except Exception as e:
+                log.exception("transport_factory.for_sender failed; using default")
+                transport = self._transport
+
         try:
-            result = await self._transport.send(envelope, sender_id=sender.emelia_sender_id)
+            result = await transport.send(envelope, sender_id=sender.emelia_sender_id)
         except Exception as e:
             log.exception("transport raised")
             result = SendResult(success=False, error=f"transport raised: {e}")

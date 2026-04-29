@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .champmail.routers import (
     analytics as cm_analytics,
+    credentials as cm_credentials,
     enrollments as cm_enrollments,
     prospects as cm_prospects,
     sends as cm_sends,
@@ -86,6 +87,7 @@ app.include_router(cm_sends.router, prefix="/api")
 app.include_router(cm_webhooks.router, prefix="/api")
 app.include_router(cm_unsubscribe.router, prefix="/api")
 app.include_router(cm_analytics.router, prefix="/api")
+app.include_router(cm_credentials.router, prefix="/api")
 
 app.include_router(events_ws.router)
 

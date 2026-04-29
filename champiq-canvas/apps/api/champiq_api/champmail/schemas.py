@@ -65,6 +65,7 @@ class SenderIn(BaseModel):
     from_email: EmailStr
     from_name: str
     emelia_sender_id: str
+    credential_id: Optional[int] = None
     daily_cap: int = 100
     enabled: bool = True
 
@@ -74,6 +75,7 @@ class SenderUpdate(BaseModel):
     from_email: Optional[EmailStr] = None
     from_name: Optional[str] = None
     emelia_sender_id: Optional[str] = None
+    credential_id: Optional[int] = None
     daily_cap: Optional[int] = None
     enabled: Optional[bool] = None
 
@@ -84,6 +86,7 @@ class SenderOut(BaseModel):
     from_email: str
     from_name: str
     emelia_sender_id: str
+    credential_id: Optional[int] = None
     daily_cap: int
     enabled: bool
     consecutive_bounces: int

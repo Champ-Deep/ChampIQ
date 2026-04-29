@@ -312,6 +312,221 @@ function LakeB2BLoginFlow({ onDone }: { onDone: () => void }) {
 }
 
 
+// ── Connect Emelia (ChampMail) Flow ───────────────────────────────────────────
+// Three-step wizard: paste API key → verify + list inboxes → pick + save.
+// We persist server-side via POST /api/credentials so the backend's
+// MailTransportFactory can resolve the key per-send.
+
+type EmeliaProvider = { id: string; email?: string; name?: string }
+type ChampMailStep = 'enter-key' | 'pick-sender' | 'done'
+
+function ChampMailLoginFlow({ onDone }: { onDone: () => void }) {
+  const { addCredential } = useCredentialStore()
+  const [step, setStep] = useState<ChampMailStep>('enter-key')
+  const [name, setName] = useState('emelia-default')
+  const [apiKey, setApiKey] = useState('')
+  const [accountEmail, setAccountEmail] = useState('')
+  const [providers, setProviders] = useState<EmeliaProvider[]>([])
+  const [selected, setSelected] = useState<string>('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  async function testKey() {
+    if (!apiKey.trim()) { setError('API key is required'); return }
+    if (!name.trim()) { setError('Credential name is required'); return }
+    setLoading(true)
+    setError('')
+    try {
+      const r = await fetch('/api/champmail/credentials/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ api_key: apiKey.trim() }),
+      })
+      const data = await r.json()
+      if (!r.ok || !data.valid) {
+        setError(data.error || data.detail || 'Emelia rejected the key')
+        return
+      }
+      setAccountEmail(data.account_email || '')
+      setProviders(data.providers || [])
+      if ((data.providers || []).length === 1) {
+        setSelected(data.providers[0].id)
+      }
+      setStep('pick-sender')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Network error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function saveCredential() {
+    if (providers.length > 0 && !selected) {
+      setError('Pick the Emelia inbox to send from')
+      return
+    }
+    setLoading(true)
+    setError('')
+    try {
+      const r = await fetch('/api/credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name.trim(),
+          type: 'champmail',
+          data: { api_key: apiKey.trim(), default_sender_id: selected || '' },
+        }),
+      })
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}))
+        setError(err.detail || `Save failed (${r.status})`)
+        return
+      }
+      addCredential(name.trim(), 'champmail', {
+        api_key: apiKey.trim(),
+        default_sender_id: selected || '',
+      })
+      setStep('done')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Save failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (step === 'done') {
+    return (
+      <div className="flex flex-col gap-3 p-3 rounded-lg" style={{ background: 'var(--bg-sidebar)', border: '1px solid #22c55e44' }}>
+        <p className="text-xs font-semibold" style={{ color: '#22c55e' }}>✓ Emelia connected</p>
+        <p className="text-xs" style={{ color: 'var(--text-3)' }}>
+          {accountEmail && <>Signed in as <span className="font-mono">{accountEmail}</span>. </>}
+          ChampMail will use this credential when sending.
+        </p>
+        <button onClick={onDone} className="text-xs py-1.5 rounded-md font-medium" style={{ background: '#6366f1', color: '#fff' }}>
+          Done
+        </button>
+      </div>
+    )
+  }
+
+  if (step === 'pick-sender') {
+    return (
+      <div className="flex flex-col gap-2.5 p-3 rounded-lg" style={{ background: 'var(--bg-sidebar)', border: '1px solid var(--border)' }}>
+        <p className="text-xs font-semibold" style={{ color: 'var(--text-1)' }}>Choose Emelia inbox</p>
+        {accountEmail && (
+          <p className="text-xs" style={{ color: 'var(--text-3)' }}>
+            Connected as <span className="font-mono" style={{ color: 'var(--text-2)' }}>{accountEmail}</span>
+          </p>
+        )}
+        {providers.length === 0 ? (
+          <div className="flex flex-col gap-2 p-2 rounded-md" style={{ border: '1px dashed var(--border)' }}>
+            <p className="text-xs" style={{ color: '#f59e0b' }}>No email inboxes connected in Emelia yet.</p>
+            <p className="text-xs" style={{ color: 'var(--text-3)' }}>
+              Open <a href="https://app.emelia.io" target="_blank" rel="noreferrer" className="underline" style={{ color: '#818cf8' }}>app.emelia.io</a> → Settings → Email Providers and connect a Gmail or Outlook inbox. Then come back and re-test.
+            </p>
+            <button onClick={() => setStep('enter-key')} className="text-xs py-1 rounded-md" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-2)' }}>
+              Back
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1.5">
+            {providers.map((p) => (
+              <label
+                key={p.id}
+                className="flex items-center gap-2 p-2 rounded-md cursor-pointer"
+                style={{
+                  border: selected === p.id ? '1px solid #6366f1' : '1px solid var(--border)',
+                  background: selected === p.id ? '#6366f111' : 'var(--bg-surface)',
+                }}
+              >
+                <input
+                  type="radio"
+                  name="emelia-provider"
+                  value={p.id}
+                  checked={selected === p.id}
+                  onChange={() => setSelected(p.id)}
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs truncate" style={{ color: 'var(--text-1)' }}>
+                    {p.email || <span className="font-mono">{p.id}</span>}
+                  </p>
+                  {p.name && <p className="text-xs truncate" style={{ color: 'var(--text-3)' }}>{p.name}</p>}
+                </div>
+              </label>
+            ))}
+          </div>
+        )}
+        {error && <p className="text-xs" style={{ color: '#f87171' }}>{error}</p>}
+        {providers.length > 0 && (
+          <div className="flex gap-2">
+            <button
+              onClick={saveCredential}
+              disabled={loading}
+              className="flex-1 text-xs py-1.5 rounded-md font-medium disabled:opacity-50"
+              style={{ background: '#6366f1', color: '#fff' }}
+            >
+              {loading ? 'Saving…' : 'Save credential'}
+            </button>
+            <button onClick={() => setStep('enter-key')} className="flex-1 text-xs py-1.5 rounded-md" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-2)' }}>
+              Back
+            </button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-2.5 p-3 rounded-lg" style={{ background: 'var(--bg-sidebar)', border: '1px solid var(--border)' }}>
+      <p className="text-xs font-semibold" style={{ color: 'var(--text-1)' }}>Connect Emelia</p>
+      <p className="text-xs" style={{ color: 'var(--text-3)' }}>
+        Find your API key in <a href="https://app.emelia.io" target="_blank" rel="noreferrer" className="underline" style={{ color: '#818cf8' }}>app.emelia.io</a> → Settings → API Keys.
+      </p>
+
+      <div className="flex flex-col gap-1">
+        <label className="text-xs" style={{ color: 'var(--text-3)' }}>Credential name</label>
+        <input
+          autoFocus
+          className="text-xs p-1.5 rounded-md focus:outline-none"
+          style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-1)' }}
+          placeholder="emelia-default"
+          value={name}
+          onChange={(e) => { setName(e.target.value); setError('') }}
+        />
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <label className="text-xs" style={{ color: 'var(--text-3)' }}>Emelia API Key</label>
+        <input
+          type="password"
+          className="text-xs p-1.5 rounded-md focus:outline-none font-mono"
+          style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-1)' }}
+          placeholder="OoHpr7..."
+          value={apiKey}
+          onChange={(e) => { setApiKey(e.target.value); setError('') }}
+        />
+      </div>
+
+      {error && <p className="text-xs" style={{ color: '#f87171' }}>{error}</p>}
+
+      <div className="flex gap-2">
+        <button
+          onClick={testKey}
+          disabled={loading}
+          className="flex-1 text-xs py-1.5 rounded-md font-medium disabled:opacity-50"
+          style={{ background: '#6366f1', color: '#fff' }}
+        >
+          {loading ? 'Testing…' : 'Test & continue'}
+        </button>
+        <button onClick={onDone} className="flex-1 text-xs py-1.5 rounded-md" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-2)' }}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
+
 // ── Add Credential Form ───────────────────────────────────────────────────────
 
 function AddCredentialForm({ initialType, onDone }: { initialType?: CredentialType; onDone: () => void }) {
@@ -353,6 +568,28 @@ function AddCredentialForm({ initialType, onDone }: { initialType?: CredentialTy
           </select>
         </div>
         <LakeB2BLoginFlow onDone={onDone} />
+      </div>
+    )
+  }
+
+  // ChampMail → Emelia connect wizard
+  if (type === 'champmail') {
+    return (
+      <div className="flex flex-col gap-2.5">
+        <div className="flex flex-col gap-1">
+          <label className="text-xs" style={{ color: 'var(--text-3)' }}>Type</label>
+          <select
+            className="text-xs p-1.5 rounded-md focus:outline-none"
+            style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-1)' }}
+            value={type}
+            onChange={(e) => handleTypeChange(e.target.value as CredentialType)}
+          >
+            {CREDENTIAL_TYPES.map((t) => (
+              <option key={t} value={t}>{TYPE_LABELS[t]}</option>
+            ))}
+          </select>
+        </div>
+        <ChampMailLoginFlow onDone={onDone} />
       </div>
     )
   }

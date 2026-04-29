@@ -40,7 +40,7 @@ Supported actions (mirrors the old driver + adds new local-only ones):
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Optional
 
 from ...core.interfaces import NodeContext, NodeExecutor, NodeResult
 from ...database import get_session_factory
@@ -54,7 +54,7 @@ from ..repositories import (
     TemplateRepository,
 )
 from ..services import EnrollmentService, SendService, SenderPicker
-from ..transport import MailTransport
+from ..transport import MailTransport, MailTransportFactory
 
 log = logging.getLogger(__name__)
 
@@ -62,9 +62,15 @@ log = logging.getLogger(__name__)
 class ChampmailLocalExecutor(NodeExecutor):
     kind = "champmail"
 
-    def __init__(self, transport: MailTransport, renderer: TemplateRenderer) -> None:
+    def __init__(
+        self,
+        transport: MailTransport,
+        renderer: TemplateRenderer,
+        transport_factory: Optional[MailTransportFactory] = None,
+    ) -> None:
         self._transport = transport
         self._renderer = renderer
+        self._transport_factory = transport_factory
         self._session_factory = get_session_factory()
 
     async def execute(self, ctx: NodeContext) -> NodeResult:
@@ -349,7 +355,10 @@ class ChampmailLocalExecutor(NodeExecutor):
         if sender is None:
             raise RuntimeError("champmail.send_single_email: no senders available")
 
-        svc = SendService(session, self._transport, self._renderer)
+        svc = SendService(
+            session, self._transport, self._renderer,
+            transport_factory=self._transport_factory,
+        )
         result = await svc.send_oneoff(
             prospect=prospect,
             template=template,

@@ -76,6 +76,11 @@ class CMSender(Base):
     from_email: Mapped[str] = mapped_column(String(320))
     from_name: Mapped[str] = mapped_column(String(255))
     emelia_sender_id: Mapped[str] = mapped_column(String(120), unique=True, index=True)
+    # Nullable: legacy env-var-keyed senders still work (transport falls back
+    # to settings.emelia_api_key if credential_id is None).
+    credential_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("credentials.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     daily_cap: Mapped[int] = mapped_column(Integer, default=100)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
     consecutive_bounces: Mapped[int] = mapped_column(Integer, default=0)

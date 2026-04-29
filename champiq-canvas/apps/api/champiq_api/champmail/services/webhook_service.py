@@ -120,7 +120,16 @@ class WebhookService:
             await self._enrollments.pause_active_for_prospect(prospect_id, reason="bounced")
             if send is not None:
                 await self._sends.update(send.id, status="bounced")
-                await self._senders.increment_bounces(send.sender_id)
+                sender = await self._senders.increment_bounces(send.sender_id)
+                # Auto-disable sender after threshold to protect deliverability.
+                # Threshold is intentionally local (not a setting) because the right
+                # number depends on volume — start at 5 and tune from incidents.
+                if sender and (sender.consecutive_bounces or 0) >= 5:
+                    log.warning(
+                        "auto-disabling sender id=%s name=%s after %d consecutive bounces",
+                        sender.id, sender.name, sender.consecutive_bounces,
+                    )
+                    await self._senders.update(sender.id, enabled=False)
         elif event_type == "unsubscribed":
             await self._prospects.mark_event(prospect_id, status="unsubscribed")
             await self._enrollments.pause_active_for_prospect(prospect_id, reason="unsubscribed")

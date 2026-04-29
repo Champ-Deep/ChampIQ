@@ -1,6 +1,7 @@
 """ChampMail FastAPI routers — mounted under /api/champmail/*."""
 from . import (
     analytics,
+    credentials,
     enrollments,
     prospects,
     sends,
@@ -21,4 +22,5 @@ __all__ = [
     "webhooks",
     "unsubscribe",
     "analytics",
+    "credentials",
 ]
