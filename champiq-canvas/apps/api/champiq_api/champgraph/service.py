@@ -186,6 +186,17 @@ class GraphitiClient:
             log.warning("Graphiti unreachable at %s", self._base_url)
         return ok
 
+    def invalidate_probe(self) -> None:
+        """Force the next is_reachable() call to actually probe.
+
+        Called when a real request to Graphiti fails at the transport level
+        (connection refused, timeout, DNS). Without this, a green probe in
+        the cache would keep claiming the server is up for the rest of the
+        TTL window even while every call returns "not reachable", making
+        recovery detection take up to 60s.
+        """
+        self._probe_cache = (0.0, False)
+
     async def invoke(self, action: str, inputs: dict[str, Any]) -> dict[str, Any]:
         """Dispatch one of the GRAPH_ACTIONS or CAMPAIGN_ACTIONS to Graphiti.
 
@@ -278,6 +289,11 @@ class GraphitiClient:
             async with httpx.AsyncClient(timeout=self._timeout, headers=self._headers()) as client:
                 r = await client.get(f"{self._base_url}{path}", params=params or None)
         except httpx.HTTPError as e:
+            # Transport failure (connection refused, timeout, DNS) → server
+            # may have just gone down. Drop the probe cache so the next
+            # is_reachable() actually checks instead of returning a stale
+            # "yes" for up to 60s.
+            self.invalidate_probe()
             raise RuntimeError(f"Graphiti GET {path} HTTP error: {e}") from e
         if r.status_code >= 400:
             raise RuntimeError(f"Graphiti GET {path} -> HTTP {r.status_code}: {r.text[:300]}")
@@ -291,6 +307,7 @@ class GraphitiClient:
             async with httpx.AsyncClient(timeout=self._timeout, headers=self._headers()) as client:
                 r = await client.post(f"{self._base_url}{path}", json=body)
         except httpx.HTTPError as e:
+            self.invalidate_probe()  # see _get for rationale
             raise RuntimeError(f"Graphiti POST {path} HTTP error: {e}") from e
         if r.status_code >= 400:
             raise RuntimeError(f"Graphiti POST {path} -> HTTP {r.status_code}: {r.text[:300]}")

@@ -6,6 +6,7 @@ import { CanvasArea } from '@/components/canvas/CanvasArea'
 import { RightPanel } from '@/components/layout/RightPanel'
 import { BottomLog } from '@/components/layout/BottomLog'
 import { SettingsPage } from '@/components/settings/SettingsPage'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { useManifests } from '@/hooks/useManifests'
 import { usePersistence } from '@/hooks/usePersistence'
 import { useTheme } from '@/hooks/useTheme'
@@ -41,8 +42,10 @@ function AppInner() {
 
 export default function App() {
   return (
-    <ReactFlowProvider>
-      <AppInner />
-    </ReactFlowProvider>
+    <ErrorBoundary>
+      <ReactFlowProvider>
+        <AppInner />
+      </ReactFlowProvider>
+    </ErrorBoundary>
   )
 }

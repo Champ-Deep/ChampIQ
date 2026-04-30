@@ -34,6 +34,37 @@ class WorkflowRunIn(BaseModel):
     trigger: dict[str, Any] = Field(default_factory=dict)
 
 
+# Recognized trigger-node kinds. Anything starting with "trigger." is a
+# trigger; this set is just used to count them. Keep in sync with
+# nodes/triggers.py if a new trigger kind is registered.
+_TRIGGER_KIND_PREFIX = "trigger."
+
+
+def _validate_workflow_shape(body: WorkflowIn) -> None:
+    """Reject workflow shapes that the orchestrator can't sensibly run.
+
+    Today's only rule: a workflow has at most one trigger node. The chat
+    router has historically generated graphs with two trigger nodes (cron
+    + a fictional 'trigger.upload') that crash at runtime; this catches
+    that class of bug at save time so the user sees a clear 400 instead
+    of a half-finished execution. CSV/data sources belong in regular
+    nodes (e.g. `csv.upload`), not as a second trigger.
+    """
+    triggers = [
+        n for n in (body.nodes or [])
+        if str((n.get("data") or {}).get("kind", "")).startswith(_TRIGGER_KIND_PREFIX)
+    ]
+    if len(triggers) > 1:
+        ids = [n.get("id") for n in triggers]
+        raise HTTPException(
+            400,
+            "workflow has multiple trigger nodes "
+            f"({len(triggers)}: {ids}). A workflow may have at most one "
+            "trigger. Use a regular data-source node (e.g. csv.upload) "
+            "instead of a second trigger.",
+        )
+
+
 @router.get("/workflows", response_model=list[WorkflowOut])
 async def list_workflows(db: AsyncSession = Depends(get_db)) -> list[WorkflowTable]:
     rows = (await db.execute(select(WorkflowTable).order_by(WorkflowTable.id.desc()))).scalars().all()
@@ -42,6 +73,7 @@ async def list_workflows(db: AsyncSession = Depends(get_db)) -> list[WorkflowTab
 
 @router.post("/workflows", response_model=WorkflowOut)
 async def create_workflow(body: WorkflowIn, db: AsyncSession = Depends(get_db)) -> WorkflowTable:
+    _validate_workflow_shape(body)
     row = WorkflowTable(**body.model_dump())
     db.add(row)
     await db.commit()
@@ -62,6 +94,7 @@ async def get_workflow(workflow_id: int, db: AsyncSession = Depends(get_db)) -> 
 async def update_workflow(
     workflow_id: int, body: WorkflowIn, db: AsyncSession = Depends(get_db)
 ) -> WorkflowTable:
+    _validate_workflow_shape(body)
     row = await db.get(WorkflowTable, workflow_id)
     if row is None:
         raise HTTPException(404, "workflow not found")

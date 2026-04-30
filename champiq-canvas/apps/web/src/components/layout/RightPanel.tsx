@@ -141,7 +141,7 @@ const KIND_FIELDS: Record<string, FieldDef[]> = {
     { key: 'label', label: 'Trigger label', type: 'text', placeholder: 'Run workflow' },
     { key: 'items', label: 'Input items (JSON array or leave blank)', type: 'textarea',
       placeholder: '[{"email":"a@b.com","name":"Alice"},...]',
-      hint: 'Paste a JSON array or upload a CSV via the chat panel.' },
+      hint: 'Paste a JSON array or upload a CSV via the chat panel. Downstream nodes access these as {{ trigger.payload.items }} — note the .payload prefix.' },
   ],
   'trigger.webhook': [
     { key: 'path', label: 'Webhook path', type: 'text', placeholder: '/hooks/my-event' },
@@ -174,8 +174,8 @@ const KIND_FIELDS: Record<string, FieldDef[]> = {
   ],
   'if': [
     { key: 'condition', label: 'Condition expression', type: 'text',
-      placeholder: '{{ prev.tier }} == "enterprise"',
-      hint: 'Emits branch "true" or "false" downstream.' },
+      placeholder: 'prev.tier == "enterprise"',
+      hint: 'Raw expression — do NOT wrap in {{ }} (the node wraps it for you). Emits branch "true" or "false" downstream.' },
   ],
   'switch': [
     { key: 'value', label: 'Value expression', type: 'text', placeholder: '{{ prev.status }}' },

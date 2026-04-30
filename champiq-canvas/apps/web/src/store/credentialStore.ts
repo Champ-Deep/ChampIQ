@@ -64,8 +64,22 @@ function loadFromStorage(): Credential[] {
   }
 }
 
+// Guarded localStorage write. Browsers cap localStorage at ~5 MB and
+// silently throw QuotaExceededError when full. Without a catch the credential
+// add/delete UI would just stop working with no visible error. We log and
+// surface a console warning; once we have a toast system this should
+// surface as a user-visible warning too.
 function saveToStorage(credentials: Credential[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(credentials))
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(credentials))
+  } catch (err) {
+    // QuotaExceededError, SecurityError (private mode), or anything else.
+    console.error(
+      '[credentialStore] failed to persist credentials to localStorage — ' +
+      'changes will not survive a refresh',
+      err,
+    )
+  }
 }
 
 interface CredentialStore {
