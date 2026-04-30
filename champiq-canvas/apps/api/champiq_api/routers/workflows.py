@@ -1,7 +1,10 @@
 """Workflow CRUD + run endpoints."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from typing import Any
+
+from fastapi import APIRouter, Depends, Header, HTTPException
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,6 +15,56 @@ from ..models import ExecutionOut, NodeRunOut, ExecutionTable, NodeRunTable, Wor
 router = APIRouter()
 
 
+# Caps chosen so a runaway client can't OOM the API: 500 nodes/edges is far
+# more than any sane canvas (real ones top out around 30). Pydantic enforces
+# these before we ever load the orchestrator.
+_MAX_NODES = 500
+_MAX_EDGES = 1000
+
+
+class AdHocRunIn(BaseModel):
+    nodes: list[dict[str, Any]] = Field(default_factory=list, max_length=_MAX_NODES)
+    edges: list[dict[str, Any]] = Field(default_factory=list, max_length=_MAX_EDGES)
+    trigger: dict[str, Any] = Field(default_factory=dict)
+
+
+class WorkflowRunIn(BaseModel):
+    """Optional payload for `/workflows/{id}/run`. Free-form trigger object,
+    same as the saved workflow's trigger contract."""
+    trigger: dict[str, Any] = Field(default_factory=dict)
+
+
+# Recognized trigger-node kinds. Anything starting with "trigger." is a
+# trigger; this set is just used to count them. Keep in sync with
+# nodes/triggers.py if a new trigger kind is registered.
+_TRIGGER_KIND_PREFIX = "trigger."
+
+
+def _validate_workflow_shape(body: WorkflowIn) -> None:
+    """Reject workflow shapes that the orchestrator can't sensibly run.
+
+    Today's only rule: a workflow has at most one trigger node. The chat
+    router has historically generated graphs with two trigger nodes (cron
+    + a fictional 'trigger.upload') that crash at runtime; this catches
+    that class of bug at save time so the user sees a clear 400 instead
+    of a half-finished execution. CSV/data sources belong in regular
+    nodes (e.g. `csv.upload`), not as a second trigger.
+    """
+    triggers = [
+        n for n in (body.nodes or [])
+        if str((n.get("data") or {}).get("kind", "")).startswith(_TRIGGER_KIND_PREFIX)
+    ]
+    if len(triggers) > 1:
+        ids = [n.get("id") for n in triggers]
+        raise HTTPException(
+            400,
+            "workflow has multiple trigger nodes "
+            f"({len(triggers)}: {ids}). A workflow may have at most one "
+            "trigger. Use a regular data-source node (e.g. csv.upload) "
+            "instead of a second trigger.",
+        )
+
+
 @router.get("/workflows", response_model=list[WorkflowOut])
 async def list_workflows(db: AsyncSession = Depends(get_db)) -> list[WorkflowTable]:
     rows = (await db.execute(select(WorkflowTable).order_by(WorkflowTable.id.desc()))).scalars().all()
@@ -20,6 +73,7 @@ async def list_workflows(db: AsyncSession = Depends(get_db)) -> list[WorkflowTab
 
 @router.post("/workflows", response_model=WorkflowOut)
 async def create_workflow(body: WorkflowIn, db: AsyncSession = Depends(get_db)) -> WorkflowTable:
+    _validate_workflow_shape(body)
     row = WorkflowTable(**body.model_dump())
     db.add(row)
     await db.commit()
@@ -40,6 +94,7 @@ async def get_workflow(workflow_id: int, db: AsyncSession = Depends(get_db)) -> 
 async def update_workflow(
     workflow_id: int, body: WorkflowIn, db: AsyncSession = Depends(get_db)
 ) -> WorkflowTable:
+    _validate_workflow_shape(body)
     row = await db.get(WorkflowTable, workflow_id)
     if row is None:
         raise HTTPException(404, "workflow not found")
@@ -63,27 +118,118 @@ async def delete_workflow(workflow_id: int, db: AsyncSession = Depends(get_db)) 
     return {"deleted": workflow_id}
 
 
+# Idempotency cache for run endpoints. Keyed by `Idempotency-Key` request
+# header — when the same key is replayed within TTL, return the original
+# execution id instead of starting a new run. Defends against double-clicks,
+# webhook retries, and broken clients.
+#
+# Backed by Redis when REDIS_URL is set (multi-worker correct). Falls back to
+# an in-memory dict when Redis isn't reachable — single-worker dev, tests.
+# The in-memory fallback is best-effort across workers; production deploys
+# should always have REDIS_URL set.
+import time as _time
+
+_IDEMP_TTL_SECONDS = 600
+_IDEMP_PREFIX = "champiq:idemp:"
+_idemp_cache: dict[str, tuple[float, str]] = {}  # in-memory fallback
+
+
+def _redis_client():
+    """Returns a redis.asyncio client or None if Redis isn't configured/reachable.
+    Cached at module level via lru_cache on the wrapping function — see _redis()."""
+    from ..database import get_settings
+    s = get_settings()
+    if not s.redis_url:
+        return None
+    try:
+        import redis.asyncio as redis
+        return redis.from_url(s.redis_url, decode_responses=True)
+    except Exception:
+        return None
+
+
+from functools import lru_cache as _lru_cache
+
+
+@_lru_cache(maxsize=1)
+def _redis():
+    return _redis_client()
+
+
+async def _idemp_lookup(key: str) -> str | None:
+    r = _redis()
+    if r is not None:
+        try:
+            return await r.get(f"{_IDEMP_PREFIX}{key}")
+        except Exception:
+            pass  # fall through to in-memory
+    entry = _idemp_cache.get(key)
+    if entry is None:
+        return None
+    expires_at, exec_id = entry
+    if expires_at < _time.time():
+        _idemp_cache.pop(key, None)
+        return None
+    return exec_id
+
+
+async def _idemp_remember(key: str, exec_id: str) -> None:
+    r = _redis()
+    if r is not None:
+        try:
+            await r.set(f"{_IDEMP_PREFIX}{key}", exec_id, ex=_IDEMP_TTL_SECONDS)
+            return
+        except Exception:
+            pass  # fall through to in-memory
+    _idemp_cache[key] = (_time.time() + _IDEMP_TTL_SECONDS, exec_id)
+    if len(_idemp_cache) > 256:
+        now = _time.time()
+        for k in [k for k, (exp, _) in _idemp_cache.items() if exp < now]:
+            _idemp_cache.pop(k, None)
+
+
 @router.post("/workflows/ad-hoc/run")
-async def run_ad_hoc(body: dict) -> dict:
+async def run_ad_hoc(
+    body: AdHocRunIn,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+) -> dict:
     """Run a graph without saving it as a workflow (used by canvas 'Run All').
 
     Declared before /workflows/{workflow_id}/run so the literal 'ad-hoc'
-    segment matches first.
+    segment matches first. Pass `Idempotency-Key` to make retries safe.
     """
+    if idempotency_key:
+        existing = await _idemp_lookup(idempotency_key)
+        if existing:
+            return {"execution_id": existing, "accepted": True, "idempotent_replay": True}
+
     execution_id = await get_container().orchestrator.run_ad_hoc(
-        nodes=body.get("nodes", []),
-        edges=body.get("edges", []),
-        trigger_payload=body.get("trigger", {}),
+        nodes=body.nodes,
+        edges=body.edges,
+        trigger_payload=body.trigger,
     )
+    if idempotency_key:
+        await _idemp_remember(idempotency_key, execution_id)
     return {"execution_id": execution_id, "accepted": True}
 
 
 @router.post("/workflows/{workflow_id}/run")
-async def run_workflow(workflow_id: int, payload: dict | None = None) -> dict:
-    payload = payload or {}
+async def run_workflow(
+    workflow_id: int,
+    payload: WorkflowRunIn | None = None,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+) -> dict:
+    if idempotency_key:
+        existing = await _idemp_lookup(idempotency_key)
+        if existing:
+            return {"execution_id": existing, "accepted": True, "idempotent_replay": True}
+
+    trigger = payload.trigger if payload else {}
     execution_id = await get_container().orchestrator.run_workflow(
-        workflow_id, trigger_kind="manual", trigger_payload=payload
+        workflow_id, trigger_kind="manual", trigger_payload=trigger
     )
+    if idempotency_key:
+        await _idemp_remember(idempotency_key, execution_id)
     return {"execution_id": execution_id, "accepted": True}
 
 

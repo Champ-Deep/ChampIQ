@@ -10,12 +10,29 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     fernet_key: str = ""
 
-    champmail_base_url: str = "http://localhost:8001"
-    champgraph_base_url: str = "http://localhost:8002"
-    lakeb2b_base_url: str = "http://localhost:8003"
+    champmail_base_url: str = "http://10.10.21.19:8000"
+    # Legacy VPS ChampGraph (port 8081, JWT) — unused in this build, kept here
+    # only so old workflows that read settings.champgraph_base_url don't blow up.
+    champgraph_base_url: str = "http://10.10.21.19:8081"
+    lakeb2b_base_url: str = "https://b2b-pulse.up.railway.app"
+
+    # Graphiti knowledge graph (the new, real ChampGraph backend) — port 8080,
+    # X-API-Key header. URL empty = champgraph graph/campaign actions return
+    # {"available": false} instead of crashing the canvas.
+    champgraph_url: str = ""
+    champgraph_api_key: str = ""
 
     champserver_email: str = ""
     champserver_password: str = ""
+
+    # ChampMail (inline) — Emelia transport
+    emelia_api_key: str = ""
+    emelia_default_sender_ids: str = ""  # comma-separated UUIDs
+    emelia_webhook_secret: str = ""
+    emelia_default_from_email: str = ""
+    emelia_default_from_name: str = "ChampIQ"
+    champmail_unsubscribe_secret: str = ""  # signs unsubscribe tokens; defaults to fernet_key if empty
+    public_base_url: str = ""  # e.g. https://champiq-production.up.railway.app — used for unsubscribe URLs
 
     openrouter_api_key: str = ""
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
@@ -45,7 +62,19 @@ def _asyncpg_url(url: str) -> str:
 def get_engine():
     settings = get_settings()
     url = _asyncpg_url(settings.database_url)
-    return create_async_engine(url, echo=False, pool_pre_ping=True)
+    # Pool sizing: defaults of 5 + 10 starve under any concurrency once the
+    # canvas runs more than a couple of fan-out items. 20 + 10 is comfortable
+    # for a single uvicorn worker handling cron ticks, webhooks, and ad-hoc
+    # canvas runs simultaneously. pool_recycle=1800 dodges idle-connection
+    # drops some cloud Postgres providers do after ~30 min.
+    return create_async_engine(
+        url,
+        echo=False,
+        pool_pre_ping=True,
+        pool_size=20,
+        max_overflow=10,
+        pool_recycle=1800,
+    )
 
 
 @lru_cache

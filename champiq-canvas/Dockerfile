@@ -58,8 +58,9 @@ RUN uv pip install --system --no-cache \
       "sqlalchemy[asyncio]>=2.0.49" \
       "asyncpg>=0.31.0" \
       "alembic>=1.18.4" \
-      "pydantic>=2.13.0" \
+      "pydantic[email]>=2.13.0" \
       "pydantic-settings>=2.13.1" \
+      "jinja2>=3.1.0" \
       "python-dotenv>=1.2.2" \
       "jsonschema>=4.26.0" \
       "cryptography>=43.0.0" \

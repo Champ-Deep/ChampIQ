@@ -153,6 +153,9 @@ class Orchestrator:
         # loop_context[node_id] = list of items from an upstream loop node,
         # so the downstream node can be fanned-out per item.
         loop_context: dict[str, list[Any]] = {}
+        # loop_cadence[node_id] = cadence dict from the upstream loop's output
+        # (mode, pace_seconds, jitter, etc.). Read by _execute_node_fan_out.
+        loop_cadence: dict[str, dict[str, Any]] = {}
         skipped: set[str] = set()
 
         # BFS layer-by-layer so parallel siblings run concurrently.
@@ -179,6 +182,7 @@ class Orchestrator:
                             direct_input=inputs.get(node_id, {}),
                             trigger_payload=effective_trigger,
                             items=items,
+                            cadence=loop_cadence.get(node_id),
                         )
                     else:
                         result = await self._execute_node(
@@ -230,13 +234,18 @@ class Orchestrator:
                 chosen_edges = _choose_edges(outgoing.get(node_id, []), result.branches)
 
                 # Detect if this node produced loop items that should be fanned out.
-                # A loop node (kind == "loop") outputs {"items": [...], "count": N}.
-                # Propagate those items to downstream nodes so they execute per-item.
+                # A loop node (kind == "loop") outputs {"items": [...], "count": N,
+                # "_cadence": {mode,pace_seconds,...}}. Propagate items + cadence
+                # to downstream nodes so they execute per-item with the right timing.
                 produced_items: Optional[list[Any]] = None
+                produced_cadence: Optional[dict[str, Any]] = None
                 if node_kind == "loop" and result.output.get("items") is not None:
                     produced_items = result.output["items"]
+                    produced_cadence = result.output.get("_cadence")
                 elif result.output.get("_fan_out_items") is not None:
                     produced_items = result.output["_fan_out_items"]
+                    # Carry the cadence forward so chained fan-outs keep the same pacing.
+                    produced_cadence = result.output.get("_cadence")
 
                 log.info("[orchestrator] node %s done | kind=%s | produced_items=%s | chosen_edges=%s",
                          node_id, node_kind, len(produced_items) if produced_items is not None else None,
@@ -249,6 +258,8 @@ class Orchestrator:
                     inputs[target] = {**inputs.get(target, {}), **result.output}
                     if produced_items is not None:
                         loop_context[target] = produced_items
+                        if produced_cadence is not None:
+                            loop_cadence[target] = produced_cadence
                     parents_done = _all_parents_done(target, incoming, results, skipped)
                     log.info("[orchestrator] edge %s->%s | parents_done=%s", node_id, target, parents_done)
                     if parents_done:
@@ -266,8 +277,14 @@ class Orchestrator:
         direct_input: dict[str, Any],
         trigger_payload: dict[str, Any],
         items: list[Any],
+        cadence: Optional[dict[str, Any]] = None,
     ) -> NodeResult:
-        """Run a node once per item in a loop's output, injecting item + index."""
+        """Run a node once per item in a loop's output.
+
+        `cadence` controls timing — see LoopExecutor docstring for fields. When
+        cadence is None or mode='sequential' (the historical default for an
+        unconfigured loop), items run one-after-another with no delay.
+        """
         node_id = node["id"]
         data = node.get("data", {}) or {}
         node_kind = data.get("kind") or data.get("toolId") or node.get("type") or "unknown"
@@ -275,13 +292,28 @@ class Orchestrator:
 
         from ..core.interfaces import NodeContext as _NC  # local to avoid circular
 
-        item_results: list[dict[str, Any]] = []
+        # Resolve cadence with safe defaults.
+        cadence = cadence or {}
+        mode = (cadence.get("mode") or "sequential").lower()
+        concurrency = max(int(cadence.get("concurrency", 1) or 1), 1)
+        pace_seconds = max(int(cadence.get("pace_seconds", 0) or 0), 0)
+        initial_delay = max(int(cadence.get("initial_delay_seconds", 0) or 0), 0)
+        jitter = max(int(cadence.get("jitter_seconds", 0) or 0), 0)
+        stop_on_error = bool(cadence.get("stop_on_error", False))
+
+        # Pre-allocated so all three runners can write at the right index.
+        item_results: list[dict[str, Any]] = [None] * len(items)  # type: ignore[list-item]
         errors: list[str] = []
+        aborted = False
 
         # Start a single node_run row for the fan-out node so the frontend can see output
         run_row = await self._start_node_run(execution_id, node_id, node_kind, direct_input)
 
-        for index, item in enumerate(items):
+        async def _run_one(index: int, item: Any) -> None:
+            nonlocal aborted
+            if aborted:
+                item_results[index] = {"skipped": True, "reason": "aborted by stop_on_error"}
+                return
             # Loop outputs {"_item": <raw CSV row>, "_index": N, ...rendered fields}
             # Unwrap so {{ item.phone }} resolves to the CSV field directly.
             if isinstance(item, dict) and "_item" in item:
@@ -324,19 +356,74 @@ class Orchestrator:
             executor = self._registry.get(node_kind)
             try:
                 r = await executor.execute(ctx)
-                item_results.append(r.output)
+                item_results[index] = r.output
             except Exception as err:  # noqa: BLE001
                 log.warning("fan-out node %s item %d failed: %s", node_id, index, err)
-                errors.append(str(err))
-                item_results.append({"error": str(err), "item": raw_item})
+                errors.append(f"item[{index}]: {err}")
+                item_results[index] = {"error": str(err), "item": raw_item}
+                if stop_on_error:
+                    aborted = True
+
+        def _gap_seconds() -> float:
+            """pace_seconds + uniform random jitter in [-jitter, +jitter]."""
+            if jitter <= 0:
+                return float(pace_seconds)
+            import random  # noqa: PLC0415 — std-lib, only when jitter requested
+            return max(0.0, pace_seconds + random.uniform(-jitter, jitter))
+
+        if initial_delay > 0:
+            await asyncio.sleep(initial_delay)
+
+        # --- Dispatch by mode ----------------------------------------------------
+        if mode == "parallel" and concurrency > 1:
+            sem = asyncio.Semaphore(concurrency)
+
+            async def _guarded(index: int, item: Any) -> None:
+                async with sem:
+                    await _run_one(index, item)
+
+            await asyncio.gather(*[_guarded(i, it) for i, it in enumerate(items)])
+
+        elif mode == "paced":
+            # Each item starts at last_start + pace (+ jitter), regardless of body
+            # duration. We launch each as a background task so a slow body doesn't
+            # delay the next start; we await all of them at the end.
+            tasks: list[asyncio.Task[None]] = []
+            for i, it in enumerate(items):
+                if aborted:
+                    item_results[i] = {"skipped": True, "reason": "aborted by stop_on_error"}
+                    continue
+                if i > 0:
+                    await asyncio.sleep(_gap_seconds())
+                tasks.append(asyncio.create_task(_run_one(i, it)))
+            if tasks:
+                await asyncio.gather(*tasks, return_exceptions=True)
+
+        else:
+            # mode == "sequential" (or "parallel" with concurrency=1) — historical
+            # behavior: each item fully completes before the next starts.
+            for i, it in enumerate(items):
+                if aborted:
+                    item_results[i] = {"skipped": True, "reason": "aborted by stop_on_error"}
+                    continue
+                if i > 0 and pace_seconds > 0:
+                    # Even sequential mode honors pace_seconds if set — gap between
+                    # the end of one body and the start of the next.
+                    await asyncio.sleep(_gap_seconds())
+                await _run_one(i, it)
 
         output: dict[str, Any] = {
             "_fan_out_items": item_results,
             "count": len(item_results),
             "items": item_results,
         }
+        # Carry cadence forward so chained fan-outs (loop → A → B) share pacing.
+        if cadence:
+            output["_cadence"] = cadence
         if errors:
             output["errors"] = errors
+        if aborted:
+            output["aborted"] = True
 
         # Persist to DB so frontend getNodeRuns() can show output + transcript
         final_status = "error" if errors else "success"

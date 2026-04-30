@@ -17,6 +17,7 @@
     {"kind": "http", "label": "HTTP Request", "group": "data"},
     {"kind": "set", "label": "Set / Map", "group": "data"},
     {"kind": "merge", "label": "Merge", "group": "data"},
+    {"kind": "csv.upload", "label": "CSV Upload", "group": "data"},
 
     {"kind": "if", "label": "If", "group": "control"},
     {"kind": "switch", "label": "Switch", "group": "control"},

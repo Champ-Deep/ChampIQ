@@ -33,10 +33,13 @@ async def update_credential(cred_id: int, body: CredentialIn, db: AsyncSession =
         row = await _service(db).update(cred_id, body.data)
     except KeyError:
         raise HTTPException(404, "credential not found")
+    # Drop any cached mail-transport built from this credential's old data.
+    get_container().mail_transport_factory.invalidate(cred_id)
     return row
 
 
 @router.delete("/credentials/{cred_id}")
 async def delete_credential(cred_id: int, db: AsyncSession = Depends(get_db)):
     await _service(db).delete(cred_id)
+    get_container().mail_transport_factory.invalidate(cred_id)
     return {"deleted": cred_id}

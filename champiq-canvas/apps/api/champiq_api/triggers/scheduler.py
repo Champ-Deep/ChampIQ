@@ -26,6 +26,12 @@ class CronScheduler:
         self._scheduler = AsyncIOScheduler()
         self._jobs: dict[str, str] = {}  # trigger_id -> apscheduler job id
 
+    @property
+    def scheduler(self) -> AsyncIOScheduler:
+        """Underlying APScheduler instance — exposed so other modules
+        (e.g. ChampMail cadence) can register jobs on the same loop."""
+        return self._scheduler
+
     async def start(self) -> None:
         self._scheduler.start()
         await self.sync()

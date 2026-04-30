@@ -158,18 +158,28 @@ On page load, chat history is fetched from the DB and each assistant message re-
 
 ## ChampMail Integration
 
+**Major architectural change (2026-04-29):** ChampMail is now an **inline module** inside ChampIQ — not an external service. The legacy VPS-hosted ChampMail at `10.10.21.19:8000` was unreachable from Railway (private-IP range) so the entire send/sequence/event pipeline was absorbed into the ChampIQ API. Email transport is delegated to **Emelia (https://emelia.io)** via GraphQL; reply detection is via Emelia webhooks.
+
+See `ChampMail_Inline_Spec.md` for the architecture, data model, and remaining items.
+
 | Capability | Status | Notes |
 |------------|--------|-------|
-| add_prospect | ✅ | |
-| start_sequence | ✅ | |
-| pause_sequence | ✅ | |
-| send_single_email | ✅ | |
-| get_analytics | ✅ | |
-| list_templates | ✅ | |
-| enroll_sequence | ✅ | |
-| Reply classification (champmail_reply) | ✅ | Positive/negative/neutral branches |
-| Credential gate enforcement | ✅ | AI always asks for creds before champmail nodes |
-| ChampMail SMTP sending (external) | ❌ | SMTP auth failing for test@accountsonline.biz (wrong password). TurboSMTP creds invalid. Network blocks 587. Needs correct mail account credentials. |
+| add_prospect | ✅ | Local Postgres `champmail_prospects` |
+| start_sequence / enroll_sequence | ✅ | Idempotent — re-enroll returns existing |
+| pause_sequence / resume_sequence | ✅ | Working-hours aware on resume |
+| send_single_email | ✅ | Round-robin sender pool, daily caps enforced |
+| get_analytics | ✅ | Aggregated from `champmail_events` |
+| list_templates / get_template / preview_template | ✅ | Jinja2 sandbox renderer |
+| create_template / create_sequence / add_sequence_step | ✅ | New local-only canvas actions |
+| Reply classification (champmail_reply) | ✅ | Rewired to local services on 2026-04-29 |
+| Credential gate enforcement | ⚠ | Single-tenant — credentials no longer required for `champmail` actions; chat.py system prompt still asks for them but it's a no-op. Cleanup pending. |
+| Webhook-driven event ingestion | ✅ | `POST /api/champmail/webhooks/emelia` with HMAC verify; auto-pauses on reply/bounce/unsubscribe |
+| Cadence engine | ✅ | APScheduler tick every 60s; processes due enrollments in batches of 200 |
+| Idempotent sends | ✅ | sha1(enrollment_id, step_index) UNIQUE constraint |
+| Signed unsubscribe links | ✅ | HMAC-signed token, footer auto-injected by SendService |
+| Sender bounce auto-disable | ✅ | After 5 consecutive bounces |
+| Tools HTTP route `/api/tools/champmail/{action}` | ✅ | Routes to local executor (no driver) |
+| Frontend Prospects/Templates/Senders panels | ❌ | Phase 6 — backend ready, UI not yet built |
 
 ---
 
@@ -235,13 +245,50 @@ On page load, chat history is fetched from the DB and each assistant message re-
 
 ---
 
+## Non-Email Use Cases (fully working without SMTP)
+
+| UC | Name | Status | Notes |
+|----|------|--------|-------|
+| UC-11 | Daily Cron → list prospects → call each (ChampVoice) | ✅ | Workflow #39 on production. Click "Activate" in TopBar to register cron. |
+| UC-12 | Webhook → create prospect → immediate call | ✅ | Workflow #37. Inbound: POST /api/webhooks/wf/37/trigger-webhook-lead. Live call to +919098474926 verified. |
+| UC-13 | Manual → get_prospect_status → switch → call hot / track cold | ✅ | Workflow #38. Switch routing verified: replied/opened → call, cold/not_found → LinkedIn. |
+
+---
+
+## Cron Activation (fixed 2026-04-28)
+
+The canvas "Run All" only fires ad-hoc executions — cron nodes on the canvas are not registered with APScheduler until the workflow is saved as an active persistent workflow.
+
+**Solution:** "Activate" button (CalendarClock icon) in the TopBar:
+- Extracts `trigger.cron` nodes from the canvas
+- Creates/updates a `WorkflowTable` row with `active=True` and `triggers` array
+- APScheduler calls `CronScheduler.sync()` → jobs registered automatically
+- Button turns green and shows "Active" after activation
+
+---
+
+## Duplicate Node Fix (fixed 2026-04-28)
+
+`applyPatch.ts` now deduplicates nodes and edges: if the LLM patch `add_nodes` an ID that already exists, it merges the config instead of creating a second copy. Edge deduplication uses a Map by ID. Previously canvas accumulated 72 nodes with many duplicates.
+
+---
+
+## Credential Manager (upgraded 2026-04-28)
+
+CredentialManager now supports multiple types with type-appropriate fields:
+- **champmail** — email + password (also used for ChampGraph)
+- **champvoice** — elevenlabs_api_key + agent_id + phone_number_id
+- **http_bearer** — token
+- **http_basic** — username + password
+
+---
+
 ## Known Issues / Blockers
 
 | Issue | Severity | Detail |
 |-------|----------|--------|
-| ChampMail SMTP sending blocked | High | test@accountsonline.biz password wrong (Champ@123456 rejected). TurboSMTP API key invalid. Correct credentials needed from the mail server admin. |
-| TurboSMTP credentials invalid | High | `768b7b5c38904f7381b0` / `fTcbZNk6Jym0I2OYzHRp` returns "invalid username/password combination" on all ports |
-| mail.privatemail.com unreachable | Medium | Network unreachable from this server (charlie.evans@infobase360.com IMAP) |
+| ChampMail SMTP sending blocked | High | test@accountsonline.biz password wrong. Correct credentials needed from mail server admin. |
+| ChampGraph create_prospect credential | Medium | Needs champmail-admin credential on production to create prospects via API. |
 
 ---
 
@@ -261,4 +308,4 @@ On page load, chat history is fetched from the DB and each assistant message re-
 
 ---
 
-*Last updated: 2026-04-22*
+*Last updated: 2026-04-28*

@@ -1,6 +1,6 @@
 #!/bin/sh
 # Container entrypoint:
-#   1. Wait for Postgres to accept TCP connections (up to 90s)
+#   1. Wait for Postgres to accept TCP connections (up to 120s, 1s retry)
 #   2. Run alembic migrations
 #   3. exec the main process (uvicorn)
 #
@@ -12,7 +12,7 @@ cd /app/apps/api
 
 # ── Wait for Postgres ────────────────────────────────────────────────────────
 if [ -n "${DATABASE_URL:-}" ]; then
-  echo "[entrypoint] waiting for database..."
+  echo "[entrypoint] DATABASE_URL detected, waiting for database..."
   python - <<'PY'
 import os, socket, time, urllib.parse as up
 
@@ -26,16 +26,21 @@ if "+" in raw.split("://", 1)[0]:
 u = up.urlparse(raw)
 host = u.hostname or "localhost"
 port = u.port or 5432
-deadline = time.time() + 90
+print(f"[entrypoint] connecting to {host}:{port} ...")
+
+deadline = time.time() + 120
+attempt = 0
 while time.time() < deadline:
     try:
-        with socket.create_connection((host, port), timeout=2):
-            print(f"[entrypoint] db {host}:{port} is up")
+        with socket.create_connection((host, port), timeout=3):
+            print(f"[entrypoint] db {host}:{port} is up (attempt {attempt + 1})")
             break
-    except OSError:
-        time.sleep(2)
+    except OSError as e:
+        attempt += 1
+        print(f"[entrypoint] attempt {attempt}: db not ready ({e}), retrying in 1s...")
+        time.sleep(1)
 else:
-    raise SystemExit(f"[entrypoint] db {host}:{port} never became reachable (90s timeout)")
+    raise SystemExit(f"[entrypoint] db {host}:{port} never became reachable (120s timeout)")
 PY
 
   echo "[entrypoint] running alembic migrations..."
@@ -44,14 +49,13 @@ PY
     exit 1
   }
   echo "[entrypoint] migrations OK"
+else
+  echo "[entrypoint] no DATABASE_URL — skipping db wait and migrations"
 fi
 
 # ── Start the app ─────────────────────────────────────────────────────────────
 # Railway passes PORT as an env var. We honour it here so the process binds
 # on whatever port Railway has assigned.
 PORT="${PORT:-8000}"
-echo "[entrypoint] starting on port ${PORT}: $*"
-
-# If CMD is the default shell form (starts with "sh -c …") exec it directly so
-# $PORT is expanded. Otherwise exec the array form as-is.
+echo "[entrypoint] starting uvicorn on port ${PORT}"
 exec "$@"

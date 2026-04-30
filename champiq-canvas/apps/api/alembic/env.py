@@ -6,6 +6,7 @@ from sqlalchemy import pool
 from alembic import context
 from champiq_api.database import Base
 from champiq_api import models  # noqa: F401  # type: ignore[import] -- registers models with Base.metadata
+from champiq_api.champmail import models as champmail_models  # noqa: F401  # type: ignore[import] -- registers champmail models
 
 config = context.config
 if config.config_file_name is not None:

@@ -56,6 +56,8 @@ export const api = {
       body: JSON.stringify({ name, type, data }),
     }),
   deleteCredential: (id: number) => req(`/api/credentials/${id}`, { method: 'DELETE' }),
+  getLakeB2BWsToken: (credentialId: number) =>
+    req<{ access_token: string; ws_url: string }>(`/api/auth/lakeb2b/ws-token/${credentialId}`),
 
   // --- chat ---
   chatHistory: (sessionId = 'default') =>
@@ -65,6 +67,36 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ session_id: sessionId, content, current_workflow: currentWorkflow }),
     }),
+
+  // --- ChampMail (inline) ---
+  cmListProspects: (params: { limit?: number; offset?: number; status?: string; search?: string } = {}) => {
+    const qs = new URLSearchParams()
+    if (params.limit) qs.set('limit', String(params.limit))
+    if (params.offset) qs.set('offset', String(params.offset))
+    if (params.status) qs.set('status', params.status)
+    if (params.search) qs.set('search', params.search)
+    const tail = qs.toString() ? `?${qs.toString()}` : ''
+    return req<{ items: Record<string, unknown>[]; total: number; limit: number; offset: number }>(
+      `/api/champmail/prospects${tail}`
+    )
+  },
+  cmCreateProspect: (body: Record<string, unknown>) =>
+    req<Record<string, unknown>>('/api/champmail/prospects', { method: 'POST', body: JSON.stringify(body) }),
+  cmDeleteProspect: (id: number) => req(`/api/champmail/prospects/${id}`, { method: 'DELETE' }),
+
+  cmListTemplates: () => req<Record<string, unknown>[]>('/api/champmail/templates'),
+  cmCreateTemplate: (body: { name: string; subject: string; body_html: string; body_text?: string }) =>
+    req<Record<string, unknown>>('/api/champmail/templates', { method: 'POST', body: JSON.stringify(body) }),
+  cmUpdateTemplate: (id: number, body: Record<string, unknown>) =>
+    req<Record<string, unknown>>(`/api/champmail/templates/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  cmDeleteTemplate: (id: number) => req(`/api/champmail/templates/${id}`, { method: 'DELETE' }),
+  cmPreviewTemplate: (template_id: number, variables: Record<string, unknown> = {}) =>
+    req<{ subject: string; body_html: string; body_text: string | null }>(
+      '/api/champmail/templates/preview',
+      { method: 'POST', body: JSON.stringify({ template_id, variables }) }
+    ),
+
+  cmListSenders: () => req<Record<string, unknown>[]>('/api/champmail/senders'),
 }
 
 export type { WorkflowPatch }

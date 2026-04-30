@@ -66,10 +66,21 @@ class LLMExecutor(NodeExecutor):
 
         output: dict[str, Any] = {"text": resp.text, "model": resp.model}
         if ctx.config.get("json_mode"):
+            # Raise on parse failure so downstream nodes that template
+            # `{{ prev.json.foo }}` get a clear, actionable error here instead
+            # of a confusing "missing key" further down the graph. The raw
+            # text is included in the message so the user can see what the LLM
+            # actually produced.
             try:
                 output["json"] = json.loads(_extract_json(resp.text))
             except Exception as err:
-                output["parse_error"] = str(err)
+                snippet = (resp.text or "").strip()
+                if len(snippet) > 500:
+                    snippet = snippet[:500] + "…"
+                raise ValueError(
+                    f"llm.json_mode: response was not valid JSON ({err}). "
+                    f"Text: {snippet!r}"
+                ) from err
         return NodeResult(output=output)
 
 

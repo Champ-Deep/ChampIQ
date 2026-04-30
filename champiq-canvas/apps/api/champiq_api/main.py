@@ -9,18 +9,34 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from .champmail.routers import (
+    analytics as cm_analytics,
+    credentials as cm_credentials,
+    enrollments as cm_enrollments,
+    prospects as cm_prospects,
+    sends as cm_sends,
+    senders as cm_senders,
+    sequences as cm_sequences,
+    templates as cm_templates,
+    unsubscribe as cm_unsubscribe,
+    webhooks as cm_webhooks,
+)
 from .container import get_container
-from .routers import canvas, chat, credentials, events_ws, jobs, registry, tools, uploads, webhooks, workflows
+from .routers import auth_lakeb2b, canvas, chat, credentials, events_ws, jobs, registry, settings as app_settings, tools, uploads, webhooks, workflows
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     container = get_container()
     await container.cron.start()
+    # Janitor pins onto cron's APScheduler — must register after start().
+    container.janitor.register()
     await container.event_listener.start()
+    container.cadence_job.start()
     try:
         yield
     finally:
+        container.cadence_job.stop()
         await container.cron.shutdown()
         await container.event_listener.shutdown()
 
@@ -52,6 +68,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth_lakeb2b.router, prefix="/api")
 app.include_router(canvas.router, prefix="/api")
 app.include_router(registry.router, prefix="/api")
 app.include_router(tools.router, prefix="/api")
@@ -61,6 +78,20 @@ app.include_router(credentials.router, prefix="/api")
 app.include_router(webhooks.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 app.include_router(uploads.router, prefix="/api")
+app.include_router(app_settings.router, prefix="/api")
+
+# ChampMail inline (under /api/champmail/*)
+app.include_router(cm_prospects.router, prefix="/api")
+app.include_router(cm_senders.router, prefix="/api")
+app.include_router(cm_templates.router, prefix="/api")
+app.include_router(cm_sequences.router, prefix="/api")
+app.include_router(cm_enrollments.router, prefix="/api")
+app.include_router(cm_sends.router, prefix="/api")
+app.include_router(cm_webhooks.router, prefix="/api")
+app.include_router(cm_unsubscribe.router, prefix="/api")
+app.include_router(cm_analytics.router, prefix="/api")
+app.include_router(cm_credentials.router, prefix="/api")
+
 app.include_router(events_ws.router)
 
 
@@ -111,6 +142,7 @@ _CONTENT_TYPES: dict[str, str] = {
     ".png": "image/png",
     ".jpg": "image/jpeg",
     ".webp": "image/webp",
+    ".zip": "application/zip",
 }
 
 

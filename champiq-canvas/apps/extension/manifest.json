@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "ChampIQ – LakeB2B Connector",
+  "version": "1.0.7",
+  "description": "Connects ChampIQ Canvas to LakeB2B Pulse via LinkedIn OAuth. Automatically captures the auth token after LinkedIn login.",
+  "permissions": [
+    "tabs",
+    "webNavigation",
+    "cookies"
+  ],
+  "host_permissions": [
+    "https://b2b-pulse.up.railway.app/*",
+    "https://champiq-production.up.railway.app/*",
+    "https://www.linkedin.com/*",
+    "http://localhost:*/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://champiq-production.up.railway.app/*", "http://localhost:*/*"],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  },
+  "action": {
+    "default_title": "ChampIQ LakeB2B Connector"
+  }
+}

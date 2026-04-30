@@ -12,6 +12,7 @@ import { useCredentialStore, TOOL_CREDENTIAL_TYPE } from '@/store/credentialStor
 import { X, Copy, Check, ChevronDown, ChevronUp } from '@/lib/icons'
 import { getNodeMeta } from '@/lib/manifest'
 import type { ChampIQManifest } from '@/types'
+import { CsvUploadConfig } from '@/components/canvas/CsvUploadConfig'
 
 // ── Per-kind static field definitions ────────────────────────────────────────
 
@@ -55,42 +56,58 @@ const ACTION_FIELDS: Record<string, Record<string, FieldDef[]>> = {
     list_templates: [],
   },
   champgraph: {
-    ingest_prospect: [
+    create_prospect: [
       { key: 'email', label: 'Email', type: 'text', placeholder: '{{item.email}}' },
       { key: 'first_name', label: 'First name', type: 'text', placeholder: '{{item.first_name}}' },
       { key: 'last_name', label: 'Last name', type: 'text', placeholder: '{{item.last_name}}' },
-      { key: 'company', label: 'Company', type: 'text', placeholder: '{{item.company}}' },
+      { key: 'company_name', label: 'Company', type: 'text', placeholder: '{{item.company}}' },
       { key: 'title', label: 'Title', type: 'text', placeholder: '{{item.title}}' },
     ],
-    get_prospect_status: [
-      { key: 'email', label: 'Email', type: 'text', placeholder: '{{item.email}}' },
-    ],
-    ingest_company: [
-      { key: 'name', label: 'Company name', type: 'text', placeholder: '{{item.company}}' },
-      { key: 'domain', label: 'Domain', type: 'text', placeholder: '{{item.domain}}' },
-      { key: 'industry', label: 'Industry', type: 'text', placeholder: '{{item.industry}}' },
-    ],
-    semantic_search: [
-      { key: 'query', label: 'Query', type: 'text', placeholder: '{{prev.search_term}}' },
+    list_prospects: [
       { key: 'limit', label: 'Max results', type: 'number' },
+      { key: 'status', label: 'Filter by status (optional)', type: 'text', placeholder: 'cold' },
     ],
-    nl_query: [
-      { key: 'query', label: 'Natural-language query', type: 'textarea',
-        placeholder: 'Find all prospects at enterprise companies in fintech' },
+    get_prospect_status: [
+      { key: 'email', label: 'Email', type: 'text', placeholder: '{{item.email}}',
+        hint: 'Returns engagement_status: replied | opened | cold | not_found — use in downstream switch/if.' },
     ],
-    add_relationship: [
-      { key: 'from_email', label: 'From (email)', type: 'text', placeholder: '{{prev.email}}' },
-      { key: 'to_email', label: 'To (email)', type: 'text', placeholder: '{{prev.target_email}}' },
-      { key: 'relationship', label: 'Relationship type', type: 'text', placeholder: 'knows / colleague' },
+    bulk_import: [
+      { key: 'prospects', label: 'Prospects (JSON array)', type: 'textarea',
+        placeholder: '[{"email":"a@b.com","first_name":"Alice"}]' },
     ],
+    research_prospects: [
+      { key: 'prospect_ids', label: 'Prospect UUIDs (JSON array)', type: 'textarea',
+        placeholder: '["uuid1","uuid2"]' },
+      { key: 'concurrency', label: 'Concurrency', type: 'number' },
+    ],
+    campaign_essence: [
+      { key: 'description', label: 'Campaign description', type: 'textarea',
+        placeholder: 'Cold outreach to SaaS CTOs about our AI tool' },
+      { key: 'target_audience', label: 'Target audience', type: 'text',
+        placeholder: 'CTO at B2B SaaS companies' },
+    ],
+    enroll_sequence: [
+      { key: 'sequence_id', label: 'Sequence ID', type: 'text', placeholder: 'seq_abc123' },
+      { key: 'prospect_email', label: 'Prospect email', type: 'text', placeholder: '{{item.email}}' },
+    ],
+    analytics_overview: [],
+    list_sequences: [],
+    list_campaigns: [],
   },
   champvoice: {
     initiate_call: [
-      { key: 'agent_id', label: 'Agent ID override (optional)', type: 'text',
-        placeholder: '{{item.agent_id}}', hint: 'Overrides the credential default. Leave blank to use the credential agent.' },
+      { key: 'to_number', label: 'Phone number (E.164)', type: 'text',
+        placeholder: '{{item.phone}}', hint: 'Include country code. e.g. +14155551234 or {{item.phone_number}}' },
+      { key: 'lead_name', label: 'Lead name', type: 'text', placeholder: '{{item.first_name}}' },
+      { key: 'company', label: 'Company', type: 'text', placeholder: '{{item.company}}' },
+      { key: 'email', label: 'Lead email', type: 'text', placeholder: '{{item.email}}' },
+      { key: 'engagement_status', label: 'Engagement status (optional)', type: 'text',
+        placeholder: '{{prev.engagement_status}}',
+        hint: 'Passed as a dynamic variable to the AI agent so it can tailor its opener.' },
       { key: 'call_reason', label: 'Call reason (optional)', type: 'select',
-        options: ['', 'cold_outreach', 'email_follow_up', 'sequence_completed', 'replied_follow_up'],
-        hint: 'Shapes the AI agent opening. Phone, name, email and company flow in automatically from the loop.' },
+        options: ['', 'cold_outreach', 'email_follow_up', 'sequence_completed', 'replied_follow_up'] },
+      { key: 'agent_id', label: 'Agent ID override (optional)', type: 'text',
+        placeholder: 'Leave blank to use credential default' },
     ],
     get_call_status: [
       { key: 'conversation_id', label: 'Conversation ID', type: 'text', placeholder: '{{prev.conversationId}}',
@@ -124,7 +141,7 @@ const KIND_FIELDS: Record<string, FieldDef[]> = {
     { key: 'label', label: 'Trigger label', type: 'text', placeholder: 'Run workflow' },
     { key: 'items', label: 'Input items (JSON array or leave blank)', type: 'textarea',
       placeholder: '[{"email":"a@b.com","name":"Alice"},...]',
-      hint: 'Paste a JSON array or upload a CSV via the chat panel.' },
+      hint: 'Paste a JSON array or upload a CSV via the chat panel. Downstream nodes access these as {{ trigger.payload.items }} — note the .payload prefix.' },
   ],
   'trigger.webhook': [
     { key: 'path', label: 'Webhook path', type: 'text', placeholder: '/hooks/my-event' },
@@ -157,8 +174,8 @@ const KIND_FIELDS: Record<string, FieldDef[]> = {
   ],
   'if': [
     { key: 'condition', label: 'Condition expression', type: 'text',
-      placeholder: '{{ prev.tier }} == "enterprise"',
-      hint: 'Emits branch "true" or "false" downstream.' },
+      placeholder: 'prev.tier == "enterprise"',
+      hint: 'Raw expression — do NOT wrap in {{ }} (the node wraps it for you). Emits branch "true" or "false" downstream.' },
   ],
   'switch': [
     { key: 'value', label: 'Value expression', type: 'text', placeholder: '{{ prev.status }}' },
@@ -170,13 +187,26 @@ const KIND_FIELDS: Record<string, FieldDef[]> = {
     { key: 'items', label: 'Items expression', type: 'text',
       placeholder: '{{ prev.payload.items }}',
       hint: 'Must resolve to a JSON array at runtime.' },
-    { key: 'concurrency', label: 'Concurrency (parallel items at once)', type: 'number' },
+    { key: 'mode', label: 'Cadence mode', type: 'select',
+      options: ['parallel', 'sequential', 'paced'],
+      hint: 'parallel = run together (use Concurrency) · sequential = one after another · paced = fixed gap between starts.' },
+    { key: 'concurrency', label: 'Concurrency (parallel items in flight)', type: 'number',
+      hint: 'Only used when mode=parallel. Forced to 1 for paced mode.' },
+    { key: 'pace_seconds', label: 'Pace seconds (gap between starts)', type: 'number',
+      hint: 'mode=paced: enforced exactly. mode=sequential: gap between body completions. 120 = 2 min · 3600 = 1 h.' },
+    { key: 'initial_delay_seconds', label: 'Initial delay (seconds, before first item)', type: 'number' },
+    { key: 'jitter_seconds', label: 'Jitter (± seconds added to each gap)', type: 'number',
+      hint: 'Adds uniform random ± to each pace gap — helps avoid spam-filter pattern detection on cold-email cadences.' },
+    { key: 'max_items', label: 'Max items (cap, 0 = no cap)', type: 'number',
+      hint: 'Useful while testing — process only the first N rows of a CSV.' },
+    { key: 'stop_on_error', label: 'Stop on error', type: 'select', options: ['false', 'true'],
+      hint: 'If an item fails, abort the rest. Default: continue with remaining items.' },
     { key: 'each', label: 'Per-item transform (JSON object of expressions)', type: 'textarea',
       placeholder: '{"email":"{{item.email}}","name":"{{item.name}}"}' },
     { key: 'wait_for_event', label: 'Wait for event before next item', type: 'text',
       placeholder: 'transcript.ready',
-      hint: 'Loop waits for this event from the bus before processing the next item. Leave blank to fire all at once.' },
-    { key: 'wait_timeout', label: 'Wait timeout (seconds)', type: 'number',
+      hint: 'Event-driven gating (independent of cadence). Leave blank for normal operation.' },
+    { key: 'wait_timeout', label: 'Wait-for-event timeout (seconds)', type: 'number',
       hint: 'Max seconds to wait per item before moving on. Default: 300.' },
   ],
   'split': [
@@ -213,8 +243,11 @@ const KIND_FIELDS: Record<string, FieldDef[]> = {
   ],
   'champgraph': [
     { key: 'action', label: 'Action', type: 'select',
-      options: ['ingest_prospect', 'get_prospect_status', 'ingest_company', 'semantic_search', 'nl_query', 'add_relationship'] },
-    { key: 'credential', label: 'ChampGraph credential (optional)', type: 'credential' },
+      options: ['create_prospect', 'list_prospects', 'get_prospect_status', 'bulk_import',
+                'research_prospects', 'campaign_essence', 'enroll_sequence',
+                'analytics_overview', 'list_sequences', 'list_campaigns'] },
+    { key: 'credential', label: 'ChampGraph credential', type: 'credential',
+      hint: 'Same email+password as ChampMail admin. Use champmail-admin credential.' },
   ],
   'champvoice': [
     { key: 'action', label: 'Action', type: 'select',
@@ -342,6 +375,14 @@ function NodeConfigForm({ nodeId, kind, config }: {
   config: Record<string, unknown>
 }) {
   const { updateNodeConfig } = useCanvasStore()
+
+  // csv.upload has a self-contained inspector (file picker + parsed-row preview).
+  // The generic field-driven form is the wrong shape here — we need a real <input
+  // type="file"> wired to a parser, not a JSON textarea.
+  if (kind === 'csv.upload') {
+    return <CsvUploadConfig nodeId={nodeId} config={config} />
+  }
+
   const staticFields = KIND_FIELDS[kind] || []
   const currentAction = config.action as string | undefined
 

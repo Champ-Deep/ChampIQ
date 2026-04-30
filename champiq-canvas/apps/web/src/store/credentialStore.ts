@@ -14,8 +14,11 @@ export interface Credential {
 // Actual secret values are stored here only for reference — the API resolves them.
 export const CREDENTIAL_TYPE_FIELDS: Record<CredentialType, { key: string; label: string; secret?: boolean }[]> = {
   champmail: [
-    { key: 'email', label: 'Email' },
-    { key: 'password', label: 'Password', secret: true },
+    // Legacy fields — the modern flow is the "Connect Emelia" wizard which
+    // posts {api_key, default_sender_id} server-side. These keys still appear
+    // on credentials migrated from the VPS era.
+    { key: 'api_key', label: 'Emelia API Key', secret: true },
+    { key: 'default_sender_id', label: 'Default Emelia provider id (optional)' },
   ],
   champgraph: [
     { key: 'email', label: 'Email' },
@@ -28,7 +31,8 @@ export const CREDENTIAL_TYPE_FIELDS: Record<CredentialType, { key: string; label
     { key: 'canvas_webhook_secret', label: 'Webhook Secret (optional — for signature verification)', secret: true },
   ],
   lakeb2b: [
-    { key: 'api_key', label: 'API Key', secret: true },
+    // Fields managed by the LakeB2B login flow — not manually entered
+    { key: 'credential_id', label: 'Server Credential ID (auto-filled)' },
   ],
   http: [
     { key: 'token', label: 'Bearer Token', secret: true },
@@ -60,8 +64,22 @@ function loadFromStorage(): Credential[] {
   }
 }
 
+// Guarded localStorage write. Browsers cap localStorage at ~5 MB and
+// silently throw QuotaExceededError when full. Without a catch the credential
+// add/delete UI would just stop working with no visible error. We log and
+// surface a console warning; once we have a toast system this should
+// surface as a user-visible warning too.
 function saveToStorage(credentials: Credential[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(credentials))
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(credentials))
+  } catch (err) {
+    // QuotaExceededError, SecurityError (private mode), or anything else.
+    console.error(
+      '[credentialStore] failed to persist credentials to localStorage — ' +
+      'changes will not survive a refresh',
+      err,
+    )
+  }
 }
 
 interface CredentialStore {

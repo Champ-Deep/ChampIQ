@@ -66,6 +66,15 @@ def build_event_bus(redis_url: str | None) -> EventBus:
         try:
             return RedisEventBus(redis_url)
         except Exception:
-            # Fall back silently — redis may not be up in dev.
-            pass
+            # Loud fallback: a misconfigured REDIS_URL in production silently
+            # downgrades the deployment to in-memory pub/sub, breaking cross-
+            # worker fan-out (webhook → bus → workflow trigger). Log at WARNING
+            # so this shows up in Railway logs and ops can fix the URL.
+            import logging as _logging
+            _logging.getLogger(__name__).warning(
+                "build_event_bus: REDIS_URL set but RedisEventBus failed to "
+                "construct — falling back to InMemoryEventBus. Cross-worker "
+                "events will NOT be delivered.",
+                exc_info=True,
+            )
     return InMemoryEventBus()

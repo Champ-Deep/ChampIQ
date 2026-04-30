@@ -49,7 +49,15 @@ class HttpToolDriver(ABC):
             raise KeyError(f"{self.tool_id}: unknown action {action!r}")
 
         method = spec.get("method", "POST").upper()
-        path = spec.get("path", "").format(**{k: _url_safe(v) for k, v in inputs.items() if isinstance(v, (str, int))})
+        path_template = spec.get("path", "")
+        safe_inputs = {k: _url_safe(v) for k, v in inputs.items() if isinstance(v, (str, int))}
+        try:
+            path = path_template.format(**safe_inputs)
+        except KeyError as missing:
+            raise ValueError(
+                f"{self.tool_id}.{action}: missing required path param {missing} — "
+                f"inputs provided: {list(safe_inputs.keys())}"
+            ) from None
         url = f"{self._base_url}{path}"
         headers = self._build_headers(spec.get("auth", "none"), credentials)
 
@@ -57,14 +65,17 @@ class HttpToolDriver(ABC):
         json_payload = None
         data_payload = None
         params = None
+        import re
+        path_param_keys = set(re.findall(r'\{(\w+)\}', path_template))
         if method in {"GET", "DELETE"}:
-            params = {k: v for k, v in inputs.items() if v is not None}
+            params = {k: v for k, v in inputs.items() if v is not None and k not in path_param_keys}
         elif body_kind == "json":
             json_payload = inputs
         elif body_kind == "form":
             data_payload = inputs
 
-        async with httpx.AsyncClient(timeout=self._timeout) as client:
+        timeout = httpx.Timeout(connect=10.0, read=self._timeout, write=10.0, pool=5.0)
+        async with httpx.AsyncClient(timeout=timeout) as client:
             response = await client.request(
                 method, url, headers=headers, json=json_payload, data=data_payload, params=params
             )

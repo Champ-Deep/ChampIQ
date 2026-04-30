@@ -1,23 +1,29 @@
 """champmail.reply_classifier node.
 
-Classifies an incoming Champmail reply with an LLM and, if positive, calls
-pause_sequence on the Champmail API so the prospect is no longer contacted.
+Classifies an incoming Champmail reply with an LLM and, if positive, pauses
+the prospect's active enrollment(s) so they're no longer contacted.
 
 Canvas config:
-    reply_body      str (expression) — the reply text to classify
-    sequence_id     str (expression) — Champmail sequence_id to pause
-    credential      str              — credential name containing {"api_token": "..."}
-    model           str (optional)   — LLM model override
-    system          str (optional)   — LLM system-prompt override
+    reply_body       str (expression) — the reply text to classify
+    prospect_email   str (expression, optional) — prospect to pause; required for positive-branch pause
+    sequence_id      int (expression, optional) — pause only this enrollment; otherwise pause all active for prospect
+    credential       str (optional)   — credential name; only used to override LLM api_key
+    model            str (optional)   — LLM model override
+    system           str (optional)   — LLM system-prompt override
 
 Outputs:
-    sentiment       "positive" | "negative" | "neutral"
-    paused          bool — true if pause_sequence was called
-    pause_response  dict | None
+    sentiment        "positive" | "negative" | "neutral"
+    paused           bool — true if at least one enrollment was paused
+    paused_count     int  — number of enrollments paused (0 when no prospect / sequence found)
 
 Branches:
-    positive  — emitted when sentiment is positive (sequence was paused)
+    positive  — emitted when sentiment is positive (pause attempted)
     other     — emitted for negative / neutral / errors
+
+Note: this is the canvas-level reply handler. Inbound webhooks
+(`/api/champmail/webhooks/emelia`) auto-pause on every reply event regardless
+of sentiment — this node is for canvas flows that classify replies coming from
+other sources (e.g. forwarded events, manual triggers).
 """
 from __future__ import annotations
 
@@ -46,11 +52,18 @@ class ChampmailReplyClassifierExecutor(NodeExecutor):
         from ..container import get_container
 
         reply_body: str = str(ctx.render(ctx.config.get("reply_body", "")) or "")
-        sequence_id: str = str(ctx.render(ctx.config.get("sequence_id", "")) or "")
+        prospect_email: str = str(ctx.render(ctx.config.get("prospect_email", "")) or "").strip().lower()
+        raw_seq_id = ctx.render(ctx.config.get("sequence_id", ""))
+        sequence_id: int | None = None
+        if raw_seq_id not in (None, "", 0):
+            try:
+                sequence_id = int(raw_seq_id)
+            except (TypeError, ValueError):
+                sequence_id = None
 
         if not reply_body:
             return NodeResult(
-                output={"sentiment": "neutral", "paused": False, "error": "empty reply_body"},
+                output={"sentiment": "neutral", "paused": False, "paused_count": 0, "error": "empty reply_body"},
                 branches=["other"],
             )
 
@@ -90,38 +103,45 @@ class ChampmailReplyClassifierExecutor(NodeExecutor):
             raw_label = "neutral"
 
         sentiment: str = raw_label
-        output: dict[str, Any] = {"sentiment": sentiment, "paused": False, "pause_response": None}
+        output: dict[str, Any] = {"sentiment": sentiment, "paused": False, "paused_count": 0}
 
-        if sentiment != "positive" or not sequence_id:
+        if sentiment != "positive":
             return NodeResult(output=output, branches=["other"])
 
-        # --- Pause the sequence ---
-        container = get_container()
-        driver = container.drivers.get("champmail")
-        if driver is None:
-            output["error"] = "champmail driver not found"
+        if not prospect_email:
+            output["error"] = "prospect_email is required to pause on positive sentiment"
             return NodeResult(output=output, branches=["other"])
 
-        credentials: dict[str, Any] = {}
-        if cred_name:
-            credentials = await ctx.credentials.resolve(cred_name)
+        # --- Pause the enrollment(s) via local services ---
+        from ..champmail.repositories import EnrollmentRepository, ProspectRepository
+        from ..champmail.services import EnrollmentService
+        from ..database import get_session_factory
 
+        session_factory = get_session_factory()
         try:
-            seq_id_int = int(sequence_id)
-        except (ValueError, TypeError):
-            output["error"] = f"sequence_id must be an integer, got {sequence_id!r}"
-            return NodeResult(output=output, branches=["other"])
+            async with session_factory() as session:
+                prospect = await ProspectRepository(session).get_by_email(prospect_email)
+                if prospect is None:
+                    output["error"] = f"prospect {prospect_email!r} not found"
+                    await session.rollback()
+                    return NodeResult(output=output, branches=["other"])
 
-        try:
-            pause_resp = await driver.invoke(
-                "pause_sequence",
-                {"sequence_id": seq_id_int},
-                credentials,
-            )
-            output["paused"] = True
-            output["pause_response"] = pause_resp
+                paused_count = 0
+                enrollments_repo = EnrollmentRepository(session)
+                if sequence_id is not None:
+                    en = await enrollments_repo.find(prospect.id, sequence_id)
+                    if en and en.status == "active":
+                        await EnrollmentService(session).pause(en.id)
+                        paused_count = 1
+                else:
+                    paused_count = await enrollments_repo.pause_active_for_prospect(
+                        prospect.id, reason="paused"
+                    )
+                await session.commit()
+                output["paused"] = paused_count > 0
+                output["paused_count"] = paused_count
         except Exception as exc:
-            log.exception("champmail.reply_classifier: pause_sequence failed")
+            log.exception("champmail.reply_classifier: pause failed")
             output["error"] = str(exc)
             return NodeResult(output=output, branches=["other"])
 

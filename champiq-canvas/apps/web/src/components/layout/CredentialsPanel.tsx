@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Trash2, Eye, EyeOff, ChevronDown, ChevronUp } from '@/lib/icons'
+import { Plus, Trash2, Eye, EyeOff, ChevronDown, ChevronUp, ExternalLink } from '@/lib/icons'
 import {
   useCredentialStore,
   CREDENTIAL_TYPE_FIELDS,
@@ -19,6 +19,513 @@ const TYPE_LABELS: Record<CredentialType, string> = {
 const CREDENTIAL_TYPES: CredentialType[] = [
   'champmail', 'champgraph', 'champvoice', 'lakeb2b', 'http', 'generic',
 ]
+
+// ── LakeB2B Pulse Login Flow ──────────────────────────────────────────────────
+// Flow:
+//   Step 'login'    → enter name → click Login with LinkedIn → popup opens
+//   Step 'waiting'  → popup open, waiting for LAKEB2B_AUTH_TOKEN
+//   Step 'li_at'    → credential saved; extension auto-reads li_at from LinkedIn cookies
+//   Step 'done'     → fully connected (B2B Pulse + LinkedIn session)
+
+type LakeB2BStep = 'login' | 'waiting' | 'li_at' | 'done'
+
+function LakeB2BLoginFlow({ onDone }: { onDone: () => void }) {
+  const { addCredential } = useCredentialStore()
+  const [step, setStep] = useState<LakeB2BStep>('login')
+  const [name, setName] = useState('lakeb2b-pulse')
+  const [credentialId, setCredentialId] = useState<number | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [liAtStatus, setLiAtStatus] = useState<'pending' | 'ok' | 'error'>('pending')
+
+  async function saveToken(token: string, refreshToken: string, li_at: string) {
+    const credName = name.trim()
+
+    // Save credential server-side. Pass li_at too so backend can call session-cookies
+    // immediately while token is guaranteed fresh (extension captured both together).
+    const url = `/api/auth/lakeb2b/callback?token=${encodeURIComponent(token)}&refresh_token=${encodeURIComponent(refreshToken)}&name=${encodeURIComponent(credName)}${li_at ? `&li_at=${encodeURIComponent(li_at)}` : ''}`
+    await fetch(url)  // returns HTML — fires svc.create() server-side
+    // Small delay to ensure DB commit is visible before listing credentials
+    await new Promise(r => setTimeout(r, 600))
+
+    const credsRes = await fetch('/api/credentials')
+    const creds = await credsRes.json()
+    const latest = Array.isArray(creds)
+      ? (creds as { id: number; name: string; type: string }[]).filter(c => c.type === 'lakeb2b').pop()
+      : null
+    if (!latest) throw new Error('Could not retrieve saved credential')
+    setCredentialId(latest.id)
+    addCredential(latest.name || credName, 'lakeb2b', { credential_id: String(latest.id) })
+
+    if (li_at) {
+      // Extension captured li_at during OAuth — save it from the page (not service worker)
+      setStep('li_at')
+      setLiAtStatus('pending')
+      try {
+        const res = await fetch('/api/auth/lakeb2b/linkedin-cookie', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ credential_id: latest.id, li_at }),
+        })
+        if (res.ok) {
+          setLiAtStatus('ok')
+          setTimeout(() => setStep('done'), 600)
+        } else {
+          const err = await res.json().catch(() => ({}))
+          setLiAtStatus('error')
+          setError(err.detail || 'LinkedIn session save failed')
+        }
+      } catch {
+        setLiAtStatus('error')
+        setError('Failed to save LinkedIn session')
+      }
+    } else {
+      // No li_at captured — ask extension now via page-context message
+      setStep('li_at')
+      setLiAtStatus('pending')
+      const liAtHandler = async (ev: MessageEvent) => {
+        if (ev.data?.type !== 'LAKEB2B_LI_AT_VALUE') return
+        window.removeEventListener('message', liAtHandler)
+        if (!ev.data.found || !ev.data.li_at) {
+          setLiAtStatus('error')
+          setError('LinkedIn li_at not found — make sure you are logged into LinkedIn')
+          return
+        }
+        try {
+          const res = await fetch('/api/auth/lakeb2b/linkedin-cookie', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ credential_id: latest.id, li_at: ev.data.li_at }),
+          })
+          if (res.ok) {
+            setLiAtStatus('ok')
+            setTimeout(() => setStep('done'), 600)
+          } else {
+            const err = await res.json().catch(() => ({}))
+            setLiAtStatus('error')
+            setError(err.detail || 'LinkedIn session save failed')
+          }
+        } catch {
+          setLiAtStatus('error')
+          setError('Failed to save LinkedIn session')
+        }
+      }
+      window.addEventListener('message', liAtHandler)
+      window.postMessage({ type: 'LAKEB2B_GET_LI_AT' }, '*')
+      setTimeout(() => {
+        window.removeEventListener('message', liAtHandler)
+        if (liAtStatus === 'pending') setStep('done')
+      }, 5000)
+    }
+  }
+
+  async function handleLinkedInLogin() {
+    if (!name.trim()) { setError('Credential name is required'); return }
+    setLoading(true)
+    setError('')
+    try {
+      const res = await fetch(`/api/auth/lakeb2b/oauth-url?name=${encodeURIComponent(name.trim())}`)
+      if (!res.ok) throw new Error(`Server error ${res.status} — please try again`)
+      const { auth_url } = await res.json()
+
+      // Open B2B Pulse LinkedIn OAuth in a popup.
+      // After login, B2B Pulse redirects popup to FRONTEND_URL/auth/callback#access_token=...
+      // Our main.tsx /auth/callback handler reads the hash and postMessages LAKEB2B_AUTH_TOKEN back.
+      const popup = window.open(auth_url, 'lakeb2b_oauth', 'width=600,height=700,scrollbars=yes')
+      setStep('waiting')
+
+      // BroadcastChannel fallback (when redirect isn't a popup — tab-based redirect)
+      const bc = new BroadcastChannel('lakeb2b_oauth')
+
+      const cleanup = (keepLoading = false) => {
+        window.removeEventListener('message', msgHandler)
+        bc.removeEventListener('message', bcHandler)
+        bc.close()
+        clearInterval(popupWatcher)
+        if (!keepLoading) setLoading(false)
+      }
+
+      const onToken = async (token: string, refresh: string, li_at: string, li_at_debug?: string) => {
+        if (li_at_debug) console.log('[LakeB2B] li_at debug:', li_at_debug)
+        cleanup(true)
+        popup?.close()
+        try {
+          await saveToken(token, refresh, li_at)
+        } catch {
+          setError('Failed to save credential. Try again.')
+          setStep('login')
+        }
+        setLoading(false)
+      }
+
+      // postMessage from /auth/callback or extension (includes li_at captured simultaneously)
+      const msgHandler = (ev: MessageEvent) => {
+        if (ev.data?.type === 'LAKEB2B_AUTH_TOKEN' && ev.data.token) {
+          onToken(ev.data.token, ev.data.refresh_token || '', ev.data.li_at || '', ev.data.li_at_debug)
+        }
+      }
+      window.addEventListener('message', msgHandler)
+
+      // BroadcastChannel from /auth/callback (tab-redirect path)
+      const bcHandler = (ev: MessageEvent) => {
+        if (ev.data?.type === 'LAKEB2B_AUTH_TOKEN' && ev.data.token) {
+          onToken(ev.data.token, ev.data.refresh_token || '', ev.data.li_at || '', ev.data.li_at_debug)
+        }
+      }
+      bc.addEventListener('message', bcHandler)
+
+      // Popup closed by user without completing login
+      const popupWatcher = setInterval(() => {
+        if (popup?.closed) {
+          cleanup()
+          setStep('login')
+        }
+      }, 500)
+
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to start OAuth')
+      setStep('login')
+      setLoading(false)
+    }
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
+
+  if (step === 'li_at') {
+    return (
+      <div className="flex flex-col gap-3 p-3 rounded-lg" style={{ background: 'var(--bg-sidebar)', border: '1px solid var(--border)' }}>
+        <p className="text-xs font-semibold" style={{ color: 'var(--text-1)' }}>✓ B2B Pulse login successful</p>
+        <p className="text-xs" style={{ color: 'var(--text-3)' }}>Connecting LinkedIn session automatically…</p>
+        {liAtStatus === 'pending' && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs animate-pulse" style={{ color: '#818cf8' }}>●</span>
+            <span className="text-xs" style={{ color: 'var(--text-3)' }}>Reading LinkedIn session from browser…</span>
+          </div>
+        )}
+        {liAtStatus === 'ok' && (
+          <p className="text-xs font-medium" style={{ color: '#22c55e' }}>✓ LinkedIn session connected</p>
+        )}
+        {liAtStatus === 'error' && (
+          <div className="flex flex-col gap-1.5">
+            <p className="text-xs" style={{ color: '#f59e0b' }}>{error}</p>
+            <p className="text-xs" style={{ color: 'var(--text-3)' }}>
+              Make sure you're logged into LinkedIn in this browser, then:
+            </p>
+            <button
+              onClick={() => {
+                setError('')
+                setLiAtStatus('pending')
+                window.postMessage({ type: 'LAKEB2B_SAVE_LI_AT', credential_id: credentialId }, '*')
+              }}
+              className="text-xs py-1 rounded-md font-medium"
+              style={{ background: '#0A66C2', color: '#fff' }}
+            >
+              Retry — capture LinkedIn session
+            </button>
+            <button onClick={() => setStep('done')} className="text-xs" style={{ color: 'var(--text-3)' }}>
+              Skip for now
+            </button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  if (step === 'done') {
+    return (
+      <div className="flex flex-col gap-3 p-3 rounded-lg" style={{ background: 'var(--bg-sidebar)', border: '1px solid #22c55e44' }}>
+        <p className="text-xs font-semibold" style={{ color: '#22c55e' }}>✓ LakeB2B Pulse fully connected</p>
+        <p className="text-xs" style={{ color: 'var(--text-3)' }}>
+          B2B Pulse ✓ · LinkedIn session ✓ — ready to track posts.
+        </p>
+        <button onClick={onDone} className="text-xs py-1.5 rounded-md font-medium" style={{ background: '#6366f1', color: '#fff' }}>
+          Done
+        </button>
+      </div>
+    )
+  }
+
+  if (step === 'waiting') {
+    return (
+      <div className="flex flex-col gap-3 p-3 rounded-lg" style={{ background: 'var(--bg-sidebar)', border: '1px solid var(--border)' }}>
+        <p className="text-xs font-semibold" style={{ color: 'var(--text-1)' }}>Waiting for LinkedIn login…</p>
+        <p className="text-xs" style={{ color: 'var(--text-3)' }}>
+          Complete the LinkedIn login in the popup. This page will update automatically when done.
+        </p>
+        <div className="flex items-center gap-2">
+          <span className="text-xs animate-pulse" style={{ color: '#818cf8' }}>●</span>
+          <span className="text-xs" style={{ color: 'var(--text-3)' }}>Waiting for LinkedIn login to complete…</span>
+        </div>
+        {error && <p className="text-xs" style={{ color: '#f87171' }}>{error}</p>}
+        <button onClick={() => { setStep('login'); setLoading(false) }} className="text-xs" style={{ color: 'var(--text-3)' }}>
+          Cancel
+        </button>
+      </div>
+    )
+  }
+
+  if (step === 'login') {
+    return (
+      <div className="flex flex-col gap-2.5 p-3 rounded-lg" style={{ background: 'var(--bg-sidebar)', border: '1px solid var(--border)' }}>
+        <p className="text-xs font-semibold" style={{ color: 'var(--text-1)' }}>Connect LakeB2B Pulse</p>
+        <p className="text-xs" style={{ color: 'var(--text-3)' }}>
+          Sign in with LinkedIn to connect your LakeB2B Pulse account.
+        </p>
+
+        <div className="flex flex-col gap-1">
+          <label className="text-xs" style={{ color: 'var(--text-3)' }}>Credential name</label>
+          <input
+            autoFocus
+            className="text-xs p-1.5 rounded-md focus:outline-none"
+            style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-1)' }}
+            placeholder="lakeb2b-pulse"
+            value={name}
+            onChange={(e) => { setName(e.target.value); setError('') }}
+          />
+        </div>
+
+        {error && <p className="text-xs" style={{ color: '#f87171' }}>{error}</p>}
+
+        <div className="flex gap-2">
+          <button
+            onClick={handleLinkedInLogin}
+            disabled={loading}
+            className="flex-1 text-xs py-1.5 rounded-md font-medium disabled:opacity-50 flex items-center justify-center gap-1.5"
+            style={{ background: '#0A66C2', color: '#fff' }}
+          >
+            {loading ? 'Opening…' : <><ExternalLink size={11} /> Login with LinkedIn</>}
+          </button>
+          <button
+            onClick={onDone}
+            className="flex-1 text-xs py-1.5 rounded-md"
+            style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-2)' }}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // Default: 'login' step (also the fallback)
+  return null
+}
+
+
+// ── Connect Emelia (ChampMail) Flow ───────────────────────────────────────────
+// Three-step wizard: paste API key → verify + list inboxes → pick + save.
+// We persist server-side via POST /api/credentials so the backend's
+// MailTransportFactory can resolve the key per-send.
+
+type EmeliaProvider = { id: string; email?: string; name?: string }
+type ChampMailStep = 'enter-key' | 'pick-sender' | 'done'
+
+function ChampMailLoginFlow({ onDone }: { onDone: () => void }) {
+  const { addCredential } = useCredentialStore()
+  const [step, setStep] = useState<ChampMailStep>('enter-key')
+  const [name, setName] = useState('emelia-default')
+  const [apiKey, setApiKey] = useState('')
+  const [accountEmail, setAccountEmail] = useState('')
+  const [providers, setProviders] = useState<EmeliaProvider[]>([])
+  const [selected, setSelected] = useState<string>('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  async function testKey() {
+    if (!apiKey.trim()) { setError('API key is required'); return }
+    if (!name.trim()) { setError('Credential name is required'); return }
+    setLoading(true)
+    setError('')
+    try {
+      const r = await fetch('/api/champmail/credentials/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ api_key: apiKey.trim() }),
+      })
+      const data = await r.json()
+      if (!r.ok || !data.valid) {
+        setError(data.error || data.detail || 'Emelia rejected the key')
+        return
+      }
+      setAccountEmail(data.account_email || '')
+      setProviders(data.providers || [])
+      if ((data.providers || []).length === 1) {
+        setSelected(data.providers[0].id)
+      }
+      setStep('pick-sender')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Network error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function saveCredential() {
+    if (providers.length > 0 && !selected) {
+      setError('Pick the Emelia inbox to send from')
+      return
+    }
+    setLoading(true)
+    setError('')
+    try {
+      const r = await fetch('/api/credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name.trim(),
+          type: 'champmail',
+          data: { api_key: apiKey.trim(), default_sender_id: selected || '' },
+        }),
+      })
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}))
+        setError(err.detail || `Save failed (${r.status})`)
+        return
+      }
+      addCredential(name.trim(), 'champmail', {
+        api_key: apiKey.trim(),
+        default_sender_id: selected || '',
+      })
+      setStep('done')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Save failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (step === 'done') {
+    return (
+      <div className="flex flex-col gap-3 p-3 rounded-lg" style={{ background: 'var(--bg-sidebar)', border: '1px solid #22c55e44' }}>
+        <p className="text-xs font-semibold" style={{ color: '#22c55e' }}>✓ Emelia connected</p>
+        <p className="text-xs" style={{ color: 'var(--text-3)' }}>
+          {accountEmail && <>Signed in as <span className="font-mono">{accountEmail}</span>. </>}
+          ChampMail will use this credential when sending.
+        </p>
+        <button onClick={onDone} className="text-xs py-1.5 rounded-md font-medium" style={{ background: '#6366f1', color: '#fff' }}>
+          Done
+        </button>
+      </div>
+    )
+  }
+
+  if (step === 'pick-sender') {
+    return (
+      <div className="flex flex-col gap-2.5 p-3 rounded-lg" style={{ background: 'var(--bg-sidebar)', border: '1px solid var(--border)' }}>
+        <p className="text-xs font-semibold" style={{ color: 'var(--text-1)' }}>Choose Emelia inbox</p>
+        {accountEmail && (
+          <p className="text-xs" style={{ color: 'var(--text-3)' }}>
+            Connected as <span className="font-mono" style={{ color: 'var(--text-2)' }}>{accountEmail}</span>
+          </p>
+        )}
+        {providers.length === 0 ? (
+          <div className="flex flex-col gap-2 p-2 rounded-md" style={{ border: '1px dashed var(--border)' }}>
+            <p className="text-xs" style={{ color: '#f59e0b' }}>No email inboxes connected in Emelia yet.</p>
+            <p className="text-xs" style={{ color: 'var(--text-3)' }}>
+              Open <a href="https://app.emelia.io" target="_blank" rel="noreferrer" className="underline" style={{ color: '#818cf8' }}>app.emelia.io</a> → Settings → Email Providers and connect a Gmail or Outlook inbox. Then come back and re-test.
+            </p>
+            <button onClick={() => setStep('enter-key')} className="text-xs py-1 rounded-md" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-2)' }}>
+              Back
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1.5">
+            {providers.map((p) => (
+              <label
+                key={p.id}
+                className="flex items-center gap-2 p-2 rounded-md cursor-pointer"
+                style={{
+                  border: selected === p.id ? '1px solid #6366f1' : '1px solid var(--border)',
+                  background: selected === p.id ? '#6366f111' : 'var(--bg-surface)',
+                }}
+              >
+                <input
+                  type="radio"
+                  name="emelia-provider"
+                  value={p.id}
+                  checked={selected === p.id}
+                  onChange={() => setSelected(p.id)}
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs truncate" style={{ color: 'var(--text-1)' }}>
+                    {p.email || <span className="font-mono">{p.id}</span>}
+                  </p>
+                  {p.name && <p className="text-xs truncate" style={{ color: 'var(--text-3)' }}>{p.name}</p>}
+                </div>
+              </label>
+            ))}
+          </div>
+        )}
+        {error && <p className="text-xs" style={{ color: '#f87171' }}>{error}</p>}
+        {providers.length > 0 && (
+          <div className="flex gap-2">
+            <button
+              onClick={saveCredential}
+              disabled={loading}
+              className="flex-1 text-xs py-1.5 rounded-md font-medium disabled:opacity-50"
+              style={{ background: '#6366f1', color: '#fff' }}
+            >
+              {loading ? 'Saving…' : 'Save credential'}
+            </button>
+            <button onClick={() => setStep('enter-key')} className="flex-1 text-xs py-1.5 rounded-md" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-2)' }}>
+              Back
+            </button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-2.5 p-3 rounded-lg" style={{ background: 'var(--bg-sidebar)', border: '1px solid var(--border)' }}>
+      <p className="text-xs font-semibold" style={{ color: 'var(--text-1)' }}>Connect Emelia</p>
+      <p className="text-xs" style={{ color: 'var(--text-3)' }}>
+        Find your API key in <a href="https://app.emelia.io" target="_blank" rel="noreferrer" className="underline" style={{ color: '#818cf8' }}>app.emelia.io</a> → Settings → API Keys.
+      </p>
+
+      <div className="flex flex-col gap-1">
+        <label className="text-xs" style={{ color: 'var(--text-3)' }}>Credential name</label>
+        <input
+          autoFocus
+          className="text-xs p-1.5 rounded-md focus:outline-none"
+          style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-1)' }}
+          placeholder="emelia-default"
+          value={name}
+          onChange={(e) => { setName(e.target.value); setError('') }}
+        />
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <label className="text-xs" style={{ color: 'var(--text-3)' }}>Emelia API Key</label>
+        <input
+          type="password"
+          className="text-xs p-1.5 rounded-md focus:outline-none font-mono"
+          style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-1)' }}
+          placeholder="OoHpr7..."
+          value={apiKey}
+          onChange={(e) => { setApiKey(e.target.value); setError('') }}
+        />
+      </div>
+
+      {error && <p className="text-xs" style={{ color: '#f87171' }}>{error}</p>}
+
+      <div className="flex gap-2">
+        <button
+          onClick={testKey}
+          disabled={loading}
+          className="flex-1 text-xs py-1.5 rounded-md font-medium disabled:opacity-50"
+          style={{ background: '#6366f1', color: '#fff' }}
+        >
+          {loading ? 'Testing…' : 'Test & continue'}
+        </button>
+        <button onClick={onDone} className="flex-1 text-xs py-1.5 rounded-md" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-2)' }}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
 
 // ── Add Credential Form ───────────────────────────────────────────────────────
 
@@ -41,6 +548,50 @@ function AddCredentialForm({ initialType, onDone }: { initialType?: CredentialTy
     if (!name.trim()) { setError('Name is required'); return }
     addCredential(name.trim(), type, fields)
     onDone()
+  }
+
+  // LakeB2B uses its own guided flow
+  if (type === 'lakeb2b') {
+    return (
+      <div className="flex flex-col gap-2.5">
+        <div className="flex flex-col gap-1">
+          <label className="text-xs" style={{ color: 'var(--text-3)' }}>Type</label>
+          <select
+            className="text-xs p-1.5 rounded-md focus:outline-none"
+            style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-1)' }}
+            value={type}
+            onChange={(e) => handleTypeChange(e.target.value as CredentialType)}
+          >
+            {CREDENTIAL_TYPES.map((t) => (
+              <option key={t} value={t}>{TYPE_LABELS[t]}</option>
+            ))}
+          </select>
+        </div>
+        <LakeB2BLoginFlow onDone={onDone} />
+      </div>
+    )
+  }
+
+  // ChampMail → Emelia connect wizard
+  if (type === 'champmail') {
+    return (
+      <div className="flex flex-col gap-2.5">
+        <div className="flex flex-col gap-1">
+          <label className="text-xs" style={{ color: 'var(--text-3)' }}>Type</label>
+          <select
+            className="text-xs p-1.5 rounded-md focus:outline-none"
+            style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-1)' }}
+            value={type}
+            onChange={(e) => handleTypeChange(e.target.value as CredentialType)}
+          >
+            {CREDENTIAL_TYPES.map((t) => (
+              <option key={t} value={t}>{TYPE_LABELS[t]}</option>
+            ))}
+          </select>
+        </div>
+        <ChampMailLoginFlow onDone={onDone} />
+      </div>
+    )
   }
 
   return (
@@ -131,6 +682,73 @@ function AddCredentialForm({ initialType, onDone }: { initialType?: CredentialTy
   )
 }
 
+// ── LakeB2B Reconnect (inside credential card) ────────────────────────────────
+
+function LakeB2BReconnect({ credId }: { credId: number }) {
+  const [loading, setLoading] = useState(false)
+  const [msg, setMsg] = useState('')
+
+  async function connectViaPairing() {
+    if (!credId) { setMsg('No credential ID'); return }
+    setLoading(true)
+    setMsg('Getting pairing token…')
+    try {
+      // 1. Get pairing token from our backend (proxies to B2B Pulse /pair)
+      const pairRes = await fetch('/api/auth/lakeb2b/pair', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential_id: credId }),
+      })
+      const pairData = await pairRes.json().catch(() => ({}))
+      if (!pairRes.ok) { setMsg(pairData.detail || `Error ${pairRes.status}`); return }
+
+      const { pairing_token, api_base } = pairData
+      setMsg('Extension reading LinkedIn session…')
+
+      // 2. Tell extension to read li_at and POST directly to B2B Pulse with pairing token
+      const result = await new Promise<{ success: boolean; error?: string; user_name?: string }>((resolve) => {
+        const handler = (ev: MessageEvent) => {
+          if (ev.data?.type !== 'LAKEB2B_PAIR_RESULT') return
+          window.removeEventListener('message', handler)
+          resolve({ success: ev.data.success, error: ev.data.error, user_name: ev.data.user_name })
+        }
+        window.addEventListener('message', handler)
+        window.postMessage({ type: 'LAKEB2B_PAIR', pairing_token, api_base }, '*')
+        setTimeout(() => {
+          window.removeEventListener('message', handler)
+          resolve({ success: false, error: 'Extension did not respond — reload at chrome://extensions' })
+        }, 10000)
+      })
+
+      if (result.success) {
+        setMsg(`✓ LinkedIn session connected${result.user_name ? ` as ${result.user_name}` : ''}`)
+      } else {
+        setMsg(result.error || 'Failed to connect LinkedIn session')
+      }
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : 'Failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-1 pt-1">
+      <button
+        onClick={connectViaPairing}
+        disabled={loading}
+        className="text-xs py-1 rounded-md font-medium disabled:opacity-50"
+        style={{ background: '#0A66C2', color: '#fff' }}
+      >
+        {loading ? msg || 'Connecting…' : 'Connect LinkedIn session'}
+      </button>
+      {!loading && msg && (
+        <p className="text-xs" style={{ color: msg.startsWith('✓') ? '#22c55e' : '#f59e0b' }}>{msg}</p>
+      )}
+    </div>
+  )
+}
+
 // ── Credential Card ───────────────────────────────────────────────────────────
 
 function CredentialCard({ cred }: { cred: Credential }) {
@@ -165,7 +783,7 @@ function CredentialCard({ cred }: { cred: Credential }) {
       </div>
 
       {expanded && (
-        <div className="px-3 pb-3 flex flex-col gap-1" style={{ borderTop: '1px solid var(--border)' }}>
+        <div className="px-3 pb-3 flex flex-col gap-2" style={{ borderTop: '1px solid var(--border)' }}>
           {filledKeys.length === 0 ? (
             <p className="text-xs pt-2" style={{ color: 'var(--text-3)' }}>No fields set.</p>
           ) : (
@@ -175,6 +793,9 @@ function CredentialCard({ cred }: { cred: Credential }) {
                 <span className="text-xs font-mono" style={{ color: 'var(--text-2)' }}>••••••</span>
               </div>
             ))
+          )}
+          {cred.type === 'lakeb2b' && (
+            <LakeB2BReconnect credId={parseInt(cred.fields.credential_id || '0', 10)} />
           )}
         </div>
       )}
