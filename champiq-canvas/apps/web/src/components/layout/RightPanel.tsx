@@ -12,6 +12,7 @@ import { useCredentialStore, TOOL_CREDENTIAL_TYPE } from '@/store/credentialStor
 import { X, Copy, Check, ChevronDown, ChevronUp } from '@/lib/icons'
 import { getNodeMeta } from '@/lib/manifest'
 import type { ChampIQManifest } from '@/types'
+import { CsvUploadConfig } from '@/components/canvas/CsvUploadConfig'
 
 // ── Per-kind static field definitions ────────────────────────────────────────
 
@@ -374,6 +375,14 @@ function NodeConfigForm({ nodeId, kind, config }: {
   config: Record<string, unknown>
 }) {
   const { updateNodeConfig } = useCanvasStore()
+
+  // csv.upload has a self-contained inspector (file picker + parsed-row preview).
+  // The generic field-driven form is the wrong shape here — we need a real <input
+  // type="file"> wired to a parser, not a JSON textarea.
+  if (kind === 'csv.upload') {
+    return <CsvUploadConfig nodeId={nodeId} config={config} />
+  }
+
   const staticFields = KIND_FIELDS[kind] || []
   const currentAction = config.action as string | undefined
 
