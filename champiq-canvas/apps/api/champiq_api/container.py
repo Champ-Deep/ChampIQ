@@ -45,6 +45,7 @@ from .nodes import (
 )
 from .runtime import NodeRegistry, Orchestrator, build_event_bus, build_job_queue
 from .triggers import CronScheduler, EventTriggerListener
+from .triggers.janitor import Janitor
 
 
 @dataclass
@@ -69,6 +70,8 @@ class Container:
     cadence_job: CadenceJob
     # ChampGraph dispatcher (prospect-CRUD local, graph + AI campaign via Graphiti)
     champgraph: ChampGraphService
+    # Background persistence janitor — see triggers/janitor.py
+    janitor: "Any"
 
     def credential_service(self) -> CredentialService:
         from .database import get_session_factory
@@ -174,6 +177,10 @@ def get_container() -> Container:
     champgraph = ChampGraphService(session_factory, graphiti_client)
     registry.register(ChampGraphLocalExecutor(champgraph))
 
+    # Persistence janitor — pins one job to the cron scheduler (we don't want
+    # a second AsyncIOScheduler in the process).
+    janitor = Janitor(session_factory, cron.scheduler)
+
     return Container(
         crypto=crypto,
         registry=registry,
@@ -193,4 +200,5 @@ def get_container() -> Container:
         emelia_default_sender_ids=sender_ids,
         emelia_webhook_secret=settings.emelia_webhook_secret,
         cadence_job=cadence_job,
+        janitor=janitor,
     )

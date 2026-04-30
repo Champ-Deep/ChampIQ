@@ -29,6 +29,8 @@ from .routers import auth_lakeb2b, canvas, chat, credentials, events_ws, jobs, r
 async def lifespan(app: FastAPI):
     container = get_container()
     await container.cron.start()
+    # Janitor pins onto cron's APScheduler — must register after start().
+    container.janitor.register()
     await container.event_listener.start()
     container.cadence_job.start()
     try:
