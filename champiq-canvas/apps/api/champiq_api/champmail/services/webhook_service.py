@@ -54,6 +54,31 @@ _EVENT_MAP = {
 }
 
 
+def _extract_provider_id(
+    payload: dict[str, Any], data: dict[str, Any]
+) -> tuple[Optional[str], Optional[str]]:
+    """Pull a stable (provider, provider_event_id) tuple out of a webhook
+    payload. Used as the dedup key against `champmail_events`.
+
+    Emelia (and most providers) put a unique id either at the top level
+    ('id'/'event_id') or inside the data object. We try both. If nothing
+    stable is found, returns (None, None) — the caller treats those events
+    as un-dedupable (always insert), which is the conservative choice.
+    """
+    provider = "emelia"
+    eid = (
+        payload.get("id")
+        or payload.get("event_id")
+        or payload.get("eventId")
+        or data.get("id")
+        or data.get("event_id")
+        or data.get("eventId")
+    )
+    if eid is None:
+        return None, None
+    return provider, str(eid)[:128]
+
+
 def verify_signature(*, secret: str, body: bytes, signature_header: Optional[str]) -> bool:
     """HMAC-SHA256 hex digest verification.
 
@@ -94,7 +119,43 @@ class WebhookService:
         self._publisher: WebhookEventPublisher = publisher or NullWebhookEventPublisher()
 
     async def ingest(self, payload: dict[str, Any]) -> dict[str, Any]:
-        """Process one Emelia webhook event. Returns a small summary for the response."""
+        """Process one Emelia webhook event end-to-end.
+
+        Order of operations matters for correctness:
+            1. Apply DB side-effects (audit row + prospect/enrollment/sender updates)
+            2. Commit. After this point the change is durable.
+            3. Publish to the canvas bus.
+
+        The publish step intentionally runs after commit so a flaky bus can't
+        leave the canvas seeing events the DB doesn't believe in. Idempotency
+        is enforced inside `_apply` via the (provider, provider_event_id,
+        event_type) unique index — a retry of an already-ingested event
+        returns `dedup=True` and we skip the publish.
+        """
+        outcome = await self._apply(payload)
+        if outcome.get("ignored") or outcome.get("dedup"):
+            return outcome
+        await self._session.commit()
+
+        await self._publisher.publish_event(
+            outcome["event_type"],
+            prospect_id=outcome["prospect_id"],
+            send_id=outcome["send_id"],
+            data=outcome["data"],
+            occurred_at=outcome["now"],
+            raw_provider=outcome["provider"],
+        )
+        return {
+            "event": outcome["event_type"],
+            "prospect_id": outcome["prospect_id"],
+            "send_id": outcome["send_id"],
+        }
+
+    async def _apply(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """DB side of `ingest()`. Returns a result envelope describing what
+        happened — the public method uses it to decide whether to publish.
+        Does NOT commit; the caller does, so commit-and-publish stay paired.
+        """
         raw_type = (payload.get("event") or payload.get("type") or "").lower()
         event_type = _EVENT_MAP.get(raw_type)
         if event_type is None:
@@ -102,6 +163,8 @@ class WebhookService:
             return {"ignored": True, "event": raw_type}
 
         data = payload.get("data") or payload
+        provider, provider_event_id = _extract_provider_id(payload, data)
+
         # Resolve which prospect this event is for
         send = await self._resolve_send(data)
         prospect_id, send_id = await self._resolve_prospect_id(data, send)
@@ -110,13 +173,21 @@ class WebhookService:
             log.warning("webhook: could not resolve prospect for %r — payload=%s", event_type, data)
             return {"ignored": True, "reason": "no prospect"}
 
-        # Audit
-        await self._events.create(
+        # Audit. Returns None on dedup hit (provider, eid, type) already present.
+        audit_row = await self._events.create(
             prospect_id=prospect_id,
             event_type=event_type,
             send_id=send_id,
             metadata=data,
+            provider=provider,
+            provider_event_id=provider_event_id,
         )
+        if audit_row is None:
+            log.info(
+                "webhook: dedup hit %s/%s/%s — skipping side-effects + publish",
+                provider, provider_event_id, event_type,
+            )
+            return {"dedup": True, "event": event_type, "prospect_id": prospect_id}
 
         now = datetime.now(timezone.utc)
 
@@ -155,19 +226,14 @@ class WebhookService:
                 if msg_id:
                     await self._sends.update(send.id, emelia_message_id=str(msg_id))
 
-        # Fan out to canvas after DB side-effects. Publisher is no-op when no
-        # bus is wired, and swallows errors so a flaky bus can't roll back our
-        # commit (Emelia would otherwise retry and double-write the DB row).
-        await self._publisher.publish_event(
-            event_type,
-            prospect_id=prospect_id,
-            send_id=send_id,
-            data=data,
-            occurred_at=now,
-            raw_provider="emelia",
-        )
-
-        return {"event": event_type, "prospect_id": prospect_id, "send_id": send_id}
+        return {
+            "event_type": event_type,
+            "prospect_id": prospect_id,
+            "send_id": send_id,
+            "data": data,
+            "now": now,
+            "provider": provider or "emelia",
+        }
 
     async def _resolve_send(self, data: dict[str, Any]):
         """Look up the Send row by Emelia message ID or by our own tracking ID."""

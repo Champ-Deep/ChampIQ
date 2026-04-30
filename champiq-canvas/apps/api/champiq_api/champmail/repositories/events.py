@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models import CMEnrollment, CMEvent, CMSend
@@ -19,12 +20,45 @@ class EventRepository:
         event_type: str,
         send_id: Optional[int] = None,
         metadata: Optional[dict[str, Any]] = None,
-    ) -> CMEvent:
+        provider: Optional[str] = None,
+        provider_event_id: Optional[str] = None,
+    ) -> Optional[CMEvent]:
+        """Insert an event row. Returns None when the (provider, provider_event_id,
+        event_type) tuple already exists — i.e. the webhook is a retry of a
+        previously-ingested event. The unique partial index defined in alembic
+        0006 only catches rows where `provider_event_id` is non-null, so callers
+        without a provider id still get a fresh row every time (preserves the
+        old behavior for events that don't carry a stable id).
+        """
+        if provider_event_id and provider:
+            stmt = (
+                pg_insert(CMEvent)
+                .values(
+                    prospect_id=prospect_id,
+                    event_type=event_type,
+                    send_id=send_id,
+                    metadata_json=metadata or {},
+                    provider=provider,
+                    provider_event_id=provider_event_id,
+                )
+                # Match the named unique constraint from alembic 0006. Using
+                # constraint= rather than index_elements= avoids ambiguity
+                # with any future indexes on the same columns.
+                .on_conflict_do_nothing(constraint="uq_event_provider_eid")
+                .returning(CMEvent.id)
+            )
+            inserted_id = (await self._session.execute(stmt)).scalar_one_or_none()
+            if inserted_id is None:
+                return None
+            return await self._session.get(CMEvent, inserted_id)
+
         row = CMEvent(
             prospect_id=prospect_id,
             event_type=event_type,
             send_id=send_id,
             metadata_json=metadata or {},
+            provider=provider,
+            provider_event_id=provider_event_id,
         )
         self._session.add(row)
         await self._session.flush()

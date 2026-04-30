@@ -215,6 +215,12 @@ class CMEvent(Base):
     )
     prospect_id: Mapped[int] = mapped_column(ForeignKey("champmail_prospects.id", ondelete="CASCADE"), index=True)
     event_type: Mapped[str] = mapped_column(String(32), index=True)
+    # Webhook-provider identity, used for idempotent ingest. Both nullable —
+    # historical rows pre-date this and are exempt. Uniqueness is enforced by a
+    # partial index on (provider, provider_event_id, event_type) where the id
+    # is non-null. See alembic 0006.
+    provider: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    provider_event_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     metadata_json: Mapped[dict[str, Any]] = mapped_column("metadata", JSONB, default=dict)
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

@@ -49,8 +49,12 @@ async def emelia_webhook(
         if not isinstance(evt, dict):
             continue
         try:
+            # Service commits per-event so a later event in this batch failing
+            # doesn't roll back earlier successes (Emelia sends batches and
+            # retries the whole batch on 5xx — partial commits are healthier
+            # than all-or-nothing, given dedup is in place).
             summaries.append(await svc.ingest(evt))
         except Exception:
             log.exception("emelia webhook: event raised — continuing")
-    await db.commit()
+            await db.rollback()
     return {"received": len(events), "events": summaries}
