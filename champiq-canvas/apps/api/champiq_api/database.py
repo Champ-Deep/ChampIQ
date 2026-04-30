@@ -62,7 +62,19 @@ def _asyncpg_url(url: str) -> str:
 def get_engine():
     settings = get_settings()
     url = _asyncpg_url(settings.database_url)
-    return create_async_engine(url, echo=False, pool_pre_ping=True)
+    # Pool sizing: defaults of 5 + 10 starve under any concurrency once the
+    # canvas runs more than a couple of fan-out items. 20 + 10 is comfortable
+    # for a single uvicorn worker handling cron ticks, webhooks, and ad-hoc
+    # canvas runs simultaneously. pool_recycle=1800 dodges idle-connection
+    # drops some cloud Postgres providers do after ~30 min.
+    return create_async_engine(
+        url,
+        echo=False,
+        pool_pre_ping=True,
+        pool_size=20,
+        max_overflow=10,
+        pool_recycle=1800,
+    )
 
 
 @lru_cache
