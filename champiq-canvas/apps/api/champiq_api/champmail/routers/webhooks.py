@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...container import get_container
 from ...database import get_db
-from ..services import WebhookService, verify_signature
+from ..services import EventBusWebhookPublisher, WebhookService, verify_signature
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/champmail/webhooks", tags=["champmail:webhooks"])
@@ -43,7 +43,8 @@ async def emelia_webhook(
     # Some providers post arrays of events — handle both
     events = payload if isinstance(payload, list) else [payload]
     summaries = []
-    svc = WebhookService(db)
+    publisher = EventBusWebhookPublisher(get_container().event_bus)
+    svc = WebhookService(db, publisher=publisher)
     for evt in events:
         if not isinstance(evt, dict):
             continue

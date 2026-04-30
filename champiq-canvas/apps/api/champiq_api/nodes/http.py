@@ -32,13 +32,28 @@ class HttpExecutor(NodeExecutor):
             elif creds.get("api_key"):
                 headers.setdefault("X-API-Key", creds["api_key"])
 
+        # Body routing:
+        #   GET/DELETE  + dict body → query params
+        #   POST/PUT/PATCH + dict/list body → JSON
+        #   POST/PUT/PATCH + str body → raw bytes (Content-Type left to user;
+        #     defaults to text/plain via httpx if not set in `headers`).
+        # Strings used to be silently dropped here, which made it impossible to
+        # send raw text (JWTs, GraphQL queries, base64 payloads) without a hack.
+        send_kwargs: dict[str, Any] = {}
+        if method in {"POST", "PUT", "PATCH"}:
+            if isinstance(body, (dict, list)):
+                send_kwargs["json"] = body
+            elif isinstance(body, str):
+                send_kwargs["content"] = body
+        elif method in {"GET", "DELETE"} and isinstance(body, dict):
+            send_kwargs["params"] = body
+
         async with httpx.AsyncClient(timeout=timeout) as client:
             resp = await client.request(
                 method,
                 str(url),
                 headers=headers,
-                json=body if method in {"POST", "PUT", "PATCH"} and isinstance(body, (dict, list)) else None,
-                params=body if method in {"GET", "DELETE"} and isinstance(body, dict) else None,
+                **send_kwargs,
             )
 
         output: dict[str, Any] = {"status": resp.status_code}

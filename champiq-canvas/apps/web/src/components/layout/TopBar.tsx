@@ -5,7 +5,8 @@ import { useTheme } from '@/hooks/useTheme'
 import { getToolId } from '@/lib/manifest'
 import { saveCurrentCanvas } from '@/hooks/usePersistence'
 import { Button } from '@/components/ui/button'
-import { Save, Play, ZoomIn, ZoomOut, Moon, Sun, Check, Loader2, CalendarClock, Power } from '@/lib/icons'
+import { Save, Play, ZoomIn, ZoomOut, Moon, Sun, Check, Loader2, CalendarClock, Power, Settings } from '@/lib/icons'
+import { useViewStore } from '@/store/viewStore'
 import { useReactFlow } from '@xyflow/react'
 import type { Node } from '@xyflow/react'
 
@@ -183,6 +184,15 @@ export function TopBar() {
         <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle theme"
           style={{ color: 'var(--text-2)' }}>
           {dark ? <Sun size={16} /> : <Moon size={16} />}
+        </Button>
+        <Button
+          variant="ghost" size="sm"
+          onClick={() => useViewStore.getState().setView('settings')}
+          aria-label="Open settings"
+          title="Open settings"
+          style={{ color: 'var(--text-2)' }}
+        >
+          <Settings size={14} className="mr-1" /> Settings
         </Button>
         <Button
           variant="ghost" size="sm"

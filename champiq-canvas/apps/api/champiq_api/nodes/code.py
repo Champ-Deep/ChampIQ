@@ -4,6 +4,11 @@ Security posture: runs inside simpleeval, NOT Python `exec`. Users get arithmeti
 comparisons, comprehensions, and safe builtins. No imports, no file/network I/O.
 For full Python, move this to a subprocess with resource limits; out of scope
 for the initial cut.
+
+Name binding: `prev`, `node`, `trigger` are wrapped with `_DotDict` so dot-
+access works (`prev.payload.email`) — same convention as the expression engine.
+Without this wrap, only bracket-access (`prev["payload"]["email"]`) worked,
+which silently diverged from the templated-string surface elsewhere in the app.
 """
 from __future__ import annotations
 
@@ -12,6 +17,7 @@ from typing import Any
 from simpleeval import EvalWithCompoundTypes
 
 from ..core.interfaces import NodeContext, NodeExecutor, NodeResult
+from ..expressions.engine import _wrap as _wrap_dotdict
 
 
 _SAFE_FUNCTIONS: dict[str, Any] = {
@@ -38,12 +44,12 @@ class CodeExecutor(NodeExecutor):
     async def execute(self, ctx: NodeContext) -> NodeResult:
         expression = ctx.config.get("expression", "prev")
         names = {
-            "prev": ctx.input,
-            "node": ctx.upstream,
-            "trigger": ctx.trigger,
+            "prev": _wrap_dotdict(ctx.input),
+            "node": _wrap_dotdict(ctx.upstream),
+            "trigger": _wrap_dotdict(ctx.trigger),
         }
         evaluator = EvalWithCompoundTypes(names=names, functions=_SAFE_FUNCTIONS)
         value = evaluator.eval(expression)
         if isinstance(value, dict):
-            return NodeResult(output=value)
+            return NodeResult(output=dict(value))
         return NodeResult(output={"value": value})

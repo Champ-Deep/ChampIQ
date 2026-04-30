@@ -72,6 +72,37 @@ class CredentialOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+# --- App settings --------------------------------------------------------
+# Single-row table. Holds tenant-level toggles that don't fit anywhere else.
+# Keep narrow on purpose — this is not a "everything goes here" bag. New
+# settings get their own column or, if domain-specific, their own table.
+
+class AppSettingsTable(Base):
+    __tablename__ = "app_settings"
+
+    id: Mapped[str] = mapped_column(String(50), primary_key=True)  # always "default"
+    default_engine_provider: Mapped[str] = mapped_column(String(50), default="emelia")
+    default_email_credential_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("credentials.id", ondelete="SET NULL"), nullable=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class AppSettingsIn(BaseModel):
+    # Both fields optional so the UI can patch one at a time.
+    default_engine_provider: Optional[str] = None  # "emelia" | "champmail_native"
+    default_email_credential_id: Optional[int] = None
+
+
+class AppSettingsOut(BaseModel):
+    default_engine_provider: str
+    default_email_credential_id: Optional[int]
+    updated_at: datetime
+    model_config = {"from_attributes": True}
+
+
 # --- Workflows -----------------------------------------------------------
 
 class WorkflowTable(Base):

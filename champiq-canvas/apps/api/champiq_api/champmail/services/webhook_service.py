@@ -32,6 +32,7 @@ from ..repositories import (
     SendRepository,
     SenderRepository,
 )
+from .event_publisher import NullWebhookEventPublisher, WebhookEventPublisher
 
 log = logging.getLogger(__name__)
 
@@ -71,13 +72,26 @@ def verify_signature(*, secret: str, body: bytes, signature_header: Optional[str
 
 
 class WebhookService:
-    def __init__(self, session: AsyncSession) -> None:
+    """Ingests Emelia webhook events into our DB and (optionally) fans them out
+    onto the canvas event bus via a `WebhookEventPublisher`.
+
+    The publisher is injected (DIP) so this service stays testable and the bus
+    integration can evolve without touching ingest logic. Default is the no-op
+    publisher — ChampMail still works headlessly without a canvas runtime.
+    """
+
+    def __init__(
+        self,
+        session: AsyncSession,
+        publisher: WebhookEventPublisher | None = None,
+    ) -> None:
         self._session = session
         self._prospects = ProspectRepository(session)
         self._sends = SendRepository(session)
         self._events = EventRepository(session)
         self._enrollments = EnrollmentRepository(session)
         self._senders = SenderRepository(session)
+        self._publisher: WebhookEventPublisher = publisher or NullWebhookEventPublisher()
 
     async def ingest(self, payload: dict[str, Any]) -> dict[str, Any]:
         """Process one Emelia webhook event. Returns a small summary for the response."""
@@ -140,6 +154,18 @@ class WebhookService:
                 msg_id = data.get("messageId") or data.get("message_id")
                 if msg_id:
                     await self._sends.update(send.id, emelia_message_id=str(msg_id))
+
+        # Fan out to canvas after DB side-effects. Publisher is no-op when no
+        # bus is wired, and swallows errors so a flaky bus can't roll back our
+        # commit (Emelia would otherwise retry and double-write the DB row).
+        await self._publisher.publish_event(
+            event_type,
+            prospect_id=prospect_id,
+            send_id=send_id,
+            data=data,
+            occurred_at=now,
+            raw_provider="emelia",
+        )
 
         return {"event": event_type, "prospect_id": prospect_id, "send_id": send_id}
 

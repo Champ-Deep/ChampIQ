@@ -22,7 +22,7 @@ from .champmail.routers import (
     webhooks as cm_webhooks,
 )
 from .container import get_container
-from .routers import auth_lakeb2b, canvas, chat, credentials, events_ws, jobs, registry, tools, uploads, webhooks, workflows
+from .routers import auth_lakeb2b, canvas, chat, credentials, events_ws, jobs, registry, settings as app_settings, tools, uploads, webhooks, workflows
 
 
 @asynccontextmanager
@@ -76,6 +76,7 @@ app.include_router(credentials.router, prefix="/api")
 app.include_router(webhooks.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 app.include_router(uploads.router, prefix="/api")
+app.include_router(app_settings.router, prefix="/api")
 
 # ChampMail inline (under /api/champmail/*)
 app.include_router(cm_prospects.router, prefix="/api")
