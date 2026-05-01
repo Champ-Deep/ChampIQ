@@ -17,18 +17,26 @@ import { CustomEdge } from './CustomEdge'
 import { getNodeMeta, getToolId, isEdgeCompatible } from '@/lib/manifest'
 import type { ChampIQManifest } from '@/types'
 
-const nodeTypes = { toolNode: ToolNode }
-const edgeTypes = { customEdge: CustomEdge }
-
 function WrapNode({ data, ...props }: { data: Record<string, unknown> } & Node) {
   return <ToolNode data={data} {...props} />
 }
 
-const fallbackNodeTypes: Record<string, React.ComponentType<{ data: Record<string, unknown> } & Node>> = {
+// React Flow REQUIRES these to be stable references across renders. If
+// nodeTypes / edgeTypes change identity between renders, React Flow re-mounts
+// every node, which tears down and rebuilds the hooks inside each node — and
+// in that transition React fires `Rendered more hooks than during the previous
+// render` (minified error #310).
+//
+// Building these once at module scope is the standard React Flow pattern.
+// Do NOT inline-spread these into the JSX prop or use a fresh object literal
+// in render — that breaks stability and revives the bug.
+const nodeTypes: Record<string, React.ComponentType<any>> = {
+  toolNode: ToolNode,
   triggerNode: WrapNode,
   builtinNode: WrapNode,
   default: WrapNode,
 }
+const edgeTypes = { customEdge: CustomEdge }
 
 export function CanvasArea() {
   const {
@@ -115,7 +123,7 @@ export function CanvasArea() {
       <ReactFlow
         nodes={nodes}
         edges={edges}
-        nodeTypes={{ ...nodeTypes, ...fallbackNodeTypes }}
+        nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
