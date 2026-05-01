@@ -59,6 +59,26 @@ HARD RULES (the runtime enforces these — violating them returns 400)
      ✅ "condition": "prev.tier == 'enterprise'"
      ❌ "condition": "{{ prev.tier == 'enterprise' }}"   (double-wrapped, breaks)
 
+4. INSIDE A LOOP BODY, USE `item.*` NEVER `prev.*` FOR ROW FIELDS.
+   The orchestrator fans the loop out per row and injects each row as `item`.
+   `prev` inside a loop body refers to the *upstream node's whole output*
+   (e.g. the loop node's `{items:[...], count:N}` envelope) — NOT the current
+   row. Reaching for `prev.email` inside a loop body resolves to empty and
+   causes "email is required" / "to_number is required" runtime failures.
+     ✅ champmail send_single_email inside loop:
+        inputs: { email: "{{ item.email }}", subject: "...", body: "..." }
+     ✅ champvoice initiate_call inside loop:
+        inputs: { to_number: "{{ item.phone }}", lead_name: "{{ item.first_name }}" }
+     ❌ inputs: { email: "{{ prev.email }}" }              # empty at runtime
+     ❌ inputs: { to_number: "{{ prev.phone }}" }          # empty at runtime
+   The ONLY place `prev.*` is correct INSIDE a fan-out is when reading the
+   immediately-previous node's output for that single item — e.g. a champgraph
+   `get_prospect_status` followed by an if/switch on `{{ prev.engagement_status }}`
+   is fine because get_prospect_status is itself per-item and produces those fields.
+   But when reading the original CSV row (email, first_name, phone, company,
+   linkedin_url, etc.), ALWAYS use `item.*`. CSV column names are case-sensitive:
+   `{{ item.phone }}` ≠ `{{ item.Phone }}` — match the header exactly.
+
 COMPLETE CONFIG SCHEMAS (copy these exactly into node config)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -194,10 +214,10 @@ EDGE JSON SHAPE:
 EXPRESSIONS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-{{ prev.field }}                         — previous node output
+{{ prev.field }}                         — previous node output (NOT a CSV row inside a loop — use item.* for those, see HARD RULE 4)
 {{ node["node-id"].output.field }}       — specific upstream node by ID
 {{ trigger.payload.field }}              — initial trigger data
-{{ item.field }}                         — current item inside loop/split
+{{ item.field }}                         — current row inside loop/split body. ALWAYS use this for CSV columns (email, phone, first_name, company, linkedin_url, ...) — case-sensitive, must match the CSV header exactly.
 {{ error.message }}                      — error branch
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
