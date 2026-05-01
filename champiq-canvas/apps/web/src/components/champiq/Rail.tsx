@@ -20,10 +20,11 @@ interface RailProps {
   active: RailTab
   onSelect: (tab: RailTab) => void
   onSettings: () => void
+  onHub?: () => void
   variant?: RailStyle
 }
 
-export function Rail({ active, onSelect, onSettings, variant = 'glyph' }: RailProps) {
+export function Rail({ active, onSelect, onSettings, onHub, variant = 'glyph' }: RailProps) {
   return (
     <div style={{
       width: 56,
@@ -36,10 +37,20 @@ export function Rail({ active, onSelect, onSettings, variant = 'glyph' }: RailPr
       padding: '10px 0',
       gap: 0,
     }}>
-      {/* Logo mark */}
-      <div style={{ marginBottom: 16 }}>
+      {/* Logo mark — click to go home */}
+      <button
+        title="Home  Hub"
+        onClick={onHub}
+        style={{
+          marginBottom: 16, background: 'transparent', border: 'none',
+          cursor: onHub ? 'pointer' : 'default', padding: 4, borderRadius: 8,
+          transition: 'opacity .15s',
+        }}
+        onMouseEnter={(e) => { if (onHub) e.currentTarget.style.opacity = '.7' }}
+        onMouseLeave={(e) => { e.currentTarget.style.opacity = '1' }}
+      >
         <ChampMark size={22} />
-      </div>
+      </button>
 
       {/* Nav items */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>

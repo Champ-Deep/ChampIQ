@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Send, Bot, User, Loader2, Paperclip, X, Key, ChevronDown, ChevronUp } from '@/lib/icons'
+import { Send, Loader2, Paperclip, X, ChevronDown, ChevronUp } from '@/lib/icons'
 import { api } from '@/lib/api'
 import { applyWorkflowPatch } from '@/lib/applyPatch'
 import { useCanvasStore } from '@/store/canvasStore'
@@ -378,12 +378,12 @@ export function ChatPanel({ pixieCloak = '#1E5FCB', voice = 'Friendly' }: ChatPa
       {showCreds && <CredentialManager onClose={() => setShowCreds(false)} />}
       <aside
         style={{
-          width: 300,
-          flexShrink: 0,
+          flex: 1,
+          minHeight: 0,
           display: 'flex',
           flexDirection: 'column',
           background: 'var(--bg-1)',
-          borderRight: '1px solid var(--border-1)',
+          overflow: 'hidden',
         }}
         aria-label="Pixie workflow assistant"
       >
@@ -398,22 +398,8 @@ export function ChatPanel({ pixieCloak = '#1E5FCB', voice = 'Friendly' }: ChatPa
           gap: 8,
           flexShrink: 0,
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', width: '100%' }}>
             <PixieOnlinePill />
-            <button
-              onClick={() => setShowCreds(true)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 5,
-                padding: '4px 10px', borderRadius: 7, fontSize: 11,
-                fontFamily: 'var(--font-display)', fontWeight: 500,
-                background: 'transparent',
-                color: 'var(--text-3)', border: '1px solid var(--border-1)',
-                cursor: 'pointer',
-              }}
-              title="Manage credentials"
-            >
-              <Key size={11} /> Credentials
-            </button>
           </div>
 
           <Pixie
@@ -489,38 +475,24 @@ export function ChatPanel({ pixieCloak = '#1E5FCB', voice = 'Friendly' }: ChatPa
           )}
         </div>
 
-        {/* Input area */}
-        <div style={{ padding: '10px 14px', borderTop: '1px solid var(--border-1)', display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0 }}>
-          {/* Upload bar */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".csv,.xlsx,.xls"
-              style={{ display: 'none' }}
-              onChange={handleFileUpload}
-              aria-label="Upload CSV or Excel file"
-            />
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 5,
-                padding: '4px 10px', borderRadius: 7, fontSize: 11,
-                fontFamily: 'var(--font-display)', fontWeight: 500,
-                border: '1px solid var(--border-1)', color: 'var(--text-2)', background: 'var(--bg-2)',
-                cursor: uploading ? 'not-allowed' : 'pointer', opacity: uploading ? 0.5 : 1,
-              }}
-              title="Upload CSV or Excel contact list"
-            >
-              <Paperclip size={11} />
-              {uploading ? 'Uploading…' : 'Upload Contacts'}
-            </button>
-            <span style={{ fontSize: 10, color: 'var(--text-4)', fontFamily: 'var(--font-mono)' }}>.csv / .xlsx</span>
-          </div>
-
-          {/* Text input */}
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
+        {/* Composer */}
+        <div style={{ borderTop: '1px solid var(--border-1)', padding: '10px 12px', background: 'var(--bg-1)', flexShrink: 0 }}>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,.xlsx,.xls"
+            style={{ display: 'none' }}
+            onChange={handleFileUpload}
+            aria-label="Upload CSV or Excel file"
+          />
+          <div style={{
+            background: 'var(--bg-2)', border: '1px solid var(--border-2)',
+            borderRadius: 12, padding: '10px 12px',
+            transition: 'box-shadow .2s',
+          }}
+            onFocusCapture={e => { (e.currentTarget as HTMLElement).style.boxShadow = '0 0 0 2px rgba(var(--accent-2-rgb),.22)' }}
+            onBlurCapture={e => { (e.currentTarget as HTMLElement).style.boxShadow = 'none' }}
+          >
             <textarea
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
@@ -530,34 +502,66 @@ export function ChatPanel({ pixieCloak = '#1E5FCB', voice = 'Friendly' }: ChatPa
                   send(draft)
                 }
               }}
-              placeholder="Describe a workflow… (Shift+Enter for new line)"
+              placeholder="Tell Pixie what to build…"
               rows={2}
               style={{
-                flex: 1, fontSize: 13, padding: '8px 12px', borderRadius: 8, resize: 'none', outline: 'none',
-                background: 'var(--bg-2)', border: '1px solid var(--border-1)', color: 'var(--text-1)',
-                fontFamily: 'var(--font-body)', lineHeight: 1.5,
-                transition: 'border-color .15s',
+                width: '100%', background: 'transparent', border: 'none', outline: 'none',
+                color: 'var(--text-1)', fontFamily: 'var(--font-body)', fontSize: 13.5,
+                resize: 'none', lineHeight: 1.5,
               }}
-              onFocus={e => (e.currentTarget.style.borderColor = 'rgba(var(--accent-2-rgb),.5)')}
-              onBlur={e => (e.currentTarget.style.borderColor = 'var(--border-1)')}
               aria-label="Chat input"
             />
-            <button
-              onClick={() => send(draft)}
-              disabled={pending || !draft.trim()}
-              style={{
-                width: 36, height: 36, display: 'grid', placeItems: 'center',
-                background: 'linear-gradient(180deg, var(--accent-2), var(--accent-3))',
-                color: '#fff', border: 'none', borderRadius: 9,
-                cursor: pending || !draft.trim() ? 'not-allowed' : 'pointer',
-                opacity: pending || !draft.trim() ? 0.4 : 1,
-                transition: 'opacity .15s',
-                flexShrink: 0,
-              }}
-              aria-label="Send message"
-            >
-              <Send size={14} />
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  padding: '4px 9px', borderRadius: 6, fontSize: 11.5,
+                  fontFamily: 'var(--font-display)', fontWeight: 600,
+                  border: '1px solid var(--border-1)', color: 'var(--text-3)', background: 'transparent',
+                  cursor: uploading ? 'not-allowed' : 'pointer', opacity: uploading ? 0.5 : 1,
+                  transition: 'color .14s, border-color .14s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-1)'; e.currentTarget.style.borderColor = 'var(--border-2)' }}
+                onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-3)'; e.currentTarget.style.borderColor = 'var(--border-1)' }}
+                title="Upload CSV or Excel contact list"
+              >
+                <Paperclip size={11} />
+                {uploading ? 'Uploading…' : '+ Attach'}
+              </button>
+              <button
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  padding: '4px 9px', borderRadius: 6, fontSize: 11.5,
+                  fontFamily: 'var(--font-display)', fontWeight: 600,
+                  border: '1px solid var(--border-1)', color: 'var(--text-3)', background: 'transparent',
+                  cursor: 'pointer', transition: 'color .14s, border-color .14s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-1)'; e.currentTarget.style.borderColor = 'var(--border-2)' }}
+                onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-3)'; e.currentTarget.style.borderColor = 'var(--border-1)' }}
+              >
+                ⚡ Slash
+              </button>
+              <span style={{ flex: 1 }} />
+              <button
+                onClick={() => send(draft)}
+                disabled={pending || !draft.trim()}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  padding: '5px 12px', borderRadius: 7, fontSize: 12,
+                  fontFamily: 'var(--font-display)', fontWeight: 700,
+                  background: 'var(--accent-2)', color: '#fff', border: 'none',
+                  cursor: pending || !draft.trim() ? 'not-allowed' : 'pointer',
+                  opacity: pending || !draft.trim() ? 0.4 : 1,
+                  transition: 'opacity .15s',
+                }}
+                aria-label="Send message"
+              >
+                <Send size={13} />
+                Send
+              </button>
+            </div>
           </div>
         </div>
       </aside>
@@ -581,7 +585,6 @@ function MessageBubble({ m }: { m: ChatMessage }) {
     }
     const { explanation: exp, patch } = parseAssistant(m.content)
     setExplanation(exp)
-    // Only apply patch once per bubble (handles history re-renders)
     if (patch && !patchApplied.current) {
       patchApplied.current = true
       const applied = applyWorkflowPatch(patch as Parameters<typeof applyWorkflowPatch>[0])
@@ -594,57 +597,115 @@ function MessageBubble({ m }: { m: ChatMessage }) {
   }, [m.content, m.role, isUser])
 
   const hasRaw = !isUser && m.content.length > (explanation?.length ?? 0) + 10
+  const text = explanation || m.content
 
-  return (
-    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-      <span style={{
-        flexShrink: 0, width: 24, height: 24, borderRadius: '50%',
-        display: 'grid', placeItems: 'center',
-        background: isUser ? 'var(--bg-3)' : 'rgba(var(--accent-2-rgb),.15)',
-        color: isUser ? 'var(--text-3)' : 'var(--accent-1)',
-        border: isUser ? '1px solid var(--border-1)' : '1px solid rgba(var(--accent-2-rgb),.25)',
-      }}>
-        {isUser ? <User size={12} /> : <Bot size={12} />}
-      </span>
-      <div style={{ flex: 1, minWidth: 0 }}>
+  // User bubble — right-aligned pill
+  if (isUser) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
         <div style={{
-          fontSize: 12.5, lineHeight: 1.5, whiteSpace: 'pre-wrap',
-          padding: isUser ? '0' : '8px 10px',
-          borderRadius: isUser ? 0 : 8,
-          background: isUser ? 'transparent' : 'var(--bg-2)',
-          border: isUser ? 'none' : '1px solid var(--border-1)',
-          color: isUser ? 'var(--text-2)' : 'var(--text-1)',
-          fontFamily: 'var(--font-body)',
+          maxWidth: '82%',
+          background: 'var(--bg-3)', border: '1px solid var(--border-2)',
+          color: 'var(--text-1)', padding: '9px 13px',
+          borderRadius: '14px 14px 3px 14px',
+          fontSize: 13.5, lineHeight: 1.45,
         }}>
-          {explanation || m.content}
+          {text}
         </div>
-        {patchSummary && (
+      </div>
+    )
+  }
+
+  // Pixie action bubble (when patch applied)
+  if (patchSummary) {
+    return (
+      <div style={{ alignSelf: 'flex-start', maxWidth: '94%', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+        <div style={{
+          width: 20, height: 20, borderRadius: 5, flexShrink: 0, marginTop: 2,
+          background: 'var(--accent-2)', display: 'grid', placeItems: 'center',
+        }}>
+          <span style={{ fontSize: 10, color: '#fff' }}>✦</span>
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
-            marginTop: 4, fontSize: 10, padding: '2px 8px', borderRadius: 20, display: 'inline-block',
-            background: 'rgba(var(--accent-2-rgb),.1)', color: 'var(--accent-1)',
-            border: '1px solid rgba(var(--accent-2-rgb),.25)', fontFamily: 'var(--font-mono)',
+            background: 'linear-gradient(135deg, rgba(var(--accent-2-rgb),.07) 0%, rgba(var(--accent-2-rgb),.03) 100%)',
+            border: '1px solid rgba(var(--accent-2-rgb),.28)',
+            padding: '10px 13px', borderRadius: '3px 12px 12px 12px',
+            fontSize: 13.5, color: 'var(--text-1)', lineHeight: 1.45,
           }}>
-            Canvas updated: {patchSummary}
+            {text}
+            <div style={{ marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <span style={{
+                fontSize: 10, padding: '2px 8px', borderRadius: 20, display: 'inline-flex', alignItems: 'center', gap: 4,
+                background: 'rgba(var(--accent-2-rgb),.12)', color: 'var(--accent-1)',
+                border: '1px solid rgba(var(--accent-2-rgb),.25)', fontFamily: 'var(--font-mono)',
+              }}>
+                ✦ Canvas updated: {patchSummary}
+              </span>
+            </div>
           </div>
-        )}
+          {hasRaw && (
+            <>
+              <button
+                style={{ fontSize: 11, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4, color: 'var(--text-4)', background: 'none', border: 'none', cursor: 'pointer' }}
+                onClick={() => setExpanded((e) => !e)}
+              >
+                {expanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                {expanded ? 'Hide raw JSON' : 'Show raw patch'}
+              </button>
+              {expanded && (
+                <pre style={{
+                  fontSize: 10.5, marginTop: 4, padding: '8px 10px', borderRadius: 8,
+                  overflowX: 'auto', whiteSpace: 'pre-wrap', maxHeight: 200, overflowY: 'auto',
+                  background: 'var(--bg-3)', color: 'var(--text-3)', fontFamily: 'var(--font-mono)',
+                  border: '1px solid var(--border-1)',
+                }}>
+                  {m.content}
+                </pre>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // Regular Pixie message — left gradient bar
+  return (
+    <div style={{ alignSelf: 'flex-start', maxWidth: '88%', display: 'flex', gap: 8 }}>
+      <div style={{
+        width: 3, alignSelf: 'stretch',
+        background: 'linear-gradient(180deg, var(--accent-2), var(--accent-3))',
+        borderRadius: 3, opacity: .7, flexShrink: 0,
+      }} />
+      <div>
+        <div style={{
+          fontSize: 13.5, color: 'var(--text-2)', lineHeight: 1.5,
+          background: 'var(--bg-1)', border: '1px solid var(--border-1)',
+          padding: '9px 12px', borderRadius: '3px 12px 12px 12px',
+        }}>
+          {text}
+        </div>
         {hasRaw && (
-          <button
-            style={{ fontSize: 11, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4, color: 'var(--text-4)', background: 'none', border: 'none', cursor: 'pointer' }}
-            onClick={() => setExpanded((e) => !e)}
-          >
-            {expanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
-            {expanded ? 'Hide raw JSON' : 'Show raw patch'}
-          </button>
-        )}
-        {hasRaw && expanded && (
-          <pre style={{
-            fontSize: 10.5, marginTop: 4, padding: '8px 10px', borderRadius: 8,
-            overflowX: 'auto', whiteSpace: 'pre-wrap', maxHeight: 200, overflowY: 'auto',
-            background: 'var(--bg-3)', color: 'var(--text-3)', fontFamily: 'var(--font-mono)',
-            border: '1px solid var(--border-1)',
-          }}>
-            {m.content}
-          </pre>
+          <>
+            <button
+              style={{ fontSize: 11, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4, color: 'var(--text-4)', background: 'none', border: 'none', cursor: 'pointer' }}
+              onClick={() => setExpanded((e) => !e)}
+            >
+              {expanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+              {expanded ? 'Hide raw JSON' : 'Show raw patch'}
+            </button>
+            {expanded && (
+              <pre style={{
+                fontSize: 10.5, marginTop: 4, padding: '8px 10px', borderRadius: 8,
+                overflowX: 'auto', whiteSpace: 'pre-wrap', maxHeight: 200, overflowY: 'auto',
+                background: 'var(--bg-3)', color: 'var(--text-3)', fontFamily: 'var(--font-mono)',
+                border: '1px solid var(--border-1)',
+              }}>
+                {m.content}
+              </pre>
+            )}
+          </>
         )}
       </div>
     </div>

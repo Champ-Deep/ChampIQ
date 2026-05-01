@@ -4,6 +4,7 @@ import { Network, TrendingUp, Building2, Zap, ArrowUpRight } from 'lucide-react'
 
 interface Props {
   pixieCloak: string
+  sidebar?: boolean
 }
 
 const PROSPECTS = [
@@ -61,7 +62,7 @@ function SignalBadge({ signal }: { signal: string }) {
   )
 }
 
-export function ChampGraphRailPanel({ pixieCloak }: Props) {
+export function ChampGraphRailPanel({ pixieCloak, sidebar: _sidebar }: Props) {
   const [tab, setTab] = useState<'prospects' | 'signals' | 'companies'>('prospects')
 
   return (

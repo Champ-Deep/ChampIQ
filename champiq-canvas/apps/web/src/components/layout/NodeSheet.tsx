@@ -31,13 +31,13 @@ const NODE_ICONS: Record<string, React.ReactNode> = {
   set:        <CornerDownRight size={20} />,
 }
 
-const PIXIE_TIPS: Record<string, string> = {
-  champmail:  'Keep subject lines under 40 chars — open rates drop 18% above that threshold.',
-  champgraph: 'Filter by intent signal before pulling status — reduces wasted API calls by ~60%.',
-  loop:       'Batch in groups of 25 to avoid rate-limit backpressure from downstream nodes.',
-  trigger:    'Use cron triggers for scheduled campaigns; manual triggers for A/B test launches.',
-  if:         'Branch on "replied = true" first — shorter happy path leads to faster execution.',
-  data:       'Validate CSV headers before the loop — saves you from silent row-skip bugs.',
+const PIXIE_TIPS: Record<string, { pose: 'point' | 'read' | 'think' | 'idle'; message: string; action?: string }> = {
+  champmail:  { pose: 'point', message: 'Keep subject lines under 40 chars — open rates drop 18% above that threshold.', action: 'Rewrite subject' },
+  champgraph: { pose: 'read',  message: 'Filter by intent signal before pulling status — reduces wasted API calls by ~60%.', action: 'Add filter' },
+  loop:       { pose: 'think', message: 'Batch in groups of 25 to avoid rate-limit backpressure from downstream nodes.', action: 'Set batch size' },
+  trigger:    { pose: 'idle',  message: 'Use cron triggers for scheduled campaigns; manual triggers for A/B test launches.' },
+  if:         { pose: 'think', message: 'Branch on "replied = true" first — shorter happy path leads to faster execution.' },
+  data:       { pose: 'read',  message: 'Validate CSV headers before the loop — saves you from silent row-skip bugs.' },
 }
 
 interface NodeSheetProps {
@@ -86,11 +86,21 @@ export function NodeSheet({ node, pixieCloak, onClose }: NodeSheetProps) {
   const name = (data.label as string) || node.id
   const color = NODE_COLORS[kind] || '#7B86A6'
   const icon = NODE_ICONS[kind] || <Cpu size={20} />
-  const tip = PIXIE_TIPS[kind]
+  const tipData = PIXIE_TIPS[kind]
   const runtime = nodeRuntimeStates[node.id]
   const status = runtime?.status || 'idle'
 
   return (
+    <>
+      {/* Backdrop */}
+      <div
+        onClick={onClose}
+        style={{
+          position: 'absolute', inset: 0, zIndex: 29,
+          background: 'rgba(7,9,18,.45)', backdropFilter: 'blur(3px)',
+          animation: 'sheet-backdrop-in 220ms var(--ease-swift)',
+        }}
+      />
     <div style={{
       position: 'absolute',
       right: 0, top: 0, bottom: 0,
@@ -101,7 +111,7 @@ export function NodeSheet({ node, pixieCloak, onClose }: NodeSheetProps) {
       display: 'flex',
       flexDirection: 'column',
       boxShadow: '-24px 0 80px rgba(0,0,0,.55)',
-      animation: 'slide-in-right 220ms var(--ease-linger) both',
+      animation: 'sheet-slide-in 280ms var(--ease-linger) both',
     }}>
       {/* Header */}
       <div style={{
@@ -153,25 +163,41 @@ export function NodeSheet({ node, pixieCloak, onClose }: NodeSheetProps) {
         </div>
       </div>
 
-      {/* Pixie tip */}
-      {!tipDismissed && tip && (
+      {/* Pixie tip banner */}
+      {!tipDismissed && tipData && (
         <div style={{
-          margin: '12px 18px 0',
-          background: 'rgba(var(--accent-2-rgb),.08)',
-          border: '1px solid rgba(var(--accent-2-rgb),.2)',
-          borderRadius: 10, padding: '10px 14px',
-          display: 'flex', alignItems: 'flex-start', gap: 12, flexShrink: 0,
+          margin: '10px 14px 0',
+          background: 'linear-gradient(135deg, rgba(var(--accent-2-rgb),.07) 0%, rgba(var(--accent-2-rgb),.03) 100%)',
+          border: '1px solid rgba(var(--accent-2-rgb),.25)',
+          borderRadius: 12, padding: '12px 14px',
+          display: 'flex', gap: 12, alignItems: 'flex-start', flexShrink: 0,
+          animation: 'bubble-in 300ms var(--ease-spring)',
+          position: 'relative',
         }}>
-          <Pixie pose="think" size={44} cloak={pixieCloak} ambient={false} />
-          <div style={{ flex: 1 }}>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--accent-2)', marginBottom: 4 }}>
-              ✦ Pixie tip
+          <div style={{ flexShrink: 0, marginTop: -4 }}>
+            <Pixie pose={tipData.pose} size={52} cloak={pixieCloak} ambient={false} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
+              <span style={{ fontFamily: 'var(--font-pixel)', fontSize: 8, color: 'var(--accent-1)' }}>PIXIE</span>
+              <span style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--accent-2)', display: 'inline-block' }} />
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-4)', letterSpacing: '.1em', textTransform: 'uppercase' }}>tip</span>
             </div>
-            <div style={{ fontSize: 12.5, color: 'var(--text-2)', lineHeight: 1.5 }}>{tip}</div>
+            <div style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.5, marginBottom: tipData.action ? 10 : 0 }}>
+              {tipData.message}
+            </div>
+            {tipData.action && (
+              <button style={{
+                display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 11px',
+                background: 'var(--accent-2)', border: 'none', borderRadius: 7,
+                color: '#fff', fontFamily: 'var(--font-display)', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              }}>
+                ✦ {tipData.action}
+              </button>
+            )}
           </div>
           <button onClick={() => setTipDismissed(true)} style={{
-            width: 22, height: 22, display: 'grid', placeItems: 'center',
-            background: 'transparent', border: 'none', color: 'var(--text-4)', cursor: 'pointer', flexShrink: 0,
+            background: 'transparent', border: 'none', color: 'var(--text-4)', cursor: 'pointer', padding: 2, borderRadius: 4, flexShrink: 0,
           }}><X size={12}/></button>
         </div>
       )}
@@ -196,6 +222,7 @@ export function NodeSheet({ node, pixieCloak, onClose }: NodeSheetProps) {
         <SheetBtn variant="primary" onClick={onClose}>Done</SheetBtn>
       </div>
     </div>
+    </>
   )
 }
 

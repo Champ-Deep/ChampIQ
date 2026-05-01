@@ -1,18 +1,20 @@
-import { useEffect } from 'react'
+import { useEffect, useCallback } from 'react'
 import { ReactFlowProvider } from '@xyflow/react'
 import { TopBar } from '@/components/layout/TopBar'
-import { ChatPanel } from '@/components/layout/ChatPanel'
 import { CanvasArea } from '@/components/canvas/CanvasArea'
 import { RightPanel } from '@/components/layout/RightPanel'
 import { LogsStrip } from '@/components/layout/LogsStrip'
 import { NodeSheet } from '@/components/layout/NodeSheet'
-import { NodePalette } from '@/components/layout/NodePalette'
+import { LeftPanel } from '@/components/layout/LeftPanel'
 import { Rail } from '@/components/champiq/Rail'
 import { ChampMailRailPanel } from '@/components/panels/ChampMailRailPanel'
 import { ChampGraphRailPanel } from '@/components/panels/ChampGraphRailPanel'
 import { SettingsModal } from '@/components/settings/SettingsModal'
 import { TweaksPanel } from '@/components/champiq/TweaksPanel'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { HubScreen } from '@/components/hub/HubScreen'
+import { CommandPalette } from '@/components/layout/CommandPalette'
+import { Onboarding } from '@/components/layout/Onboarding'
 import { useManifests } from '@/hooks/useManifests'
 import { usePersistence } from '@/hooks/usePersistence'
 import { useExecutionStream } from '@/hooks/useExecutionStream'
@@ -20,43 +22,49 @@ import { useB2BPulseEvents } from '@/hooks/useB2BPulseEvents'
 import { useUIStore } from '@/store/uiStore'
 import { useCanvasStore } from '@/store/canvasStore'
 
-function CockpitView() {
-  const { activeRail, setActiveRail, logsOpen, setLogsOpen, settingsOpen, setSettingsOpen, accent, density, railStyle, nodeSheetId, setNodeSheet, cloak, voice } = useUIStore()
+// ── Cockpit: the per-canvas view (Rail + SidePanel + Canvas always visible) ─
+
+function CockpitView({ onGoHub }: { onGoHub: () => void }) {
+  const {
+    activeRail, setActiveRail,
+    logsOpen, setLogsOpen,
+    settingsOpen, setSettingsOpen,
+    accent, density, railStyle,
+    nodeSheetId, setNodeSheet,
+    cloak, voice,
+    cmdOpen, setCmdOpen,
+  } = useUIStore()
   const { nodes } = useCanvasStore()
   const selectedNode = nodes.find(n => n.id === nodeSheetId) ?? null
-  const isFullPanel = activeRail === 'mail' || activeRail === 'graph'
 
   return (
     <div
       data-accent={accent}
       data-density={density}
       style={{
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100vh',
-        width: '100vw',
-        overflow: 'hidden',
-        background: 'var(--bg-0)',
-        color: 'var(--text-1)',
+        display: 'flex', flexDirection: 'column',
+        height: '100vh', width: '100vw', overflow: 'hidden',
+        background: 'var(--bg-0)', color: 'var(--text-1)',
         fontFamily: 'var(--font-body)',
       }}
     >
-      {!isFullPanel && <TopBar />}
+      <TopBar onHub={onGoHub} onCmdOpen={() => setCmdOpen(true)} />
 
-      <div style={{ display: 'flex', flex: 1, minHeight: 0, position: 'relative' }}>
+      <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+        {/* Rail nav — left 56px column, ChampMark navigates home */}
         <Rail
           active={activeRail}
           onSelect={setActiveRail}
           onSettings={() => setSettingsOpen(true)}
+          onHub={onGoHub}
           variant={railStyle}
         />
 
-        {/* Chat view: chat + palette + canvas + inspector */}
+        {/* Chat view: Pixie/Nodes left panel + canvas + inspector */}
         {activeRail === 'chat' && (
           <>
-            <ChatPanel pixieCloak={cloak} voice={voice} />
+            <LeftPanel pixieCloak={cloak} voice={voice} />
             <div style={{ display: 'flex', flex: 1, minWidth: 0, minHeight: 0, position: 'relative' }}>
-              <NodePalette />
               <CanvasArea onNodeOpen={(id) => setNodeSheet(id)} />
               <RightPanel />
               {selectedNode && (
@@ -70,14 +78,14 @@ function CockpitView() {
           </>
         )}
 
-        {/* ChampMail full-panel */}
+        {/* ChampMail full-panel — no canvas */}
         {activeRail === 'mail' && (
           <div style={{ flex: 1, minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
             <ChampMailRailPanel pixieCloak={cloak} />
           </div>
         )}
 
-        {/* ChampGraph full-panel */}
+        {/* ChampGraph full-panel — no canvas */}
         {activeRail === 'graph' && (
           <div style={{ flex: 1, minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
             <ChampGraphRailPanel pixieCloak={cloak} />
@@ -85,9 +93,7 @@ function CockpitView() {
         )}
       </div>
 
-      {!isFullPanel && (
-        <LogsStrip expanded={logsOpen} onToggle={() => setLogsOpen(!logsOpen)} />
-      )}
+      <LogsStrip expanded={logsOpen} onToggle={() => setLogsOpen(!logsOpen)} />
 
       <SettingsModal
         open={settingsOpen}
@@ -97,9 +103,30 @@ function CockpitView() {
       />
 
       <TweaksPanel />
+
+      {/* Command palette overlay */}
+      {cmdOpen && (
+        <CommandPalette
+          onClose={() => setCmdOpen(false)}
+          onOpenCanvas={(id) => {
+            useCanvasStore.setState({ currentCanvasId: id })
+            setCmdOpen(false)
+          }}
+          onNewCanvas={() => {
+            const id = crypto.randomUUID()
+            const meta = { id, name: 'New Canvas', updatedAt: new Date().toISOString() }
+            const list = [...useCanvasStore.getState().canvasList, meta]
+            useCanvasStore.setState({ canvasList: list, currentCanvasId: id, canvasName: 'New Canvas' })
+            localStorage.setItem('champiq:canvas:list', JSON.stringify(list))
+            setCmdOpen(false)
+          }}
+        />
+      )}
     </div>
   )
 }
+
+// ── AppInner: routing + all data hooks ───────────────────────────────────────
 
 function AppInner() {
   useManifests()
@@ -107,14 +134,91 @@ function AppInner() {
   useExecutionStream()
   useB2BPulseEvents()
 
-  // Apply accent/density from UI store to document root
-  const { accent, density } = useUIStore()
+  const {
+    appView, setAppView,
+    setActiveCanvas,
+    isFirstRun, setIsFirstRun,
+    accent, density, isDark,
+    cmdOpen, setCmdOpen,
+    settingsOpen, setSettingsOpen,
+    cloak,
+  } = useUIStore()
+
+  // Sync accent/density/theme to document root
   useEffect(() => {
     document.documentElement.setAttribute('data-accent', accent)
     document.documentElement.setAttribute('data-density', density)
-  }, [accent, density])
+    document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light')
+  }, [accent, density, isDark])
 
-  return <CockpitView />
+  // Global ⌘K to open command palette
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        setCmdOpen(true)
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [setCmdOpen])
+
+  const openCanvas = useCallback((id: string) => {
+    const { setCurrentCanvasId, canvasList } = useCanvasStore.getState()
+    const canvas = canvasList.find((c) => c.id === id)
+    setCurrentCanvasId(id)
+    if (canvas) useCanvasStore.setState({ canvasName: canvas.name })
+    setActiveCanvas(id)
+    setAppView('cockpit')
+  }, [setActiveCanvas, setAppView])
+
+  const newCanvas = useCallback(() => {
+    const id = crypto.randomUUID()
+    const meta = { id, name: 'New Canvas', updatedAt: new Date().toISOString() }
+    const list = [...useCanvasStore.getState().canvasList, meta]
+    useCanvasStore.setState({ canvasList: list, currentCanvasId: id, canvasName: 'New Canvas' })
+    localStorage.setItem('champiq:canvas:list', JSON.stringify(list))
+    setActiveCanvas(id)
+    setAppView('cockpit')
+  }, [setActiveCanvas, setAppView])
+
+  const goHub = useCallback(() => {
+    setAppView('hub')
+  }, [setAppView])
+
+  // Onboarding: show on first run while in hub
+  if (isFirstRun && appView === 'hub') {
+    return (
+      <Onboarding
+        onComplete={() => { setIsFirstRun(false); newCanvas() }}
+        onSkip={() => setIsFirstRun(false)}
+      />
+    )
+  }
+
+  if (appView === 'hub') {
+    return (
+      <>
+        <HubScreen onOpenCanvas={openCanvas} onNewCanvas={newCanvas} />
+        {/* Command palette available from hub too */}
+        {cmdOpen && (
+          <CommandPalette
+            onClose={() => setCmdOpen(false)}
+            onOpenCanvas={openCanvas}
+            onNewCanvas={newCanvas}
+          />
+        )}
+        <SettingsModal
+          open={settingsOpen}
+          onClose={() => setSettingsOpen(false)}
+          pixieCloak={cloak}
+          voice={useUIStore.getState().voice}
+        />
+      </>
+    )
+  }
+
+  return <CockpitView onGoHub={goHub} />
 }
 
 export default function App() {

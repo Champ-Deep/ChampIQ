@@ -178,6 +178,14 @@ html, body {
 @keyframes ribbon-shimmer{ 0% { background-position: 0% 0; } 100% { background-position: 200% 0; } }
 @keyframes spin          { to { transform: rotate(360deg); } }
 
+/* ─── Extra keyframes (from ChampIQ design reference) ───────────────────── */
+@keyframes hub-card-in    { 0% { opacity: 0; transform: translateY(8px); } 100% { opacity: 1; transform: translateY(0); } }
+@keyframes spark-burst    { 0% { transform: translate(-50%,-50%) scale(0); opacity: 1; } 100% { transform: translate(-50%,-50%) scale(2.4); opacity: 0; } }
+@keyframes node-success-pop { 0%,100% { transform: scale(1); } 30% { transform: scale(1.04); } }
+@keyframes sheet-slide-in { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes sheet-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes node-pulse-mint { 0%,100% { box-shadow: 0 0 0 0 rgba(0,229,199,.55); } 50% { box-shadow: 0 0 0 8px rgba(0,229,199,0); } }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
@@ -197,6 +205,31 @@ html, body {
 .ciq-spin { animation: spin 1s linear infinite; }
 .ciq-slide-in { animation: slide-in-right 220ms var(--ease-linger) both; }
 .ciq-fade-in  { animation: fade-in 180ms ease both; }
+
+/* ─── Light theme ────────────────────────────────────────────────────────── */
+[data-theme="light"] {
+  --bg-0: #F5F7FF;
+  --bg-1: #FFFFFF;
+  --bg-2: #EFF1FA;
+  --bg-3: #E4E8F5;
+  --bg-4: #D6DCEF;
+  --text-1: #0E1320;
+  --text-2: #2A3350;
+  --text-3: #525C7A;
+  --text-4: #7B86A6;
+  --border-1: #DDE2F0;
+  --border-2: #C8D0E8;
+  --bg-base:    var(--bg-0);
+  --bg-surface: var(--bg-1);
+  --bg-sidebar: var(--bg-2);
+  --border:     var(--border-1);
+}
+
+/* ─── Scroll utility ─────────────────────────────────────────────────────── */
+.scroll::-webkit-scrollbar       { width: 6px; height: 6px; }
+.scroll::-webkit-scrollbar-track { background: transparent; }
+.scroll::-webkit-scrollbar-thumb { background: var(--bg-3); border-radius: 3px; }
+.scroll::-webkit-scrollbar-thumb:hover { background: var(--bg-4); }
 
 /* Type tokens */
 .t-display-md { font-family: var(--font-display); font-size: 22px; line-height: 1.2; letter-spacing: -.015em; font-weight: 600; }

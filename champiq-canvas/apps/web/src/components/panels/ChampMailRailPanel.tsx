@@ -4,6 +4,7 @@ import { Mail, TrendingUp, Send, ArrowUpRight, Clock, CheckCircle, AlertCircle, 
 
 interface Props {
   pixieCloak: string
+  sidebar?: boolean
 }
 
 const SEQUENCES = [
@@ -43,7 +44,7 @@ function Pill({ status }: { status: string }) {
   )
 }
 
-export function ChampMailRailPanel({ pixieCloak }: Props) {
+export function ChampMailRailPanel({ pixieCloak, sidebar: _sidebar }: Props) {
   const [tab, setTab] = useState<'sequences' | 'sent' | 'analytics'>('sequences')
 
   return (

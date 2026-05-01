@@ -3,7 +3,7 @@ import { useCanvasStore } from '@/store/canvasStore'
 import { api } from '@/lib/api'
 import { getToolId } from '@/lib/manifest'
 import { saveCurrentCanvas } from '@/hooks/usePersistence'
-import { Save, Play, Check, CalendarClock, Power } from 'lucide-react'
+import { Save, Play, Check, CalendarClock, Power, ChevronLeft, ChevronRight, Search } from 'lucide-react'
 import type { Node } from '@xyflow/react'
 
 function extractCronTriggers(nodes: Node[]): Record<string, unknown>[] {
@@ -15,7 +15,12 @@ function extractCronTriggers(nodes: Node[]): Record<string, unknown>[] {
     })
 }
 
-export function TopBar() {
+interface TopBarProps {
+  onHub?: () => void
+  onCmdOpen?: () => void
+}
+
+export function TopBar({ onHub, onCmdOpen }: TopBarProps = {}) {
   const { canvasName, nodes, edges, toolHealthStatus, manifests, setCanvasName, setNodeRuntime, addLog } = useCanvasStore()
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -113,23 +118,53 @@ export function TopBar() {
       padding: '0 14px',
       gap: 12,
     }}>
-      {/* Canvas name */}
-      <input
-        value={canvasName}
-        onChange={(e) => setCanvasName(e.target.value)}
-        aria-label="Canvas name"
-        style={{
-          background: 'transparent',
-          border: 'none',
-          outline: 'none',
-          fontFamily: 'var(--font-display)',
-          fontSize: 14,
-          fontWeight: 600,
-          color: 'var(--text-1)',
-          width: 200,
-          minWidth: 0,
-        }}
-      />
+      {/* Breadcrumb */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-3)', flexShrink: 0 }}>
+        {onHub && (
+          <>
+            <button
+              onClick={onHub}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 4, background: 'transparent', border: 'none',
+                color: 'var(--text-3)', fontFamily: 'var(--font-body)', fontSize: 12, cursor: 'pointer', padding: '2px 4px', borderRadius: 4,
+                transition: 'color .15s',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-1)' }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-3)' }}
+            >
+              <ChevronLeft size={12} />
+              Stages
+            </button>
+            <ChevronRight size={11} />
+          </>
+        )}
+        <input
+          value={canvasName}
+          onChange={(e) => setCanvasName(e.target.value)}
+          aria-label="Canvas name"
+          style={{
+            background: 'transparent', border: 'none', outline: 'none',
+            fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 600,
+            color: 'var(--text-1)', width: 160, minWidth: 0,
+          }}
+        />
+      </div>
+
+      {/* ⌘K search trigger */}
+      {onCmdOpen && (
+        <button
+          onClick={onCmdOpen}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px 4px 8px',
+            background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 7,
+            color: 'var(--text-3)', fontFamily: 'var(--font-body)', fontSize: 12, cursor: 'pointer',
+          }}
+        >
+          <Search size={12} />
+          <span>Search…</span>
+          <kbd style={{ fontFamily: 'var(--font-mono)', fontSize: 9, padding: '1px 4px', borderRadius: 3, background: 'var(--bg-3)', border: '1px solid var(--border-1)', color: 'var(--text-4)' }}>⌘K</kbd>
+        </button>
+      )}
 
       {/* Tool health dots */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

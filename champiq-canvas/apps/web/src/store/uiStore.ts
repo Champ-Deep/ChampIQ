@@ -7,8 +7,28 @@ export type DensityPreset = 'compact' | 'cozy' | 'comfortable'
 export type VoicePreset = 'Friendly' | 'Crisp' | 'Quirky' | 'Pro'
 export type RailStyle = 'classic' | 'glyph'
 export type CloakColor = '#0EA968' | '#E63A87' | '#1E5FCB' | '#2A2F44'
+export type AppView = 'hub' | 'cockpit'
+export type HubView = 'home' | 'stages' | 'bullpen'
 
 interface UIStore {
+  // App-level routing
+  appView: AppView
+  setAppView: (v: AppView) => void
+  activeCanvasId: string | null
+  setActiveCanvas: (id: string | null) => void
+
+  // Hub sub-view
+  hubView: HubView
+  setHubView: (v: HubView) => void
+
+  // First-run onboarding
+  isFirstRun: boolean
+  setIsFirstRun: (v: boolean) => void
+
+  // Dark/light theme
+  isDark: boolean
+  setIsDark: (v: boolean) => void
+
   // Rail navigation
   activeRail: RailTab
   setActiveRail: (tab: RailTab) => void
@@ -55,6 +75,20 @@ interface UIStore {
 export const useUIStore = create<UIStore>()(
   persist(
     (set) => ({
+      appView: 'hub',
+      setAppView: (v) => set({ appView: v }),
+      activeCanvasId: null,
+      setActiveCanvas: (id) => set({ activeCanvasId: id }),
+
+      hubView: 'home',
+      setHubView: (v) => set({ hubView: v }),
+
+      isFirstRun: true,
+      setIsFirstRun: (v) => set({ isFirstRun: v }),
+
+      isDark: true,
+      setIsDark: (v) => set({ isDark: v }),
+
       activeRail: 'chat',
       setActiveRail: (tab) => set({ activeRail: tab }),
 
@@ -99,6 +133,8 @@ export const useUIStore = create<UIStore>()(
         cloak: s.cloak,
         voice: s.voice,
         railStyle: s.railStyle,
+        isFirstRun: s.isFirstRun,
+        isDark: s.isDark,
       }),
     }
   )

@@ -61,6 +61,22 @@ const STATUS_DOT: Record<NodeStatus, { color: string; glow?: string; pulse?: boo
   error:   { color: '#FF4D6D', glow: '#FF4D6D' },
 }
 
+const STATE_BORDERS: Record<string, { stroke: string; glow: string; dashed?: boolean; anim?: string }> = {
+  idle:      { stroke: 'var(--border-1)', glow: '0 4px 20px rgba(0,0,0,.35)' },
+  selected:  { stroke: 'var(--accent-2)', glow: '0 0 0 3px rgba(var(--accent-2-rgb),.22), 0 8px 32px rgba(0,0,0,.45)' },
+  suggesting:{ stroke: 'var(--mint-2)',   glow: '0 0 0 3px rgba(var(--mint-2-rgb),.18), 0 8px 28px rgba(0,0,0,.4)', dashed: true },
+  running:   { stroke: 'var(--warn)',     glow: '0 0 0 3px rgba(255,210,63,.18), 0 8px 28px rgba(0,0,0,.4)', anim: 'node-pulse 1.6s ease-in-out infinite' },
+  success:   { stroke: 'var(--success)',  glow: '0 0 0 2px rgba(74,222,128,.2), 0 4px 20px rgba(0,0,0,.35)' },
+  error:     { stroke: 'var(--danger)',   glow: '0 0 0 3px rgba(255,77,109,.25), 0 8px 28px rgba(0,0,0,.4)' },
+}
+
+const STATE_BADGE: Partial<Record<NodeStatus | 'suggesting', { label: string; color: string; sparkle?: boolean }>> = {
+  running:    { label: 'Running',  color: 'var(--warn)' },
+  success:    { label: 'Ok',       color: 'var(--success)' },
+  error:      { label: 'Error',    color: 'var(--danger)' },
+  suggesting: { label: 'Pixie',    color: 'var(--mint-2)', sparkle: true },
+}
+
 export function ToolNode(props: NodeProps) {
   const { data } = props
   const manifest = data.manifest as ChampIQManifest | undefined
@@ -72,8 +88,9 @@ export function ToolNode(props: NodeProps) {
   return <LegacyFormNode {...props} manifest={manifest} kindHint={kind} />
 }
 
-// ── SimpleNode — ChampIQ-styled card ──────────────────────────────────────
+// ── SimpleNode — ChampIQ-styled card with full state visuals ─────────────
 function SimpleNode({ id, data, selected }: NodeProps) {
+  const [hovered, setHovered] = useState(false)
   const manifest = data.manifest as ChampIQManifest | undefined
   const kind = (data.kind as string | undefined) ?? (data.toolId as string | undefined) ?? 'unknown'
   const kindMeta = KIND_META[kind]
@@ -96,31 +113,42 @@ function SimpleNode({ id, data, selected }: NodeProps) {
   const isSplit = kind === 'split'
   const splitN = isSplit ? Math.max(Number(config.n ?? 2), 2) : 0
   const isRootTrigger = kind.startsWith('trigger.')
-
-  const isSelected = selected
   const color = meta.color
+
+  // State-based visual treatment (from stage.jsx reference)
+  const visualState = selected ? 'selected' : runtime.status
+  const sb = STATE_BORDERS[visualState] || STATE_BORDERS.idle
+  const badge = STATE_BADGE[runtime.status as keyof typeof STATE_BADGE]
+
+  const isHot = hovered || selected
 
   return (
     <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       onDoubleClick={() => setSelectedNode(id)}
+      title="Double-click to open settings"
       style={{
         width: 210,
-        background: 'var(--bg-2)',
-        border: `1px solid ${isSelected ? color : 'var(--border-1)'}`,
-        borderRadius: 10,
+        background: isHot
+          ? `linear-gradient(160deg, var(--bg-2) 0%, color-mix(in oklch, ${color} 5%, var(--bg-2)) 100%)`
+          : 'var(--bg-1)',
+        border: `${sb.dashed ? '1.5px dashed' : '1.5px solid'} ${sb.stroke}`,
+        borderRadius: 12,
         overflow: 'hidden',
-        boxShadow: isSelected
-          ? `0 0 0 1px ${color}, 0 8px 30px rgba(0,0,0,.45), 0 0 20px -6px ${color}55`
-          : '0 4px 20px rgba(0,0,0,.35)',
-        transition: 'border-color .15s, box-shadow .15s',
-        cursor: 'default',
+        boxShadow: sb.glow,
+        transition: 'all .22s var(--ease-swift)',
+        cursor: 'pointer',
+        animation: sb.anim ?? 'none',
+        position: 'relative',
       }}
     >
       {/* Color ribbon */}
       <div style={{
         height: 3,
-        background: `linear-gradient(90deg, ${color}, ${color}88)`,
-        flexShrink: 0,
+        background: `linear-gradient(90deg, ${color}, color-mix(in oklch, ${color} 60%, transparent))`,
+        opacity: visualState === 'idle' && !isHot ? 0.55 : 1,
+        transition: 'opacity .22s',
       }}/>
 
       {!isRootTrigger && (
@@ -128,46 +156,68 @@ function SimpleNode({ id, data, selected }: NodeProps) {
           type="target"
           position={Position.Left}
           style={{
-            width: 10, height: 10, borderRadius: 3,
+            width: 12, height: 12, borderRadius: '50%',
             background: 'var(--bg-3)',
-            border: `2px solid ${color}66`,
-            transition: 'border-color .12s',
+            border: `2px solid ${isHot ? color : 'var(--border-2)'}`,
+            transition: 'border-color .22s',
+            boxShadow: isHot ? `0 0 6px color-mix(in oklch, ${color} 50%, transparent)` : 'none',
           }}
         />
       )}
 
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px 8px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', height: 'calc(100% - 3px)' }}>
+        {/* Icon badge */}
         <div style={{
-          width: 32, height: 32, borderRadius: 8, flexShrink: 0,
-          background: `color-mix(in srgb, ${color} 15%, var(--bg-3))`,
-          border: `1px solid ${color}35`,
-          display: 'grid', placeItems: 'center',
-          color,
+          width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+          background: `color-mix(in oklch, ${color} 18%, var(--bg-0))`,
+          border: `1px solid color-mix(in oklch, ${color} 30%, transparent)`,
+          display: 'grid', placeItems: 'center', color,
+          boxShadow: isHot ? `0 0 12px -2px color-mix(in oklch, ${color} 45%, transparent)` : 'none',
+          transition: 'box-shadow .22s',
         }}>
           <IconComponent size={15} />
         </div>
+
+        {/* Labels */}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
             fontFamily: 'var(--font-mono)', fontSize: 8.5, letterSpacing: '.14em',
-            textTransform: 'uppercase', color, opacity: .9, marginBottom: 2,
+            textTransform: 'uppercase', color, opacity: .85, marginBottom: 3,
           }}>
             {kindMeta?.label || kind}
           </div>
           <div style={{
             fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 13,
-            color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.2,
           }}>
             {meta.label}
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+
+        {/* State indicator */}
+        <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
           <div style={{
             width: 7, height: 7, borderRadius: '50%',
             background: statusDot.color,
             boxShadow: statusDot.glow ? `0 0 6px ${statusDot.glow}` : 'none',
             animation: statusDot.pulse ? 'glow-pulse 1s ease-in-out infinite' : 'none',
           }}/>
+          {badge && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 3,
+              fontFamily: 'var(--font-mono)', fontSize: 8.5, letterSpacing: '.1em', textTransform: 'uppercase',
+              color: badge.color,
+            }}>
+              {badge.sparkle
+                ? <span style={{ fontSize: 8 }}>✦</span>
+                : <span style={{ width: 4, height: 4, borderRadius: '50%', background: badge.color, display: 'inline-block' }} />
+              }
+              {badge.label}
+            </div>
+          )}
+
+          {/* Delete button */}
           <button
             onClick={(e) => {
               e.stopPropagation()
@@ -179,10 +229,9 @@ function SimpleNode({ id, data, selected }: NodeProps) {
             style={{
               width: 18, height: 18, display: 'grid', placeItems: 'center',
               background: 'transparent', border: 'none', color: 'var(--text-4)',
-              cursor: 'pointer', borderRadius: 4, opacity: 0,
+              cursor: 'pointer', borderRadius: 4, opacity: hovered ? 1 : 0,
               transition: 'opacity .15s',
             }}
-            className="node-delete-btn"
           >
             <X size={11} />
           </button>
@@ -190,20 +239,31 @@ function SimpleNode({ id, data, selected }: NodeProps) {
       </div>
 
       {/* Summary */}
-      {summary && (
+      {summary && !hovered && (
         <div style={{
           margin: '0 12px 8px',
-          padding: '4px 8px', borderRadius: 5,
+          padding: '3px 7px', borderRadius: 5,
           background: 'var(--bg-3)',
-          fontFamily: 'var(--font-mono)', fontSize: 10.5, color: 'var(--text-3)',
+          fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-3)',
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>
           {summary}
         </div>
       )}
 
+      {/* Double-click hint on hover */}
+      {hovered && !selected && (
+        <div style={{
+          position: 'absolute', bottom: 6, right: 10,
+          fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '.1em', textTransform: 'uppercase',
+          color: 'var(--text-4)', animation: 'bubble-in 160ms var(--ease-spring)',
+        }}>
+          dbl-click to open ↗
+        </div>
+      )}
+
       {/* Runtime error */}
-      {runtime.status === 'error' && runtime.error && (
+      {runtime.status === 'error' && runtime.error && !hovered && (
         <div style={{
           margin: '0 12px 8px', padding: '4px 8px', borderRadius: 5,
           background: 'rgba(255,77,109,.1)', border: '1px solid rgba(255,77,109,.2)',
@@ -212,6 +272,17 @@ function SimpleNode({ id, data, selected }: NodeProps) {
         }}>
           {runtime.error}
         </div>
+      )}
+
+      {/* Success spark burst */}
+      {runtime.status === 'success' && !selected && (
+        <div style={{
+          position: 'absolute', left: '50%', top: '50%',
+          width: 260, height: 130, borderRadius: '50%',
+          background: 'radial-gradient(ellipse at center, rgba(74,222,128,.35), transparent 60%)',
+          animation: 'spark-burst 600ms ease-out',
+          pointerEvents: 'none',
+        }}/>
       )}
 
       {isSplit
@@ -228,9 +299,11 @@ function SimpleNode({ id, data, selected }: NodeProps) {
             type="source"
             position={Position.Right}
             style={{
-              width: 10, height: 10, borderRadius: 3,
+              width: 12, height: 12, borderRadius: '50%',
               background: 'var(--bg-3)',
-              border: `2px solid ${color}66`,
+              border: `2px solid ${isHot ? color : 'var(--border-2)'}`,
+              transition: 'border-color .22s',
+              boxShadow: isHot ? `0 0 6px color-mix(in oklch, ${color} 50%, transparent)` : 'none',
             }}
           />
       }
