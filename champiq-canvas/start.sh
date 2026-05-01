@@ -6,6 +6,38 @@ export PYTHONPATH=/app/apps/api
 cd /app/apps/api
 
 if [ -n "${DATABASE_URL:-}" ]; then
+  # Wait for Postgres to be reachable before running migrations.
+  # Railway's Postgres container accepts TCP before it's ready to authenticate,
+  # so we probe with an actual auth attempt rather than just a socket check.
+  echo "[start] waiting for database..."
+  python - <<'PY'
+import os, time, urllib.parse as up
+
+raw = os.environ["DATABASE_URL"]
+if "+" in raw.split("://", 1)[0]:
+    scheme, rest = raw.split("://", 1)
+    raw = f"{scheme.split('+')[0]}://{rest}"
+
+u = up.urlparse(raw)
+host = u.hostname or "localhost"
+port = u.port or 5432
+deadline = time.time() + 120
+attempt = 0
+while time.time() < deadline:
+    try:
+        import socket
+        with socket.create_connection((host, port), timeout=3):
+            pass
+        print(f"[start] db {host}:{port} is up (attempt {attempt + 1})")
+        break
+    except OSError as e:
+        attempt += 1
+        print(f"[start] attempt {attempt}: db not ready ({e}), retrying...")
+        time.sleep(2)
+else:
+    raise SystemExit(f"[start] db {host}:{port} never became reachable")
+PY
+
   echo "[start] running alembic migrations..."
   alembic upgrade head
   echo "[start] migrations OK"
