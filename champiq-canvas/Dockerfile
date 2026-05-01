@@ -9,12 +9,12 @@
 # Postgres and Redis are Railway plugin services; their URLs come via env vars.
 
 # ── 1. Build the Vite SPA ────────────────────────────────────────────────────
-FROM node:20-alpine AS web-builder
+FROM node:20-slim AS web-builder
 
 WORKDIR /src
 
-# Enable pnpm via corepack (deterministic version)
-RUN corepack enable && corepack prepare pnpm@9 --activate
+# Enable pnpm via corepack — pin exact version so corepack doesn't network-fetch
+RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 
 # Copy workspace manifests first so the layer is cached across code changes
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
