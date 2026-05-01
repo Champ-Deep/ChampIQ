@@ -16,59 +16,37 @@ import { api } from '@/lib/api'
 import type { ChampIQManifest, NodeStatus } from '@/types'
 import { useJobPolling } from '@/hooks/useJobPolling'
 
-const STATUS_COLORS: Record<NodeStatus, string> = {
-  idle: 'bg-slate-500',
-  running: 'bg-blue-500 animate-pulse',
-  success: 'bg-green-500',
-  error: 'bg-red-500',
-}
-
-export function ToolNode(props: NodeProps) {
-  const { data } = props
-  const manifest = data.manifest as ChampIQManifest | undefined
-  const kind = (data.kind as string | undefined) ?? (data.toolId as string | undefined)
-
-  // Two modes:
-  //  - v1 manifest  -> full JSON-Schema form (legacy canvas flow)
-  //  - v2 / no manifest -> minimal card for orchestrator nodes. The inspector
-  //    panel is where config gets edited (future work).
-  if (!manifest || isV2(manifest)) {
-    return <SimpleNode {...props} />
-  }
-  return <LegacyFormNode {...props} manifest={manifest} kindHint={kind} />
-}
-
-// Maps built-in kinds to friendly colors and short labels for the node header.
-const KIND_META: Record<string, { label: string; color: string }> = {
-  'trigger.manual':  { label: 'Manual Trigger',  color: '#10b981' },
-  'trigger.webhook': { label: 'Webhook Trigger', color: '#10b981' },
-  'trigger.cron':    { label: 'Cron Schedule',   color: '#10b981' },
-  'trigger.event':   { label: 'Event Trigger',   color: '#10b981' },
-  'http':            { label: 'HTTP Request',     color: '#3b82f6' },
-  'set':             { label: 'Set / Map',        color: '#8b5cf6' },
-  'merge':           { label: 'Merge',            color: '#8b5cf6' },
-  'if':              { label: 'If / Branch',      color: '#f59e0b' },
-  'switch':          { label: 'Switch',           color: '#f59e0b' },
-  'loop':            { label: 'Loop',             color: '#f59e0b' },
-  'split':           { label: 'Split / A-B',      color: '#ec4899' },
-  'wait':            { label: 'Wait',             color: '#6b7280' },
-  'code':            { label: 'Code',             color: '#06b6d4' },
-  'llm':             { label: 'LLM',              color: '#a855f7' },
-  'champmail_reply': { label: 'Reply Classifier', color: '#ef4444' },
-  'champmail':       { label: 'Champmail',        color: '#f97316' },
-  'champgraph':      { label: 'ChampGraph',       color: '#14b8a6' },
-  'champvoice':      { label: 'ChampVoice',       color: '#a855f7' },
-  'lakeb2b_pulse':   { label: 'LakeB2B Pulse',   color: '#64748b' },
+// ── Kind metadata ──────────────────────────────────────────────────────────
+const KIND_META: Record<string, { label: string; color: string; icon: string }> = {
+  'trigger.manual':  { label: 'Manual Trigger',  color: '#10b981', icon: 'play_node' },
+  'trigger.webhook': { label: 'Webhook Trigger', color: '#10b981', icon: 'webhook' },
+  'trigger.cron':    { label: 'Cron Schedule',   color: '#10b981', icon: 'cron' },
+  'trigger.event':   { label: 'Event Trigger',   color: '#10b981', icon: 'bolt' },
+  'http':            { label: 'HTTP Request',     color: '#3b82f6', icon: 'webhook' },
+  'set':             { label: 'Set / Map',        color: '#8b5cf6', icon: 'set_node' },
+  'merge':           { label: 'Merge',            color: '#8b5cf6', icon: 'merge' },
+  'if':              { label: 'If / Branch',      color: '#f59e0b', icon: 'if_node' },
+  'switch':          { label: 'Switch',           color: '#f59e0b', icon: 'branch' },
+  'loop':            { label: 'Loop',             color: '#f59e0b', icon: 'loop' },
+  'split':           { label: 'Split / A-B',      color: '#ec4899', icon: 'branch' },
+  'wait':            { label: 'Wait',             color: '#6b7280', icon: 'timer' },
+  'code':            { label: 'Code',             color: '#06b6d4', icon: 'code' },
+  'llm':             { label: 'LLM',              color: '#a855f7', icon: 'sparkle' },
+  'champmail_reply': { label: 'Reply Classifier', color: '#ef4444', icon: 'mail' },
+  'champmail':       { label: 'ChampMail',        color: '#22C55E', icon: 'mail' },
+  'champgraph':      { label: 'ChampGraph',       color: '#3B82F6', icon: 'graph' },
+  'champvoice':      { label: 'ChampVoice',       color: '#a855f7', icon: 'voice' },
+  'lakeb2b_pulse':   { label: 'LakeB2B Pulse',   color: '#64748b', icon: 'db' },
 }
 
 function configSummary(config: Record<string, unknown>, kind: string): string | null {
   if (!config) return null
-  if (kind === 'if') return config.condition ? `if ${String(config.condition).slice(0, 30)}` : null
-  if (kind === 'loop') return config.items ? `loop: ${String(config.items).slice(0, 30)}` : null
+  if (kind === 'if') return config.condition ? `if ${String(config.condition).slice(0, 32)}` : null
+  if (kind === 'loop') return config.items ? `loop: ${String(config.items).slice(0, 32)}` : null
   if (kind === 'split') return `split into ${config.n ?? 2} branches`
   if (kind === 'wait') return config.seconds ? `wait ${config.seconds}s` : null
   if (kind.startsWith('trigger.cron')) return config.cron ? String(config.cron) : null
-  if (kind === 'champmail' || kind === 'champgraph' || kind === 'champvoice' || kind === 'lakeb2b_pulse') {
+  if (['champmail', 'champgraph', 'champvoice', 'lakeb2b_pulse'].includes(kind)) {
     return config.action ? `action: ${config.action}` : null
   }
   if (kind === 'http') return config.url ? String(config.url).slice(0, 35) : null
@@ -76,53 +54,120 @@ function configSummary(config: Record<string, unknown>, kind: string): string | 
   return null
 }
 
+const STATUS_DOT: Record<NodeStatus, { color: string; glow?: string; pulse?: boolean }> = {
+  idle:    { color: '#525C7A' },
+  running: { color: '#FFD23F', glow: '#FFD23F', pulse: true },
+  success: { color: '#4ADE80', glow: '#4ADE80' },
+  error:   { color: '#FF4D6D', glow: '#FF4D6D' },
+}
+
+export function ToolNode(props: NodeProps) {
+  const { data } = props
+  const manifest = data.manifest as ChampIQManifest | undefined
+  const kind = (data.kind as string | undefined) ?? (data.toolId as string | undefined)
+
+  if (!manifest || isV2(manifest)) {
+    return <SimpleNode {...props} />
+  }
+  return <LegacyFormNode {...props} manifest={manifest} kindHint={kind} />
+}
+
+// ── SimpleNode — ChampIQ-styled card ──────────────────────────────────────
 function SimpleNode({ id, data, selected }: NodeProps) {
   const manifest = data.manifest as ChampIQManifest | undefined
   const kind = (data.kind as string | undefined) ?? (data.toolId as string | undefined) ?? 'unknown'
   const kindMeta = KIND_META[kind]
+
+  const metaLabel = (data.label as string) ?? kindMeta?.label ?? kind
+  const metaColor = kindMeta?.color ?? '#6366F1'
+  const metaIcon = kindMeta?.icon ?? 'box'
+
   const meta = manifest
     ? getNodeMeta(manifest)
-    : {
-        label: (data.label as string) ?? kindMeta?.label ?? kind,
-        icon: 'box',
-        color: kindMeta?.color ?? '#6366F1',
-        accepts_input_from: [] as string[],
-      }
+    : { label: metaLabel, icon: metaIcon, color: metaColor, accepts_input_from: [] as string[] }
+
   const { nodeRuntimeStates, setSelectedNode } = useCanvasStore()
   const runtime = nodeRuntimeStates[id] ?? { status: 'idle' as NodeStatus }
   const IconComponent = resolveIcon(meta.icon)
   const config = (data.config as Record<string, unknown>) ?? {}
   const summary = configSummary(config, kind)
+  const statusDot = STATUS_DOT[runtime.status as NodeStatus] ?? STATUS_DOT.idle
 
-  // Split node gets multiple output handles
   const isSplit = kind === 'split'
   const splitN = isSplit ? Math.max(Number(config.n ?? 2), 2) : 0
   const isRootTrigger = kind.startsWith('trigger.')
 
+  const isSelected = selected
+  const color = meta.color
+
   return (
     <div
-      className={`group border rounded-lg w-56 text-sm select-none shadow-lg ${
-        selected ? 'border-slate-400' : 'border-slate-700'
-      }`}
+      onDoubleClick={() => setSelectedNode(id)}
       style={{
-        background: 'var(--bg-surface)',
-        borderTopColor: meta.color,
-        borderTopWidth: 3,
+        width: 210,
+        background: 'var(--bg-2)',
+        border: `1px solid ${isSelected ? color : 'var(--border-1)'}`,
+        borderRadius: 10,
+        overflow: 'hidden',
+        boxShadow: isSelected
+          ? `0 0 0 1px ${color}, 0 8px 30px rgba(0,0,0,.45), 0 0 20px -6px ${color}55`
+          : '0 4px 20px rgba(0,0,0,.35)',
+        transition: 'border-color .15s, box-shadow .15s',
+        cursor: 'default',
       }}
     >
+      {/* Color ribbon */}
+      <div style={{
+        height: 3,
+        background: `linear-gradient(90deg, ${color}, ${color}88)`,
+        flexShrink: 0,
+      }}/>
+
       {!isRootTrigger && (
-        <Handle type="target" position={Position.Left} className="!bg-slate-500 !w-3 !h-3 !border-slate-400" />
+        <Handle
+          type="target"
+          position={Position.Left}
+          style={{
+            width: 10, height: 10, borderRadius: 3,
+            background: 'var(--bg-3)',
+            border: `2px solid ${color}66`,
+            transition: 'border-color .12s',
+          }}
+        />
       )}
-      <div className="flex items-center justify-between px-3 py-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <span style={{ color: meta.color }}><IconComponent size={14} /></span>
-          <span className="font-semibold text-sm truncate" style={{ color: 'var(--text-1)' }}>{meta.label}</span>
+
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px 8px' }}>
+        <div style={{
+          width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+          background: `color-mix(in srgb, ${color} 15%, var(--bg-3))`,
+          border: `1px solid ${color}35`,
+          display: 'grid', placeItems: 'center',
+          color,
+        }}>
+          <IconComponent size={15} />
         </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          <span
-            className={`w-2.5 h-2.5 rounded-full ${STATUS_COLORS[runtime.status as NodeStatus] ?? STATUS_COLORS.idle}`}
-            aria-label={`Status: ${runtime.status ?? 'idle'}`}
-          />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{
+            fontFamily: 'var(--font-mono)', fontSize: 8.5, letterSpacing: '.14em',
+            textTransform: 'uppercase', color, opacity: .9, marginBottom: 2,
+          }}>
+            {kindMeta?.label || kind}
+          </div>
+          <div style={{
+            fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 13,
+            color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            {meta.label}
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          <div style={{
+            width: 7, height: 7, borderRadius: '50%',
+            background: statusDot.color,
+            boxShadow: statusDot.glow ? `0 0 6px ${statusDot.glow}` : 'none',
+            animation: statusDot.pulse ? 'glow-pulse 1s ease-in-out infinite' : 'none',
+          }}/>
           <button
             onClick={(e) => {
               e.stopPropagation()
@@ -131,32 +176,44 @@ function SimpleNode({ id, data, selected }: NodeProps) {
                 edges: s.edges.filter((edge) => edge.source !== id && edge.target !== id),
               }))
             }}
-            className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:text-red-400 transition-opacity"
-            style={{ color: 'var(--text-3)' }}
-            aria-label="Delete node"
+            style={{
+              width: 18, height: 18, display: 'grid', placeItems: 'center',
+              background: 'transparent', border: 'none', color: 'var(--text-4)',
+              cursor: 'pointer', borderRadius: 4, opacity: 0,
+              transition: 'opacity .15s',
+            }}
+            className="node-delete-btn"
           >
-            <X size={12} />
+            <X size={11} />
           </button>
         </div>
       </div>
 
+      {/* Summary */}
       {summary && (
-        <div className="px-3 pb-1">
-          <span className="text-xs truncate block" style={{ color: 'var(--text-3)' }}>{summary}</span>
+        <div style={{
+          margin: '0 12px 8px',
+          padding: '4px 8px', borderRadius: 5,
+          background: 'var(--bg-3)',
+          fontFamily: 'var(--font-mono)', fontSize: 10.5, color: 'var(--text-3)',
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
+          {summary}
         </div>
       )}
 
-      <div className="px-3 pb-2">
-        <button
-          className="text-xs px-2 py-0.5 rounded hover:opacity-80 transition-opacity"
-          onClick={(e) => { e.stopPropagation(); setSelectedNode(id) }}
-          style={{ background: meta.color + '22', color: meta.color, border: `1px solid ${meta.color}44` }}
-        >
-          Configure
-        </button>
-      </div>
+      {/* Runtime error */}
+      {runtime.status === 'error' && runtime.error && (
+        <div style={{
+          margin: '0 12px 8px', padding: '4px 8px', borderRadius: 5,
+          background: 'rgba(255,77,109,.1)', border: '1px solid rgba(255,77,109,.2)',
+          fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--danger)',
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
+          {runtime.error}
+        </div>
+      )}
 
-      {/* Split: render N named output handles */}
       {isSplit
         ? Array.from({ length: splitN }, (_, i) => (
             <Handle
@@ -164,21 +221,26 @@ function SimpleNode({ id, data, selected }: NodeProps) {
               id={`branch_${i}`}
               type="source"
               position={Position.Right}
-              style={{ top: `${20 + (i * 60 / (splitN - 1 || 1))}%`, background: '#ec4899' }}
-              className="!w-3 !h-3 !border-pink-400"
+              style={{ top: `${20 + (i * 60 / (splitN - 1 || 1))}%`, background: '#ec4899', width: 9, height: 9 }}
             />
           ))
-        : <Handle type="source" position={Position.Right} className="!bg-slate-500 !w-3 !h-3 !border-slate-400" />
+        : <Handle
+            type="source"
+            position={Position.Right}
+            style={{
+              width: 10, height: 10, borderRadius: 3,
+              background: 'var(--bg-3)',
+              border: `2px solid ${color}66`,
+            }}
+          />
       }
     </div>
   )
 }
 
+// ── LegacyFormNode — v1 manifest with RJSF form ───────────────────────────
 function LegacyFormNode({
-  id,
-  data,
-  selected,
-  manifest,
+  id, data, selected, manifest,
 }: NodeProps & { manifest: ChampIQManifest; kindHint?: string }) {
   const meta = getNodeMeta(manifest)
   const action = getRestAction(manifest)
@@ -195,6 +257,8 @@ function LegacyFormNode({
   )
 
   const IconComponent = resolveIcon(meta.icon)
+  const statusDot = STATUS_DOT[runtime.status as NodeStatus] ?? STATUS_DOT.idle
+  const color = meta.color
 
   useEffect(() => {
     const toolId = getToolId(manifest)
@@ -240,7 +304,7 @@ function LegacyFormNode({
     const toolId = getToolId(manifest)
     const actionPath = action.endpoint.split('/').pop()!
     setNodeRuntime(id, { status: 'running' })
-    addLog({ nodeId: id, nodeName: meta.label, status: 'running', message: `${meta.label} started: ${action.button_label}` })
+    addLog({ nodeId: id, nodeName: meta.label, status: 'running', message: `${meta.label}: ${action.button_label}` })
     try {
       const inputPayload = runtime.inputPayload ?? {}
       const result = await api.runAction(toolId, actionPath, { ...inputPayload, config: formData })
@@ -260,26 +324,48 @@ function LegacyFormNode({
 
   return (
     <div
-      className={`group bg-[#1a1d27] border rounded-lg w-64 text-sm select-none shadow-lg ${
-        selected ? 'border-slate-400' : 'border-slate-700'
-      }`}
-      style={{ borderTopColor: meta.color, borderTopWidth: 3 }}
+      style={{
+        width: 240,
+        background: 'var(--bg-2)',
+        border: `1px solid ${selected ? color : 'var(--border-1)'}`,
+        borderRadius: 10,
+        overflow: 'hidden',
+        boxShadow: selected
+          ? `0 0 0 1px ${color}, 0 8px 30px rgba(0,0,0,.45), 0 0 20px -6px ${color}55`
+          : '0 4px 20px rgba(0,0,0,.35)',
+        transition: 'border-color .15s, box-shadow .15s',
+      }}
     >
+      <div style={{ height: 3, background: `linear-gradient(90deg, ${color}, ${color}88)` }}/>
+
       {meta.accepts_input_from.length > 0 && (
-        <Handle type="target" position={Position.Left} className="!bg-slate-500 !w-3 !h-3 !border-slate-400" />
+        <Handle type="target" position={Position.Left} style={{ width: 10, height: 10, background: 'var(--bg-3)', border: `2px solid ${color}66` }}/>
       )}
 
+      {/* Header */}
       <div
-        className="flex items-center justify-between px-3 py-2 cursor-pointer"
         onClick={() => setCollapsed((c) => !c)}
-        role="button" tabIndex={0}
+        style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', cursor: 'pointer' }}
       >
-        <div className="flex items-center gap-2">
-          <span style={{ color: meta.color }}><IconComponent size={14} /></span>
-          <span className="text-white font-semibold text-sm">{meta.label}</span>
+        <div style={{
+          width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+          background: `color-mix(in srgb, ${color} 15%, var(--bg-3))`,
+          border: `1px solid ${color}35`,
+          display: 'grid', placeItems: 'center', color,
+        }}>
+          <IconComponent size={15} />
         </div>
-        <div className="flex items-center gap-1.5">
-          <span className={`w-2.5 h-2.5 rounded-full ${STATUS_COLORS[runtime.status as NodeStatus] ?? STATUS_COLORS.idle}`} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 8.5, letterSpacing: '.14em', textTransform: 'uppercase', color, opacity: .9, marginBottom: 2 }}>
+            {meta.label}
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+          <div style={{
+            width: 7, height: 7, borderRadius: '50%', background: statusDot.color,
+            boxShadow: statusDot.glow ? `0 0 6px ${statusDot.glow}` : 'none',
+            animation: statusDot.pulse ? 'glow-pulse 1s ease-in-out infinite' : 'none',
+          }}/>
           <button
             onClick={(e) => {
               e.stopPropagation()
@@ -288,16 +374,15 @@ function LegacyFormNode({
                 edges: s.edges.filter((edge) => edge.source !== id && edge.target !== id),
               }))
             }}
-            className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:text-red-400 transition-opacity"
-            style={{ color: 'var(--text-3)' }}
+            style={{ width: 18, height: 18, display: 'grid', placeItems: 'center', background: 'transparent', border: 'none', color: 'var(--text-4)', cursor: 'pointer', borderRadius: 4 }}
           >
-            <X size={12} />
+            <X size={11} />
           </button>
         </div>
       </div>
 
       {!collapsed && configSchema && (
-        <div className="px-3 pb-3 space-y-2">
+        <div style={{ padding: '0 12px 12px' }}>
           <div className="node-form">
             <Form
               schema={configSchema as never}
@@ -310,31 +395,43 @@ function LegacyFormNode({
               }}
               onSubmit={() => handleAction()}
             >
-              <button type="submit" className="hidden" aria-hidden="true" />
+              <button type="submit" style={{ display: 'none' }} />
             </Form>
           </div>
           {action && (
             <button
               onClick={handleAction}
               disabled={runtime.status === 'running'}
-              className="w-full py-1.5 rounded text-white text-sm font-medium disabled:opacity-50 transition-colors"
-              style={{ backgroundColor: meta.color }}
+              style={{
+                width: '100%', padding: '6px 0', borderRadius: 7,
+                background: color, color: '#fff', border: 'none',
+                fontFamily: 'var(--font-display)', fontSize: 12, fontWeight: 600,
+                cursor: runtime.status === 'running' ? 'not-allowed' : 'pointer',
+                opacity: runtime.status === 'running' ? 0.6 : 1,
+              }}
             >
-              {runtime.status === 'running' ? 'Running...' : action.button_label}
+              {runtime.status === 'running' ? 'Running…' : action.button_label}
             </button>
           )}
           {preview && (
-            <pre className="text-xs text-slate-300 bg-slate-900 rounded p-2 overflow-x-auto max-h-20 whitespace-pre-wrap">
+            <pre style={{
+              marginTop: 8, padding: '6px 8px', borderRadius: 6,
+              background: 'var(--bg-3)', fontFamily: 'var(--font-mono)', fontSize: 10,
+              color: 'var(--text-3)', overflowX: 'auto', maxHeight: 80, whiteSpace: 'pre-wrap',
+            }}>
               {preview}
             </pre>
           )}
-          <button className="text-xs text-slate-400 hover:text-white underline" onClick={() => setSelectedNode(id)}>
+          <button
+            style={{ marginTop: 6, fontSize: 11, color: 'var(--accent-2)', background: 'transparent', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
+            onClick={() => setSelectedNode(id)}
+          >
             Inspect output
           </button>
         </div>
       )}
 
-      <Handle type="source" position={Position.Right} className="!bg-slate-500 !w-3 !h-3 !border-slate-400" />
+      <Handle type="source" position={Position.Right} style={{ width: 10, height: 10, background: 'var(--bg-3)', border: `2px solid ${color}66` }}/>
     </div>
   )
 }

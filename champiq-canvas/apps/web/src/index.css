@@ -1,60 +1,206 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* ─── Theme tokens ──────────────────────────────────────────────────────────
-   Light defaults; .dark overrides flip every surface.
-   All components reference these variables — change colours in one place here.
+/* ─── ChampIQ Design Tokens ─────────────────────────────────────────────────
+   Dark mode is the default. All components reference these CSS variables.
    ─────────────────────────────────────────────────────────────────────────── */
 :root {
-  --bg-base:    #f8fafc;   /* page / canvas background  */
-  --bg-surface: #ffffff;   /* node, panel, card         */
-  --bg-sidebar: #f1f5f9;   /* sidebar, topbar           */
-  --border:     #e2e8f0;
-  --text-1:     #0f172a;   /* primary                   */
-  --text-2:     #475569;   /* secondary / labels        */
-  --text-3:     #94a3b8;   /* muted / timestamps        */
+  /* Surfaces */
+  --bg-0: #070912;
+  --bg-1: #0E1320;
+  --bg-2: #151B2C;
+  --bg-3: #1D2438;
+  --bg-4: #2A3350;
+
+  /* Text */
+  --text-1: #F5F7FF;
+  --text-2: #B6BFD8;
+  --text-3: #7B86A6;
+  --text-4: #525C7A;
+
+  /* Brand accent (violet default) */
+  --accent-1: #A589FF;
+  --accent-2: #7C5CFF;
+  --accent-3: #5634E0;
+  --accent-2-rgb: 124,92,255;
+
+  /* AI / Pixie */
+  --mint-1: #6FFFE2;
+  --mint-2: #00E5C7;
+  --mint-2-rgb: 0,229,199;
+
+  /* Status */
+  --warn: #FFD23F;
+  --danger: #FF4D6D;
+  --success: #4ADE80;
+  --info: #5BC0FF;
+
+  /* Lines */
+  --border-1: #232C45;
+  --border-2: #2C375A;
+
+  /* Typography */
+  --font-display: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --font-body: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+  --font-pixel: 'Press Start 2P', 'JetBrains Mono', monospace;
+
+  /* Density — comfortable default */
+  --row-h: 44px;
+  --pad-1: 14px;
+  --pad-2: 18px;
+  --pad-3: 24px;
+
+  /* Motion easings */
+  --ease-swift: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-linger: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Legacy aliases — existing hooks/components reference these */
+  --bg-base:    var(--bg-0);
+  --bg-surface: var(--bg-1);
+  --bg-sidebar: var(--bg-2);
+  --border:     var(--border-1);
 }
 
-.dark {
-  --bg-base:    #0f1117;
-  --bg-surface: #1a1d27;
-  --bg-sidebar: #1a1d27;
-  --border:     #334155;
-  --text-1:     #f1f5f9;
-  --text-2:     #cbd5e1;
-  --text-3:     #64748b;
+/* Accent presets — applied via [data-accent="x"] on the root div */
+[data-accent="violet"] {
+  --accent-1: #A589FF; --accent-2: #7C5CFF; --accent-3: #5634E0;
+  --accent-2-rgb: 124,92,255;
+}
+[data-accent="mint"] {
+  --accent-1: #6FFFE2; --accent-2: #00E5C7; --accent-3: #00A38E;
+  --accent-2-rgb: 0,229,199;
+}
+[data-accent="coral"] {
+  --accent-1: #FFB199; --accent-2: #FF7A59; --accent-3: #C84B2D;
+  --accent-2-rgb: 255,122,89;
+}
+[data-accent="sun"] {
+  --accent-1: #FFE08A; --accent-2: #FFC23F; --accent-3: #C8881C;
+  --accent-2-rgb: 255,194,63;
+}
+[data-accent="sky"] {
+  --accent-1: #8FD8FF; --accent-2: #5BC0FF; --accent-3: #2A82C2;
+  --accent-2-rgb: 91,192,255;
 }
 
-body {
-  background-color: var(--bg-base);
+/* Density */
+[data-density="compact"]     { --row-h: 28px; --pad-1: 6px;  --pad-2: 10px; --pad-3: 14px; }
+[data-density="cozy"]        { --row-h: 36px; --pad-1: 10px; --pad-2: 14px; --pad-3: 20px; }
+[data-density="comfortable"] { --row-h: 44px; --pad-1: 14px; --pad-2: 18px; --pad-3: 24px; }
+
+* { box-sizing: border-box; }
+html, body {
+  background: var(--bg-0);
   color: var(--text-1);
+  font-family: var(--font-body);
   font-size: 14px;
-  font-family: 'Inter', system-ui, sans-serif;
+  line-height: 1.55;
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* ─── React Flow overrides ──────────────────────────────────────────────── */
-.react-flow__background { background-color: var(--bg-base) !important; }
-.react-flow__minimap    { background: var(--bg-surface) !important; }
+/* ─── React Flow overrides ───────────────────────────────────────────────── */
+.react-flow__background    { background-color: var(--bg-0) !important; }
+.react-flow__minimap       { background: var(--bg-1) !important; }
+.react-flow__controls      { background: var(--bg-1) !important; border-color: var(--border-1) !important; }
+.react-flow__controls button {
+  background: var(--bg-2) !important;
+  border-color: var(--border-1) !important;
+  color: var(--text-2) !important;
+  fill: var(--text-2) !important;
+}
+.react-flow__controls button:hover { background: var(--bg-3) !important; }
+.react-flow__edge-path { stroke: var(--border-2) !important; }
+.react-flow__edge.selected .react-flow__edge-path,
+.react-flow__edge:hover   .react-flow__edge-path {
+  stroke: var(--accent-2) !important;
+}
 
-/* ─── RJSF form inputs inside ToolNode ─────────────────────────────────────
-   Fixes the white-text-on-white-box problem in dark mode.
-   ─────────────────────────────────────────────────────────────────────────── */
+/* ─── RJSF form inputs inside ToolNode ──────────────────────────────────── */
 .node-form input,
 .node-form select,
 .node-form textarea {
-  background: var(--bg-sidebar) !important;
+  background: var(--bg-2) !important;
   color: var(--text-1) !important;
-  border: 1px solid var(--border) !important;
+  border: 1px solid var(--border-1) !important;
   border-radius: 4px;
   padding: 3px 8px;
   font-size: 12px;
   width: 100%;
   box-sizing: border-box;
 }
-.node-form label        { color: var(--text-2) !important; font-size: 11px; }
-.node-form .text-danger { color: #ef4444 !important; font-size: 11px; }
+.node-form label        { color: var(--text-3) !important; font-size: 11px; }
+.node-form .text-danger { color: var(--danger) !important; font-size: 11px; }
 .node-form fieldset     { border: none; padding: 0; margin: 0; }
+
+/* ─── Scrollbars ─────────────────────────────────────────────────────────── */
+::-webkit-scrollbar       { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--bg-3); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--bg-4); }
+
+/* ─── Focus ring ─────────────────────────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--accent-2);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ─── Pixie ──────────────────────────────────────────────────────────────── */
+.pixie-sprite { image-rendering: pixelated; image-rendering: crisp-edges; }
+
+/* ─── Keyframes ──────────────────────────────────────────────────────────── */
+@keyframes pixie-float   { 0%,100% { transform: translateY(0); }    50% { transform: translateY(-4px); } }
+@keyframes pixie-breathe { 0%,100% { transform: scale(1); }         50% { transform: scale(1.015); } }
+@keyframes pixie-lean    { 0%,100% { transform: rotate(-4deg); }    50% { transform: rotate(-8deg); } }
+@keyframes pixie-think   { 0%,100% { transform: rotate(-1deg) translateY(0); } 50% { transform: rotate(1deg) translateY(-2px); } }
+@keyframes pixie-cheer   { 0%,100% { transform: translateY(0) rotate(-2deg); } 25% { transform: translateY(-6px) rotate(2deg); } 50% { transform: translateY(-3px) rotate(-2deg); } 75% { transform: translateY(-7px) rotate(3deg); } }
+@keyframes pixie-carry   { 0%,100% { transform: translateY(-1px); } 50% { transform: translateY(-4px); } }
+@keyframes pixie-read    { 0%,100% { transform: rotate(-2deg); }    50% { transform: rotate(-3.5deg); } }
+@keyframes pixie-sleep   { 0%,100% { transform: rotate(7deg) translateY(0); } 50% { transform: rotate(9deg) translateY(2px); } }
+@keyframes wing-flap     { 0%,100% { transform: scaleX(1); }        50% { transform: scaleX(1.06); } }
+@keyframes antenna-spark { 0%,100% { opacity: .35; transform: scale(1); } 50% { opacity: 1; transform: scale(1.15); } }
+@keyframes confetti-pop  { 0% { transform: translateY(0) scale(.6); opacity: 0; } 30% { opacity: 1; } 100% { transform: translateY(-22px) scale(1); opacity: 0; } }
+@keyframes zee-rise      { 0% { transform: translate(0,0) scale(.7); opacity: 0; } 30% { opacity: 1; } 100% { transform: translate(8px,-14px) scale(1); opacity: 0; } }
+@keyframes glow-pulse    { 0%,100% { opacity: .35; } 50% { opacity: 1; } }
+@keyframes node-pulse    { 0%,100% { box-shadow: 0 0 0 0 rgba(255,210,63,.55); } 50% { box-shadow: 0 0 0 8px rgba(255,210,63,0); } }
+@keyframes bubble-in     { 0% { opacity: 0; transform: scale(.6) translateY(6px); } 100% { opacity: 1; transform: scale(1) translateY(0); } }
+@keyframes trail-fade    { 0% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes log-tick      { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+@keyframes dash-flow     { to { stroke-dashoffset: -16; } }
+@keyframes slide-in-right{ 0% { transform: translateX(100%); opacity: 0; } 100% { transform: translateX(0); opacity: 1; } }
+@keyframes fade-in       { 0% { opacity: 0; } 100% { opacity: 1; } }
+@keyframes ribbon-shimmer{ 0% { background-position: 0% 0; } 100% { background-position: 200% 0; } }
+@keyframes spin          { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+/* ─── Utility classes ────────────────────────────────────────────────────── */
+.champiq-card {
+  background: var(--bg-1);
+  border: 1px solid var(--border-1);
+  border-radius: 10px;
+}
+.champiq-glow-accent { box-shadow: 0 0 24px -4px rgba(var(--accent-2-rgb), .55); }
+.champiq-glow-mint   { box-shadow: 0 0 24px -4px rgba(var(--mint-2-rgb), .45); }
+.champiq-bg-grid {
+  background-image: radial-gradient(circle at 1px 1px, rgba(124,92,255,.06) 1px, transparent 0);
+  background-size: 24px 24px;
+}
+.ciq-spin { animation: spin 1s linear infinite; }
+.ciq-slide-in { animation: slide-in-right 220ms var(--ease-linger) both; }
+.ciq-fade-in  { animation: fade-in 180ms ease both; }
+
+/* Type tokens */
+.t-display-md { font-family: var(--font-display); font-size: 22px; line-height: 1.2; letter-spacing: -.015em; font-weight: 600; }
+.t-display-sm { font-family: var(--font-display); font-size: 17px; line-height: 1.3; letter-spacing: -.005em; font-weight: 600; }
+.t-label      { font-family: var(--font-display); font-size: 11px; letter-spacing: .12em; font-weight: 600; text-transform: uppercase; }
+.t-mono-sm    { font-family: var(--font-mono); font-size: 10px; line-height: 1.5; letter-spacing: .14em; text-transform: uppercase; }
+.t-pixel      { font-family: var(--font-pixel); font-size: 9px; line-height: 1.6; letter-spacing: .04em; }

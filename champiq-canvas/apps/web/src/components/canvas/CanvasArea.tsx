@@ -7,9 +7,7 @@ import {
   MiniMap,
   addEdge,
   type Connection,
-  type Node,
 } from '@xyflow/react'
-import { useTheme } from '@/hooks/useTheme'
 import '@xyflow/react/dist/style.css'
 import { useCanvasStore } from '@/store/canvasStore'
 import { ToolNode } from './ToolNode'
@@ -20,23 +18,25 @@ import type { ChampIQManifest } from '@/types'
 const nodeTypes = { toolNode: ToolNode }
 const edgeTypes = { customEdge: CustomEdge }
 
-function WrapNode({ data, ...props }: { data: Record<string, unknown> } & Node) {
-  return <ToolNode data={data} {...props} />
-}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const WrapNode = (props: any) => <ToolNode {...props} type={props.type ?? 'toolNode'} />
 
-const fallbackNodeTypes: Record<string, React.ComponentType<{ data: Record<string, unknown> } & Node>> = {
+const fallbackNodeTypes: Record<string, React.ComponentType<unknown>> = {
   triggerNode: WrapNode,
   builtinNode: WrapNode,
   default: WrapNode,
 }
 
-export function CanvasArea() {
+interface CanvasAreaProps {
+  onNodeOpen?: (nodeId: string) => void
+}
+
+export function CanvasArea({ onNodeOpen }: CanvasAreaProps) {
   const {
     nodes, edges, manifests,
     onNodesChange, onEdgesChange, setEdges,
     setSelectedNode, addLog,
   } = useCanvasStore()
-  const { dark } = useTheme()
 
   const reactFlowWrapper = useRef<HTMLDivElement>(null)
 
@@ -49,7 +49,6 @@ export function CanvasArea() {
       const sourceManifest = sourceNode.data.manifest as ChampIQManifest | undefined
       const targetManifest = targetNode.data.manifest as ChampIQManifest | undefined
 
-      // v2 / system nodes have no manifest on the node data — always allow connection
       if (sourceManifest && targetManifest) {
         const sourceToolId = getToolId(sourceManifest)
         if (!isEdgeCompatible(sourceToolId, targetManifest)) {
@@ -73,8 +72,6 @@ export function CanvasArea() {
   const onDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault()
-      // dragId is either a node kind (e.g. "trigger.manual", "if", "set")
-      // or a tool_id (e.g. "champmail", "champgraph")
       const dragId = e.dataTransfer.getData('application/champiq-tool')
       if (!dragId) return
 
@@ -86,8 +83,6 @@ export function CanvasArea() {
         y: e.clientY - bounds.top - 40,
       }
 
-      // Find matching manifest: for tool nodes match on tool_id,
-      // for system node kinds find the parent manifest that contains this kind
       const toolManifest = manifests.find((m) => getToolId(m) === dragId)
       const isNodeKind = !toolManifest
 
@@ -111,7 +106,7 @@ export function CanvasArea() {
   }
 
   return (
-    <div ref={reactFlowWrapper} className="flex-1 h-full">
+    <div ref={reactFlowWrapper} style={{ flex: 1, height: '100%', position: 'relative' }}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -123,19 +118,35 @@ export function CanvasArea() {
         onDrop={onDrop}
         onDragOver={onDragOver}
         onNodeClick={(_, node) => setSelectedNode(node.id)}
+        onNodeDoubleClick={(_, node) => onNodeOpen?.(node.id)}
         onPaneClick={() => setSelectedNode(null)}
-        colorMode={dark ? 'dark' : 'light'}
+        colorMode="dark"
         fitView
         proOptions={{ hideAttribution: true }}
       >
-        <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#2a2d3a" />
-        <Controls className="bg-slate-800 border border-slate-700" />
+        <Background
+          variant={BackgroundVariant.Dots}
+          gap={24}
+          size={1}
+          color="rgba(124,92,255,0.12)"
+        />
+        <Controls />
         <MiniMap
           nodeColor={(n) => {
             const m = n.data?.manifest as ChampIQManifest | undefined
-            return m ? getNodeMeta(m).color : '#666'
+            if (m) return getNodeMeta(m).color
+            const kind = (n.data?.kind as string) || ''
+            const colorMap: Record<string, string> = {
+              champmail: '#22C55E', champgraph: '#3B82F6', champvoice: '#A855F7',
+              loop: '#F59E0B', if: '#EF4444', trigger: '#10B981',
+            }
+            for (const [k, c] of Object.entries(colorMap)) {
+              if (kind.includes(k)) return c
+            }
+            return '#525C7A'
           }}
-          maskColor="rgba(15,17,23,0.8)"
+          maskColor="rgba(7,9,18,0.85)"
+          style={{ background: 'var(--bg-1)', border: '1px solid var(--border-1)' }}
         />
       </ReactFlow>
     </div>

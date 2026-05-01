@@ -1,13 +1,9 @@
 import { useState } from 'react'
 import { useCanvasStore } from '@/store/canvasStore'
 import { api } from '@/lib/api'
-import { useTheme } from '@/hooks/useTheme'
 import { getToolId } from '@/lib/manifest'
 import { saveCurrentCanvas } from '@/hooks/usePersistence'
-import { Button } from '@/components/ui/button'
-import { Save, Play, ZoomIn, ZoomOut, Moon, Sun, Check, Loader2, CalendarClock, Power, Settings } from '@/lib/icons'
-import { useViewStore } from '@/store/viewStore'
-import { useReactFlow } from '@xyflow/react'
+import { Save, Play, Check, CalendarClock, Power } from 'lucide-react'
 import type { Node } from '@xyflow/react'
 
 function extractCronTriggers(nodes: Node[]): Record<string, unknown>[] {
@@ -21,8 +17,6 @@ function extractCronTriggers(nodes: Node[]): Record<string, unknown>[] {
 
 export function TopBar() {
   const { canvasName, nodes, edges, toolHealthStatus, manifests, setCanvasName, setNodeRuntime, addLog } = useCanvasStore()
-  const { zoomIn, zoomOut } = useReactFlow()
-  const { dark, toggle } = useTheme()
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [running, setRunning] = useState(false)
@@ -47,26 +41,13 @@ export function TopBar() {
   async function handleRunAll() {
     if (running || nodes.length === 0) return
     setRunning(true)
-
-    // Mark all nodes as running
     for (const n of nodes) setNodeRuntime(n.id, { status: 'running', error: undefined })
-
     addLog({ nodeId: 'run', nodeName: 'Run All', status: 'running', message: `Starting execution of ${nodes.length} nodes…` })
-
     try {
       const { execution_id } = await api.runAdHoc(nodes, edges)
-
-      // Poll until finished
       const poll = async () => {
         const exec = await api.getExecution(execution_id) as Record<string, unknown>
-        const status = exec.status as string
-
-        if (status === 'running') {
-          setTimeout(poll, 1000)
-          return
-        }
-
-        // Fetch per-node results and update status indicators
+        if (exec.status === 'running') { setTimeout(poll, 1000); return }
         const nodeRuns = await api.getNodeRuns(execution_id) as Array<Record<string, unknown>>
         for (const run of nodeRuns) {
           setNodeRuntime(run.node_id as string, {
@@ -75,25 +56,17 @@ export function TopBar() {
             error: run.error as string | undefined,
           })
         }
-
-        // Mark any nodes not in nodeRuns (didn't execute) as idle
         const ranIds = new Set(nodeRuns.map((r) => r.node_id as string))
-        for (const n of nodes) {
-          if (!ranIds.has(n.id)) setNodeRuntime(n.id, { status: 'idle' })
-        }
-
-        const finalStatus = status === 'success' ? 'success' : 'error'
+        for (const n of nodes) if (!ranIds.has(n.id)) setNodeRuntime(n.id, { status: 'idle' })
         addLog({
-          nodeId: 'run',
-          nodeName: 'Run All',
-          status: finalStatus,
-          message: status === 'success'
+          nodeId: 'run', nodeName: 'Run All',
+          status: exec.status === 'success' ? 'success' : 'error',
+          message: exec.status === 'success'
             ? `Execution complete — ${nodeRuns.length} nodes ran`
             : `Execution failed: ${(exec.error as string) ?? 'unknown error'}`,
         })
         setRunning(false)
       }
-
       setTimeout(poll, 800)
     } catch (e) {
       for (const n of nodes) setNodeRuntime(n.id, { status: 'idle' })
@@ -105,17 +78,10 @@ export function TopBar() {
   async function handleActivate() {
     if (activating || nodes.length === 0) return
     setActivating(true)
-    addLog({ nodeId: 'activate', nodeName: 'Activate', status: 'running', message: 'Registering workflow as scheduled…' })
+    addLog({ nodeId: 'activate', nodeName: 'Activate', status: 'running', message: 'Registering workflow…' })
     try {
       const triggers = extractCronTriggers(nodes)
-      const body = {
-        name: canvasName,
-        description: `Activated from canvas: ${canvasName}`,
-        active: true,
-        nodes,
-        edges,
-        triggers,
-      }
+      const body = { name: canvasName, description: `From canvas: ${canvasName}`, active: true, nodes, edges, triggers }
       let wf: Record<string, unknown>
       if (activeWorkflowId) {
         wf = await api.updateWorkflow(activeWorkflowId, body) as Record<string, unknown>
@@ -123,14 +89,11 @@ export function TopBar() {
         wf = await api.createWorkflow(body) as Record<string, unknown>
         setActiveWorkflowId(wf.id as number)
       }
-      const hasCron = triggers.length > 0
       addLog({
-        nodeId: 'activate',
-        nodeName: 'Activate',
-        status: 'success',
-        message: hasCron
+        nodeId: 'activate', nodeName: 'Activate', status: 'success',
+        message: triggers.length > 0
           ? `Workflow #${wf.id as number} active — ${triggers.length} cron schedule(s) registered`
-          : `Workflow #${wf.id as number} active (no cron triggers — use Run All to fire manually)`,
+          : `Workflow #${wf.id as number} active`,
       })
     } catch (e) {
       addLog({ nodeId: 'activate', nodeName: 'Activate', status: 'error', message: String(e) })
@@ -140,97 +103,141 @@ export function TopBar() {
   }
 
   return (
-    <div
-      className="flex items-center justify-between h-12 px-4 border-b shrink-0"
-      style={{ background: 'var(--bg-sidebar)', borderColor: 'var(--border)' }}
-    >
+    <div style={{
+      height: 48,
+      flexShrink: 0,
+      background: 'var(--bg-1)',
+      borderBottom: '1px solid var(--border-1)',
+      display: 'flex',
+      alignItems: 'center',
+      padding: '0 14px',
+      gap: 12,
+    }}>
+      {/* Canvas name */}
       <input
-        className="bg-transparent text-sm font-semibold focus:outline-none w-48 min-w-0"
-        style={{ color: 'var(--text-1)' }}
         value={canvasName}
         onChange={(e) => setCanvasName(e.target.value)}
         aria-label="Canvas name"
+        style={{
+          background: 'transparent',
+          border: 'none',
+          outline: 'none',
+          fontFamily: 'var(--font-display)',
+          fontSize: 14,
+          fontWeight: 600,
+          color: 'var(--text-1)',
+          width: 200,
+          minWidth: 0,
+        }}
       />
 
       {/* Tool health dots */}
-      <div className="flex items-center gap-2">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         {manifests.map((m) => {
           const toolId = getToolId(m)
           if (!toolId) return null
           const status = toolHealthStatus[toolId] ?? 'unknown'
-          const color =
-            status === 'ok' ? 'bg-green-500' :
-            status === 'error' ? 'bg-red-500' : 'bg-slate-500'
+          const color = status === 'ok' ? 'var(--success)' : status === 'error' ? 'var(--danger)' : 'var(--text-4)'
           return (
-            <span
+            <div
               key={toolId}
-              className={`inline-block w-2.5 h-2.5 rounded-full ${color}`}
               title={`${toolId}: ${status}`}
-              aria-label={`${toolId} health: ${status}`}
+              style={{
+                width: 7, height: 7, borderRadius: '50%', background: color,
+                boxShadow: status === 'ok' ? `0 0 6px ${color}` : 'none',
+              }}
             />
           )
         })}
       </div>
 
-      <div className="flex items-center gap-1">
-        <Button variant="ghost" size="icon" onClick={() => zoomOut()} aria-label="Zoom out"
-          style={{ color: 'var(--text-2)' }}>
-          <ZoomOut size={16} />
-        </Button>
-        <Button variant="ghost" size="icon" onClick={() => zoomIn()} aria-label="Zoom in"
-          style={{ color: 'var(--text-2)' }}>
-          <ZoomIn size={16} />
-        </Button>
-        <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle theme"
-          style={{ color: 'var(--text-2)' }}>
-          {dark ? <Sun size={16} /> : <Moon size={16} />}
-        </Button>
-        <Button
-          variant="ghost" size="sm"
-          onClick={() => useViewStore.getState().setView('settings')}
-          aria-label="Open settings"
-          title="Open settings"
-          style={{ color: 'var(--text-2)' }}
-        >
-          <Settings size={14} className="mr-1" /> Settings
-        </Button>
-        <Button
-          variant="ghost" size="sm"
+      <div style={{ flex: 1 }} />
+
+      {/* Actions */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        {/* Run All */}
+        <TopBtn
           onClick={handleRunAll}
           disabled={running || nodes.length === 0}
-          aria-label="Run all nodes"
-          style={{ color: running ? '#60a5fa' : 'var(--text-2)' }}
+          variant={running ? 'accent' : 'ghost'}
+          title="Run all nodes"
         >
           {running
-            ? <><Loader2 size={14} className="mr-1 animate-spin" /> Running…</>
-            : <><Play size={14} className="mr-1" /> Run All</>}
-        </Button>
-        <Button
-          variant="ghost" size="sm"
+            ? <><Loader size/> Running…</>
+            : <><Play size={13} /> Run All</>
+          }
+        </TopBtn>
+
+        {/* Activate */}
+        <TopBtn
           onClick={handleActivate}
           disabled={activating || nodes.length === 0}
-          aria-label="Activate as scheduled workflow"
-          title={activeWorkflowId ? `Re-sync workflow #${activeWorkflowId}` : 'Register cron triggers and activate workflow'}
-          style={{ color: activating ? '#a78bfa' : activeWorkflowId ? '#4ade80' : 'var(--text-2)' }}
+          variant={activeWorkflowId ? 'success' : 'ghost'}
+          title={activeWorkflowId ? `Re-sync #${activeWorkflowId}` : 'Register cron + activate'}
         >
           {activating
-            ? <><Loader2 size={14} className="mr-1 animate-spin" /> Activating…</>
+            ? <><Loader size/> Activating…</>
             : activeWorkflowId
-              ? <><Power size={14} className="mr-1" /> Active</>
-              : <><CalendarClock size={14} className="mr-1" /> Activate</>}
-        </Button>
-        <Button
-          size="sm"
+              ? <><Power size={13} /> Active</>
+              : <><CalendarClock size={13} /> Activate</>
+          }
+        </TopBtn>
+
+        {/* Save */}
+        <button
           onClick={handleSave}
           disabled={saving}
-          aria-label="Save canvas"
-          style={{ background: saved ? '#16a34a22' : 'var(--bg-surface)', color: saved ? '#4ade80' : 'var(--text-1)', border: `1px solid ${saved ? '#16a34a55' : 'var(--border)'}` }}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            padding: '5px 12px', borderRadius: 7, fontSize: 13,
+            fontFamily: 'var(--font-display)', fontWeight: 600, cursor: 'pointer',
+            background: saved ? 'rgba(74,222,128,.12)' : 'var(--bg-2)',
+            color: saved ? 'var(--success)' : 'var(--text-1)',
+            border: `1px solid ${saved ? 'rgba(74,222,128,.3)' : 'var(--border-1)'}`,
+            transition: 'all .15s',
+          }}
         >
-          {saved
-            ? <><Check size={14} className="mr-1" /> Saved</>
-            : <><Save size={14} className="mr-1" /> Save</>}
-        </Button>
+          {saved ? <><Check size={13} /> Saved</> : <><Save size={13} /> Save</>}
+        </button>
       </div>
     </div>
+  )
+}
+
+function Loader({ size: _ }: { size?: boolean }) {
+  return <div style={{ width: 13, height: 13, border: '1.5px solid currentColor', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+}
+
+function TopBtn({
+  children, onClick, disabled, variant = 'ghost', title,
+}: {
+  children: React.ReactNode
+  onClick?: () => void
+  disabled?: boolean
+  variant?: 'ghost' | 'accent' | 'success'
+  title?: string
+}) {
+  const styles: Record<string, React.CSSProperties> = {
+    ghost:   { background: 'transparent', color: 'var(--text-2)', border: '1px solid transparent' },
+    accent:  { background: 'rgba(var(--accent-2-rgb),.14)', color: 'var(--accent-1)', border: '1px solid rgba(var(--accent-2-rgb),.25)' },
+    success: { background: 'rgba(74,222,128,.1)', color: 'var(--success)', border: '1px solid rgba(74,222,128,.25)' },
+  }
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 5,
+        padding: '5px 12px', borderRadius: 7, fontSize: 13,
+        fontFamily: 'var(--font-display)', fontWeight: 600,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.5 : 1,
+        transition: 'all .15s',
+        ...styles[variant],
+      }}
+    >
+      {children}
+    </button>
   )
 }

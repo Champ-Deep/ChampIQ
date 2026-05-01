@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import { Send, Sparkles, Bot, User, Loader2, Paperclip, X, Key, ChevronDown, ChevronUp } from '@/lib/icons'
+import { Send, Bot, User, Loader2, Paperclip, X, Key, ChevronDown, ChevronUp } from '@/lib/icons'
 import { api } from '@/lib/api'
 import { applyWorkflowPatch } from '@/lib/applyPatch'
 import { useCanvasStore } from '@/store/canvasStore'
 import { saveCurrentCanvas } from '@/hooks/usePersistence'
+import { Pixie, PixieOnlinePill } from '@/components/pixie/Pixie'
 import type { ChatMessage } from '@/types'
+import type { CloakColor, VoicePreset } from '@/store/uiStore'
 
 const SESSION_ID = 'default'
 
@@ -218,7 +220,12 @@ interface UploadResult {
 
 // ── Main ChatPanel ──────────────────────────────────────────────────────────
 
-export function ChatPanel() {
+interface ChatPanelProps {
+  pixieCloak?: CloakColor | string
+  voice?: VoicePreset | string
+}
+
+export function ChatPanel({ pixieCloak = '#1E5FCB', voice = 'Friendly' }: ChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [draft, setDraft] = useState('')
   const [pending, setPending] = useState(false)
@@ -228,6 +235,15 @@ export function ChatPanel() {
   const [uploading, setUploading] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const pixiePose = pending ? 'think' : err ? 'lean' : messages.length === 0 ? 'idle' : 'read'
+  const pixieTip = pending
+    ? 'Thinking through the best workflow for you…'
+    : voice === 'Quirky'
+      ? 'Drop a wild idea — I thrive on chaos!'
+      : voice === 'Pro'
+        ? 'Describe the business objective. I\'ll architect it.'
+        : 'Describe what you want. I\'ll build the workflow.'
 
   useEffect(() => {
     api.chatHistory(SESSION_ID).then(setMessages).catch(() => setMessages([]))
@@ -361,24 +377,60 @@ export function ChatPanel() {
     <>
       {showCreds && <CredentialManager onClose={() => setShowCreds(false)} />}
       <aside
-        className="w-80 shrink-0 flex flex-col"
-        style={{ background: 'var(--bg-sidebar)', borderRight: '1px solid var(--border)' }}
-        aria-label="Workflow chat assistant"
+        style={{
+          width: 300,
+          flexShrink: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          background: 'var(--bg-1)',
+          borderRight: '1px solid var(--border-1)',
+        }}
+        aria-label="Pixie workflow assistant"
       >
-        {/* Header */}
-        <div className="px-3 py-2 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border)' }}>
-          <div className="flex items-center gap-2">
-            <Sparkles size={16} style={{ color: '#A855F7' }} />
-            <span className="text-sm font-semibold" style={{ color: 'var(--text-1)' }}>Workflow Assistant</span>
+        {/* Pixie hero section */}
+        <div style={{
+          padding: '18px 16px 14px',
+          borderBottom: '1px solid var(--border-1)',
+          background: 'linear-gradient(180deg, rgba(var(--accent-2-rgb),.06) 0%, transparent 100%)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 8,
+          flexShrink: 0,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+            <PixieOnlinePill />
+            <button
+              onClick={() => setShowCreds(true)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 5,
+                padding: '4px 10px', borderRadius: 7, fontSize: 11,
+                fontFamily: 'var(--font-display)', fontWeight: 500,
+                background: 'transparent',
+                color: 'var(--text-3)', border: '1px solid var(--border-1)',
+                cursor: 'pointer',
+              }}
+              title="Manage credentials"
+            >
+              <Key size={11} /> Credentials
+            </button>
           </div>
-          <button
-            onClick={() => setShowCreds(true)}
-            className="p-1 rounded hover:opacity-70 flex items-center gap-1 text-xs"
-            style={{ color: 'var(--text-3)', border: '1px solid var(--border)' }}
-            title="Manage credentials (ChampMail login, etc.)"
-          >
-            <Key size={12} /> Credentials
-          </button>
+
+          <Pixie
+            pose={pixiePose as Parameters<typeof Pixie>[0]['pose']}
+            size={80}
+            cloak={pixieCloak}
+            ambient
+          />
+
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 700, color: 'var(--text-1)', marginBottom: 2 }}>
+              Pixie
+            </div>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-3)', lineHeight: 1.4 }}>
+              {pixieTip}
+            </div>
+          </div>
         </div>
 
         {/* Upload result banner */}
@@ -398,19 +450,21 @@ export function ChatPanel() {
         )}
 
         {/* Messages */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-2 space-y-3">
+        <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
           {messages.length === 0 && !pending && (
-            <div className="space-y-2">
-              <p className="text-xs" style={{ color: 'var(--text-3)' }}>
-                Describe what you want. I'll build or edit the workflow on your canvas.
-                Upload a CSV/Excel to load contacts.
-              </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {SUGGESTIONS.map((s) => (
                 <button
                   key={s}
                   onClick={() => send(s)}
-                  className="w-full text-left text-xs p-2 rounded-md hover:opacity-90 transition-opacity"
-                  style={{ border: '1px solid var(--border)', color: 'var(--text-2)', background: 'var(--bg-base)' }}
+                  style={{
+                    width: '100%', textAlign: 'left', fontSize: 11.5, padding: '8px 10px', borderRadius: 8,
+                    border: '1px solid var(--border-1)', color: 'var(--text-2)', background: 'var(--bg-2)',
+                    fontFamily: 'var(--font-body)', cursor: 'pointer', lineHeight: 1.45,
+                    transition: 'all .15s',
+                  }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(var(--accent-2-rgb),.4)'; (e.currentTarget as HTMLElement).style.background = 'var(--bg-3)' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-1)'; (e.currentTarget as HTMLElement).style.background = 'var(--bg-2)' }}
                 >
                   {s}
                 </button>
@@ -423,45 +477,50 @@ export function ChatPanel() {
           ))}
 
           {pending && (
-            <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-3)' }}>
-              <Loader2 size={14} className="animate-spin" /> Assistant is thinking…
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>
+              <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> Thinking…
             </div>
           )}
 
           {err && (
-            <div className="text-xs p-2 rounded-md" style={{ background: '#7f1d1d33', color: '#fca5a5' }}>
+            <div style={{ fontSize: 12, padding: '8px 12px', borderRadius: 8, background: 'rgba(255,77,109,.08)', color: 'var(--danger)', border: '1px solid rgba(255,77,109,.2)' }}>
               {err}
             </div>
           )}
         </div>
 
         {/* Input area */}
-        <div className="p-2 flex flex-col gap-2" style={{ borderTop: '1px solid var(--border)' }}>
+        <div style={{ padding: '10px 14px', borderTop: '1px solid var(--border-1)', display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0 }}>
           {/* Upload bar */}
-          <div className="flex items-center gap-2">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <input
               ref={fileInputRef}
               type="file"
               accept=".csv,.xlsx,.xls"
-              className="hidden"
+              style={{ display: 'none' }}
               onChange={handleFileUpload}
               aria-label="Upload CSV or Excel file"
             />
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="flex items-center gap-1 text-xs px-2 py-1 rounded-md disabled:opacity-50"
-              style={{ border: '1px solid var(--border)', color: 'var(--text-2)', background: 'var(--bg-base)' }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 5,
+                padding: '4px 10px', borderRadius: 7, fontSize: 11,
+                fontFamily: 'var(--font-display)', fontWeight: 500,
+                border: '1px solid var(--border-1)', color: 'var(--text-2)', background: 'var(--bg-2)',
+                cursor: uploading ? 'not-allowed' : 'pointer', opacity: uploading ? 0.5 : 1,
+              }}
               title="Upload CSV or Excel contact list"
             >
-              <Paperclip size={12} />
+              <Paperclip size={11} />
               {uploading ? 'Uploading…' : 'Upload Contacts'}
             </button>
-            <span className="text-xs" style={{ color: 'var(--text-3)' }}>.csv / .xlsx</span>
+            <span style={{ fontSize: 10, color: 'var(--text-4)', fontFamily: 'var(--font-mono)' }}>.csv / .xlsx</span>
           </div>
 
           {/* Text input */}
-          <div className="flex items-end gap-2">
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
             <textarea
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
@@ -473,15 +532,28 @@ export function ChatPanel() {
               }}
               placeholder="Describe a workflow… (Shift+Enter for new line)"
               rows={2}
-              className="flex-1 text-sm p-2 rounded-md resize-none focus:outline-none"
-              style={{ background: 'var(--bg-base)', border: '1px solid var(--border)', color: 'var(--text-1)' }}
+              style={{
+                flex: 1, fontSize: 13, padding: '8px 12px', borderRadius: 8, resize: 'none', outline: 'none',
+                background: 'var(--bg-2)', border: '1px solid var(--border-1)', color: 'var(--text-1)',
+                fontFamily: 'var(--font-body)', lineHeight: 1.5,
+                transition: 'border-color .15s',
+              }}
+              onFocus={e => (e.currentTarget.style.borderColor = 'rgba(var(--accent-2-rgb),.5)')}
+              onBlur={e => (e.currentTarget.style.borderColor = 'var(--border-1)')}
               aria-label="Chat input"
             />
             <button
               onClick={() => send(draft)}
               disabled={pending || !draft.trim()}
-              className="p-2 rounded-md disabled:opacity-40"
-              style={{ background: '#A855F7', color: 'white' }}
+              style={{
+                width: 36, height: 36, display: 'grid', placeItems: 'center',
+                background: 'linear-gradient(180deg, var(--accent-2), var(--accent-3))',
+                color: '#fff', border: 'none', borderRadius: 9,
+                cursor: pending || !draft.trim() ? 'not-allowed' : 'pointer',
+                opacity: pending || !draft.trim() ? 0.4 : 1,
+                transition: 'opacity .15s',
+                flexShrink: 0,
+              }}
               aria-label="Send message"
             >
               <Send size={14} />
@@ -524,37 +596,40 @@ function MessageBubble({ m }: { m: ChatMessage }) {
   const hasRaw = !isUser && m.content.length > (explanation?.length ?? 0) + 10
 
   return (
-    <div className="flex gap-2 items-start">
-      <span
-        className="shrink-0 w-6 h-6 rounded-full grid place-items-center"
-        style={{
-          background: isUser ? 'var(--border)' : '#A855F733',
-          color: isUser ? 'var(--text-2)' : '#A855F7',
-        }}
-      >
-        {isUser ? <User size={13} /> : <Bot size={13} />}
+    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+      <span style={{
+        flexShrink: 0, width: 24, height: 24, borderRadius: '50%',
+        display: 'grid', placeItems: 'center',
+        background: isUser ? 'var(--bg-3)' : 'rgba(var(--accent-2-rgb),.15)',
+        color: isUser ? 'var(--text-3)' : 'var(--accent-1)',
+        border: isUser ? '1px solid var(--border-1)' : '1px solid rgba(var(--accent-2-rgb),.25)',
+      }}>
+        {isUser ? <User size={12} /> : <Bot size={12} />}
       </span>
-      <div className="flex-1 min-w-0">
-        <div
-          className="text-xs whitespace-pre-wrap p-2 rounded-md"
-          style={{
-            background: isUser ? 'transparent' : 'var(--bg-base)',
-            border: isUser ? 'none' : '1px solid var(--border)',
-            color: 'var(--text-1)',
-          }}
-        >
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          fontSize: 12.5, lineHeight: 1.5, whiteSpace: 'pre-wrap',
+          padding: isUser ? '0' : '8px 10px',
+          borderRadius: isUser ? 0 : 8,
+          background: isUser ? 'transparent' : 'var(--bg-2)',
+          border: isUser ? 'none' : '1px solid var(--border-1)',
+          color: isUser ? 'var(--text-2)' : 'var(--text-1)',
+          fontFamily: 'var(--font-body)',
+        }}>
           {explanation || m.content}
         </div>
         {patchSummary && (
-          <div className="mt-1 text-xs px-2 py-0.5 rounded-full inline-block"
-            style={{ background: '#A855F722', color: '#A855F7', border: '1px solid #A855F744' }}>
+          <div style={{
+            marginTop: 4, fontSize: 10, padding: '2px 8px', borderRadius: 20, display: 'inline-block',
+            background: 'rgba(var(--accent-2-rgb),.1)', color: 'var(--accent-1)',
+            border: '1px solid rgba(var(--accent-2-rgb),.25)', fontFamily: 'var(--font-mono)',
+          }}>
             Canvas updated: {patchSummary}
           </div>
         )}
         {hasRaw && (
           <button
-            className="text-xs mt-1 flex items-center gap-1"
-            style={{ color: 'var(--text-3)' }}
+            style={{ fontSize: 11, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4, color: 'var(--text-4)', background: 'none', border: 'none', cursor: 'pointer' }}
             onClick={() => setExpanded((e) => !e)}
           >
             {expanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
@@ -562,8 +637,12 @@ function MessageBubble({ m }: { m: ChatMessage }) {
           </button>
         )}
         {hasRaw && expanded && (
-          <pre className="text-xs mt-1 p-2 rounded overflow-x-auto whitespace-pre-wrap"
-            style={{ background: 'var(--bg-sidebar)', color: 'var(--text-3)', maxHeight: 200, overflowY: 'auto' }}>
+          <pre style={{
+            fontSize: 10.5, marginTop: 4, padding: '8px 10px', borderRadius: 8,
+            overflowX: 'auto', whiteSpace: 'pre-wrap', maxHeight: 200, overflowY: 'auto',
+            background: 'var(--bg-3)', color: 'var(--text-3)', fontFamily: 'var(--font-mono)',
+            border: '1px solid var(--border-1)',
+          }}>
             {m.content}
           </pre>
         )}
