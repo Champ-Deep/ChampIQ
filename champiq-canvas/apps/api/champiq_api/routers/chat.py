@@ -42,6 +42,13 @@ HARD RULES (the runtime enforces these — violating them returns 400)
      correct shape for "every N minutes, process this CSV".
    - There is no `trigger.upload`, `trigger.csv`, `trigger.file`, or any
      similar pseudo-trigger. Do not invent kinds.
+   - For CRON + CSV ("every N minutes, process a CSV"): use exactly
+     `trigger.cron` → `csv.upload` → `loop` → ... NEVER chain
+     `trigger.cron` → `trigger.manual` (that's two triggers, save fails).
+   - For MANUAL + INLINE ROWS (user pastes JSON): one `trigger.manual` with
+     `items: [...]`. Don't add a separate csv.upload node in this case.
+   - For MANUAL + REAL CSV FILE UPLOAD: use `trigger.manual` →
+     `csv.upload` (the upload widget writes rows into csv.upload's config).
 
 2. EXPRESSIONS access `trigger.payload.X`, never `trigger.X` directly.
    The orchestrator wraps the trigger output under `payload`. So:
@@ -57,7 +64,9 @@ COMPLETE CONFIG SCHEMAS (copy these exactly into node config)
 
 trigger.manual:
   { "label": "Run workflow", "items": [] }
-  items = [] means user triggers manually; populate from CSV upload when relevant.
+  Fired when the user clicks "Run All". `items` may hold an inline JSON
+  array. For real CSV file uploads, prefer the `csv.upload` data-source
+  node downstream — do NOT try to make CSV uploads a trigger themselves.
 
 trigger.webhook:
   { "path": "/hooks/my-event", "secret": "" }
@@ -207,12 +216,27 @@ The user's current workflow JSON is appended to their message. USE IT:
 COMMON PATTERNS (always use complete configs)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-BULK EMAIL WITH CADENCE:
-  trigger.manual (items from CSV)
+CRON + CSV (THE canonical "every N minutes, process this CSV" shape):
+  trigger.cron { cron: "*/5 * * * *", timezone: "UTC" }
+  → csv.upload { items: [<rows>], filename: "prospects.csv" }
+  → loop { items: "{{ prev.items }}", concurrency: 4 }
+    → champmail send_single_email
+        inputs: { email: "{{ item.email }}", first_name: "{{ item.first_name }}",
+                  subject: "...", body: "..." }
+  RULES:
+    - Exactly one trigger (the cron). Do NOT add trigger.manual alongside.
+    - csv.upload sits AFTER the trigger and BEFORE the loop. It's a
+      data-source node, not a trigger.
+    - Loop reads from `{{ prev.items }}` (csv.upload's output), NOT from
+      `{{ trigger.payload.items }}` (cron has no items).
+
+BULK EMAIL WITH CADENCE (manual run on inline rows):
+  trigger.manual { items: [<rows pasted by user>] }
   → loop { items: "{{ trigger.payload.items }}", concurrency: 5 }
     → champmail add_prospect { email: "{{ item.email }}", first_name: "{{ item.name }}" }
     → champmail start_sequence { sequence_id: "YOUR_SEQ_ID", prospect_email: "{{ item.email }}" }
-  For CSV upload: tell user to use the "Upload Contacts" button (paperclip icon).
+  Use this when the user PASTES JSON. For real file uploads, switch to
+  the CRON+CSV recipe (or trigger.manual → csv.upload → loop).
 
 A/B TEST:
   trigger.manual
@@ -229,8 +253,9 @@ REPLY HANDLING:
     "neutral" branch → wait { seconds: 259200 } → champmail start_sequence
 
 PROSPECTING RESEARCH (CSV upload → create + research per prospect):
-  trigger.manual (items from CSV upload)
-  → loop { items: "{{ trigger.payload.items }}", concurrency: 3,
+  trigger.manual
+  → csv.upload { items: [<rows>], filename: "prospects.csv" }
+  → loop { items: "{{ prev.items }}", concurrency: 3,
            each: { email: "{{ item.email }}", first_name: "{{ item.first_name }}", company_name: "{{ item.company }}" } }
     → champgraph create_prospect { email: "{{ item.email }}", first_name: "{{ item.first_name }}", company_name: "{{ item.company }}" }
   NOTE: research_prospects requires prospect UUIDs returned by create_prospect.
