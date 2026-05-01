@@ -79,6 +79,208 @@ HARD RULES (the runtime enforces these — violating them returns 400)
    linkedin_url, etc.), ALWAYS use `item.*`. CSV column names are case-sensitive:
    `{{ item.phone }}` ≠ `{{ item.Phone }}` — match the header exactly.
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+INPUTS CHEAT SHEET — every (tool, action) pair the runtime supports
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Reading rules:
+  • Each row lists `inputs.<key>` followed by what to write into it.
+  • `← {{ item.X }}` means: write the literal string "{{ item.X }}". The
+    runtime resolves it per-row at execution time.
+  • `← <literal>` means: write a static value the user authored (subject
+    line text, sequence_id like "seq_abc123", numeric seconds, etc.).
+  • Fields marked **required** must be present or the node raises 400 at
+    runtime. Optional fields can be omitted.
+  • Where the runtime accepts ALIASES (e.g. champvoice.to_number also
+    accepts `phone_number` or `phone`), prefer the canonical name listed
+    first; aliases exist only for backward compatibility.
+  • For nodes inside a loop body, source data fields from `item.*`. For
+    nodes NOT inside a loop body, source from `prev.*` (the immediate
+    upstream output) or `trigger.payload.*` (the trigger data).
+
+────────── champmail (action selects which inputs apply) ──────────
+
+champmail action="add_prospect"
+  inputs.email         **required** ← {{ item.email }}
+  inputs.first_name              ← {{ item.first_name }}
+  inputs.last_name               ← {{ item.last_name }}
+  inputs.company                 ← {{ item.company }}        (alias: company_name)
+  inputs.title                   ← {{ item.title }}
+  inputs.phone                   ← {{ item.phone }}          (alias: phone_number)
+  inputs.linkedin_url            ← {{ item.linkedin_url }}
+  inputs.timezone                ← <literal "UTC" / "America/New_York" / ...>
+  inputs.custom_fields           ← <object of extra fields, e.g. {"industry":"{{item.industry}}"}>
+
+champmail action="send_single_email"
+  inputs.email         **required** ← {{ item.email }}        (alias: `to`)
+  inputs.subject       **required** ← <literal subject string OR {{ ... }} expression>
+  inputs.body          **required** ← <literal HTML body OR {{ ... }} expression>
+                                       (aliases: body_html, html)
+  inputs.first_name              ← {{ item.first_name }}     (used when auto-creating prospect)
+  inputs.template_id             ← <integer id of an existing template — overrides subject/body>
+  inputs.template_name           ← <string name of an existing template — overrides subject/body>
+  inputs.sender_id               ← <integer sender id — omit to auto-pick>
+  inputs.variables               ← <object of extra Jinja vars for the template, e.g. {"city":"{{item.city}}"}>
+
+champmail action="start_sequence"  (alias for enroll_sequence with auto-prospect)
+  inputs.prospect_email **required** ← {{ item.email }}      (alias: email)
+  inputs.sequence_id   **required** ← <literal sequence id like "seq_abc123">
+  inputs.variables                ← <object of extra Jinja vars, e.g. {"city":"{{item.city}}"}>
+
+champmail action="enroll_sequence"  (use when prospect already exists)
+  inputs.prospect_email **required* ← {{ item.email }}       (alias: email — required if prospect_id absent)
+  inputs.prospect_id              ← <integer id — alternative to prospect_email>
+  inputs.sequence_id   **required** ← <literal sequence id>
+  inputs.sequence_name            ← <string sequence name — alternative to sequence_id>
+
+champmail action="pause_sequence"
+  inputs.sequence_id   **required** ← <integer or string id>
+  inputs.enrollment_id            ← <integer enrollment id — alternative>
+
+champmail action="get_analytics"
+  inputs.sequence_id   **required** ← <integer sequence id>
+
+champmail action="list_templates" / "list_sequences"
+  (no required inputs)
+
+────────── champgraph (action selects which inputs apply) ──────────
+
+champgraph action="create_prospect"
+  inputs.email         **required** ← {{ item.email }}
+  inputs.first_name              ← {{ item.first_name }}
+  inputs.last_name               ← {{ item.last_name }}
+  inputs.company                 ← {{ item.company }}        (alias: company_name)
+  inputs.title                   ← {{ item.title }}
+  inputs.phone                   ← {{ item.phone }}          (alias: phone_number)
+  inputs.linkedin_url            ← {{ item.linkedin_url }}
+  inputs.timezone                ← <literal "UTC">
+  inputs.custom_fields           ← <object>
+
+champgraph action="get_prospect_status"
+  inputs.email         **required** ← {{ item.email }}
+  Output fields: found, engagement_status (cold | sent | opened | replied |
+    sequence_active | sequence_completed | not_found), email_sent,
+    email_opened, email_replied, sequence_active, sequence_completed.
+  Use {{ prev.engagement_status }} in a downstream switch/if to route.
+
+champgraph action="list_prospects"
+  inputs.limit                   ← <integer, default 50>
+  inputs.offset                  ← <integer, default 0>
+  inputs.status                  ← <literal status filter, e.g. "cold">
+  inputs.search                  ← <literal substring search over email/name/company>
+
+champgraph action="bulk_import"
+  inputs.records       **required** ← <list of prospect dicts>  (alias: prospects)
+    each record: { email (required), first_name, last_name, company, title, phone, linkedin_url, ... }
+  Typical use: { "records": "{{ trigger.payload.items }}" } at top level
+  (NOT inside a loop — bulk_import processes the list itself).
+
+champgraph action="enrich_prospect"
+  inputs.email         **required** ← {{ item.email }}
+
+champgraph action="research_prospects"
+  inputs.prospect_ids  **required** ← <list of UUIDs from create_prospect output>
+  inputs.concurrency             ← <integer, default 3>
+
+champgraph action="campaign_essence" / "campaign_segment" / "campaign_pitch" / "campaign_personalize" / "campaign_html" / "campaign_preview"
+  inputs.account_name            ← <literal account name; default "default">  (alias: account)
+  inputs.persist                 ← <bool, default true>
+  Plus any stage-specific keys (e.g. essence: description, target_audience).
+  All these delegate to the Graphiti service — they return {"available": false, ...}
+  if CHAMPGRAPH_URL is unset, so downstream nodes can branch on it.
+
+champgraph action="account_*" / "intelligence_*" (Graphiti reads)
+  inputs.account_name  **required** ← <literal account name>  (alias: account)
+  Plus optional filters depending on action.
+
+────────── champvoice (action selects which inputs apply) ──────────
+
+champvoice action="initiate_call"
+  inputs.to_number     **required** ← {{ item.phone }}        (aliases: phone_number, phone)
+                                       Auto-prefixed with "+" if missing.
+                                       Must resolve to E.164 format like +14155551234.
+  inputs.lead_name               ← {{ item.first_name }}     (alias: prospect_name)
+  inputs.company                 ← {{ item.company }}
+  inputs.email                   ← {{ item.email }}          (alias: prospect_email)
+  inputs.engagement_status       ← {{ prev.engagement_status }}  (when chained after champgraph.get_prospect_status)
+  inputs.email_opened            ← {{ prev.email_opened }}
+  inputs.email_replied           ← {{ prev.email_replied }}
+  inputs.sequence_active         ← {{ prev.sequence_active }}
+  inputs.script                  ← <literal script string OR {{ ... }} expression>
+  inputs.call_reason             ← <literal: cold_outreach | email_follow_up | sequence_completed | replied_follow_up>
+  inputs.agent_id                ← <literal agent id — overrides credential default; usually omit>
+  inputs.phone_number_id         ← <literal phone number id — overrides credential default; usually omit>
+  inputs.dynamic_vars            ← <pre-built object merged into ElevenLabs dynamic_variables>
+
+champvoice action="get_call_status"
+  inputs.conversation_id **required* ← {{ prev.conversationId }}  (alias: call_id)
+
+champvoice action="list_calls"
+  inputs.contact                 ← <literal contact id or empty>
+  inputs.flow_id                 ← <literal flow id or empty>
+
+champvoice action="cancel_call"
+  inputs.call_id       **required** ← {{ prev.callId }}      (alias: conversation_id)
+
+────────── lakeb2b_pulse (action selects which inputs apply) ──────────
+
+lakeb2b_pulse action="track_page"
+  inputs.page_url      **required** ← {{ item.linkedin_url }}  (alias: url)
+  inputs.name                    ← <literal display name>
+  inputs.page_type               ← <literal: profile | company>
+
+lakeb2b_pulse action="list_tracked_pages"
+  (no required inputs)
+
+lakeb2b_pulse action="poll_page"
+  inputs.page_id       **required** ← {{ prev.page_id }}     (from track_page output)
+
+lakeb2b_pulse action="list_posts"
+  inputs.page_id       **required** ← {{ prev.page_id }}
+  inputs.since                   ← <ISO 8601 datetime, e.g. "2026-01-01T00:00:00Z">
+
+lakeb2b_pulse action="schedule_engagement"
+  inputs.post_id       **required** ← {{ item.post_id }}     (or {{ prev.post_id }})
+  inputs.action        **required** ← <literal: like | comment | connect | message>
+  inputs.comment_text            ← <literal text OR {{ ... }} expression>
+  inputs.stagger_minutes         ← <integer minutes between actions, default 15>
+
+lakeb2b_pulse action="get_engagement_status"
+  (no required inputs)
+
+────────── champmail_reply (classifier — no `action` field) ──────────
+
+champmail_reply
+  config.credential    **required** ← <champmail credential name>
+  Output: emits sourceHandle "positive" | "negative" | "neutral" so
+  downstream edges can branch via if/switch routing.
+
+────────── built-in nodes — config (NOT inputs.) ──────────
+
+These nodes have config keys at the TOP level of `data.config`, NOT under
+`inputs.`. They never reach a `tool.invoke()` call — the orchestrator
+runs them directly.
+
+trigger.manual:    config.label, config.items
+trigger.webhook:   config.path, config.secret
+trigger.cron:      config.cron, config.timezone
+trigger.event:     config.event, config.source
+http:              config.url, config.method, config.headers, config.body, config.credential
+set:               config.fields  (object of expressions)
+merge:             config.mode    ("all" | "first")
+if:                config.condition  (RAW expression — no {{ }}!)
+switch:            config.value, config.cases [{match,branch}], config.default_branch
+loop:              config.items, config.mode, config.concurrency, config.pace_seconds,
+                   config.initial_delay_seconds, config.jitter_seconds, config.max_items,
+                   config.stop_on_error, config.each, config.wait_for_event, config.wait_timeout
+split:             config.mode ("fixed_n" | "fan_out"), config.n, config.items
+wait:              config.seconds
+code:              config.expression  (Python expression returning a JSON-serializable dict)
+llm:               config.prompt, config.system, config.json_mode, config.model
+csv.upload:        config.items, config.filename  (rows already parsed in the browser)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 COMPLETE CONFIG SCHEMAS (copy these exactly into node config)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
