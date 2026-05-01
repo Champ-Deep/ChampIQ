@@ -1,12 +1,22 @@
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
+_DEFAULT_DB_URL = "postgresql+asyncpg://postgres:postgres@localhost:5432/champiq"
+
 
 class Settings(BaseSettings):
-    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/champiq"
+    database_url: str = _DEFAULT_DB_URL
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def _reject_empty_database_url(cls, v: str) -> str:
+        # pydantic-settings uses the env var value even when it's an empty string,
+        # ignoring the field default. Treat "" the same as "not set".
+        return v if v else _DEFAULT_DB_URL
     redis_url: str = "redis://localhost:6379/0"
     fernet_key: str = ""
 
