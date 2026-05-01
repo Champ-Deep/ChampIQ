@@ -33,6 +33,7 @@ function CockpitView({ onGoHub }: { onGoHub: () => void }) {
     nodeSheetId, setNodeSheet,
     cloak, voice,
     cmdOpen, setCmdOpen,
+    leftPanelVisible, setLeftPanelVisible,
   } = useUIStore()
   const { nodes } = useCanvasStore()
   const selectedNode = nodes.find(n => n.id === nodeSheetId) ?? null
@@ -58,12 +59,14 @@ function CockpitView({ onGoHub }: { onGoHub: () => void }) {
           onSettings={() => setSettingsOpen(true)}
           onHub={onGoHub}
           variant={railStyle}
+          panelVisible={leftPanelVisible}
+          onTogglePanel={() => setLeftPanelVisible(!leftPanelVisible)}
         />
 
         {/* Chat view: Pixie/Nodes left panel + canvas + inspector */}
         {activeRail === 'chat' && (
           <>
-            <LeftPanel pixieCloak={cloak} voice={voice} />
+            {leftPanelVisible && <LeftPanel pixieCloak={cloak} voice={voice} />}
             <div style={{ display: 'flex', flex: 1, minWidth: 0, minHeight: 0, position: 'relative' }}>
               <CanvasArea onNodeOpen={(id) => setNodeSheet(id)} />
               <RightPanel />
@@ -142,6 +145,8 @@ function AppInner() {
     cmdOpen, setCmdOpen,
     settingsOpen, setSettingsOpen,
     cloak,
+    setActiveRail,
+    leftPanelVisible, setLeftPanelVisible,
   } = useUIStore()
 
   // Sync accent/density/theme to document root
@@ -151,17 +156,21 @@ function AppInner() {
     document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light')
   }, [accent, density, isDark])
 
-  // Global ⌘K to open command palette
+  // Global keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault()
-        setCmdOpen(true)
-      }
+      const mod = e.metaKey || e.ctrlKey
+      if (!mod) return
+      if (e.key === 'k') { e.preventDefault(); setCmdOpen(true) }
+      if (e.key === '1') { e.preventDefault(); setActiveRail('chat'); if (appView !== 'cockpit') setAppView('cockpit') }
+      if (e.key === '2') { e.preventDefault(); setActiveRail('mail'); if (appView !== 'cockpit') setAppView('cockpit') }
+      if (e.key === '3') { e.preventDefault(); setActiveRail('graph'); if (appView !== 'cockpit') setAppView('cockpit') }
+      if (e.key === ',') { e.preventDefault(); setSettingsOpen(true) }
+      if (e.key === '\\') { e.preventDefault(); setLeftPanelVisible(!leftPanelVisible) }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [setCmdOpen])
+  }, [setCmdOpen, setActiveRail, setAppView, appView, setSettingsOpen, setLeftPanelVisible, leftPanelVisible])
 
   const openCanvas = useCallback((id: string) => {
     const { setCurrentCanvasId, canvasList } = useCanvasStore.getState()

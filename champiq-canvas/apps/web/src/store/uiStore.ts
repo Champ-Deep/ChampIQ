@@ -49,6 +49,16 @@ interface UIStore {
   railStyle: RailStyle
   setRailStyle: (s: RailStyle) => void
 
+  // Left panel visibility + resizable width
+  leftPanelVisible: boolean
+  setLeftPanelVisible: (v: boolean) => void
+  leftPanelWidth: number
+  setLeftPanelWidth: (w: number) => void
+
+  // Logs strip resizable height
+  logsHeight: number
+  setLogsHeight: (h: number) => void
+
   // Panels
   logsOpen: boolean
   setLogsOpen: (open: boolean) => void
@@ -107,6 +117,13 @@ export const useUIStore = create<UIStore>()(
       railStyle: 'glyph',
       setRailStyle: (s) => set({ railStyle: s }),
 
+      leftPanelVisible: true,
+      setLeftPanelVisible: (v) => set({ leftPanelVisible: v }),
+      leftPanelWidth: 360,
+      setLeftPanelWidth: (w) => set({ leftPanelWidth: w }),
+      logsHeight: 200,
+      setLogsHeight: (h) => set({ logsHeight: h }),
+
       logsOpen: false,
       setLogsOpen: (open) => set({ logsOpen: open }),
 
@@ -135,6 +152,9 @@ export const useUIStore = create<UIStore>()(
         railStyle: s.railStyle,
         isFirstRun: s.isFirstRun,
         isDark: s.isDark,
+        leftPanelVisible: s.leftPanelVisible,
+        leftPanelWidth: s.leftPanelWidth,
+        logsHeight: s.logsHeight,
       }),
     }
   )

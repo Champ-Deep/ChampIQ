@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { MessageSquare, Layers } from 'lucide-react'
 import { ChatPanel } from './ChatPanel'
 import { NodePalette } from './NodePalette'
+import { ResizeHandle } from './ResizeHandle'
+import { useUIStore } from '@/store/uiStore'
 import type { CloakColor, VoicePreset } from '@/store/uiStore'
 
 interface LeftPanelProps {
@@ -9,14 +11,20 @@ interface LeftPanelProps {
   voice?: VoicePreset | string
 }
 
+const MIN_W = 240
+const MAX_W = 560
+
 export function LeftPanel({ pixieCloak, voice }: LeftPanelProps) {
   const [tab, setTab] = useState<'pixie' | 'nodes'>('pixie')
+  const { leftPanelWidth, setLeftPanelWidth } = useUIStore()
 
   return (
     <div style={{
-      width: 360, flexShrink: 0,
+      width: leftPanelWidth,
+      flexShrink: 0,
       display: 'flex', flexDirection: 'column', minHeight: 0,
       background: 'var(--bg-1)', borderRight: '1px solid var(--border-1)',
+      position: 'relative',
     }}>
       {/* Pixie | Nodes tab bar */}
       <div style={{
@@ -39,6 +47,12 @@ export function LeftPanel({ pixieCloak, voice }: LeftPanelProps) {
         {tab === 'pixie' && <ChatPanel pixieCloak={pixieCloak} voice={voice} />}
         {tab === 'nodes' && <NodePalette embedded />}
       </div>
+
+      {/* Drag resize handle — right edge */}
+      <ResizeHandle
+        direction="horizontal"
+        onDelta={(dx) => setLeftPanelWidth(Math.max(MIN_W, Math.min(MAX_W, leftPanelWidth + dx)))}
+      />
     </div>
   )
 }

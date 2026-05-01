@@ -1,4 +1,6 @@
 import { useCanvasStore } from '@/store/canvasStore'
+import { useUIStore } from '@/store/uiStore'
+import { ResizeHandle } from './ResizeHandle'
 import { Terminal, ChevronUp, ChevronDown } from 'lucide-react'
 
 interface LogsStripProps {
@@ -13,22 +15,38 @@ const STATUS_COLORS: Record<string, string> = {
   error:   'var(--danger)',
 }
 
+const MIN_H = 80
+const MAX_H = 500
+
 export function LogsStrip({ expanded, onToggle }: LogsStripProps) {
   const logs = useCanvasStore((s) => s.logs)
   const lastLog = logs[logs.length - 1]
+  const { logsHeight, setLogsHeight } = useUIStore()
 
   return (
     <div style={{
       flexShrink: 0,
       background: 'var(--bg-1)',
       borderTop: '1px solid var(--border-1)',
-      transition: 'height .2s var(--ease-swift)',
-      height: expanded ? 180 : 34,
+      transition: expanded ? 'none' : 'height .2s var(--ease-swift)',
+      height: expanded ? logsHeight : 34,
       overflow: 'hidden',
+      position: 'relative',
+      display: 'flex',
+      flexDirection: 'column',
     }}>
+      {/* Drag resize handle — top edge (only when expanded) */}
+      {expanded && (
+        <ResizeHandle
+          direction="vertical"
+          onDelta={(dy) => setLogsHeight(Math.max(MIN_H, Math.min(MAX_H, logsHeight + dy)))}
+        />
+      )}
+
       {/* Header row */}
       <div style={{
         height: 34,
+        flexShrink: 0,
         display: 'flex',
         alignItems: 'center',
         padding: '0 14px',
@@ -68,10 +86,11 @@ export function LogsStrip({ expanded, onToggle }: LogsStripProps) {
         </span>
       </div>
 
-      {/* Expanded log rows */}
+      {/* Expanded log rows — flex:1 so it fills whatever height the user dragged to */}
       {expanded && (
         <div style={{
-          height: 146,
+          flex: 1,
+          minHeight: 0,
           overflowY: 'auto',
           padding: '6px 14px',
         }}>

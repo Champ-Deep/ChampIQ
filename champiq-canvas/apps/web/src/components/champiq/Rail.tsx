@@ -1,6 +1,6 @@
 import type { RailTab, RailStyle } from '@/store/uiStore'
 import {
-  MessageSquare, Mail, Network, Settings, ChevronLeft,
+  MessageSquare, Mail, Network, Settings, ChevronLeft, ChevronRight,
 } from 'lucide-react'
 
 interface RailItem {
@@ -22,9 +22,11 @@ interface RailProps {
   onSettings: () => void
   onHub?: () => void
   variant?: RailStyle
+  onTogglePanel?: () => void
+  panelVisible?: boolean
 }
 
-export function Rail({ active, onSelect, onSettings, onHub, variant = 'glyph' }: RailProps) {
+export function Rail({ active, onSelect, onSettings, onHub, variant = 'glyph', onTogglePanel, panelVisible = true }: RailProps) {
   return (
     <div style={{
       width: 56,
@@ -78,10 +80,11 @@ export function Rail({ active, onSelect, onSettings, onHub, variant = 'glyph' }:
           <Settings size={16} />
         </button>
         <button
-          title="Collapse rail"
+          title={panelVisible ? 'Collapse panel  ⌘\\' : 'Expand panel  ⌘\\'}
+          onClick={onTogglePanel}
           style={railBtnStyle(false, variant)}
         >
-          <ChevronLeft size={14} />
+          {panelVisible ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
         </button>
       </div>
     </div>
