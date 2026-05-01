@@ -5,6 +5,27 @@ export PYTHONPATH=/app/apps/api
 
 cd /app/apps/api
 
+# One-shot diagnostic: print the DB target the app will actually use, with
+# password masked. Lets us see in Railway logs exactly what DATABASE_URL
+# resolved to (or that it's missing) without reading 5000-line stack traces.
+python - <<'PY'
+import os, urllib.parse as up
+raw = os.environ.get("DATABASE_URL", "")
+if not raw:
+    print("[start] DB target: NOT SET (app will fall back to localhost default)")
+else:
+    parse_target = raw
+    if "+" in parse_target.split("://", 1)[0]:
+        scheme, rest = parse_target.split("://", 1)
+        parse_target = f"{scheme.split('+')[0]}://{rest}"
+    u = up.urlparse(parse_target)
+    print(
+        f"[start] DB target: host={u.hostname or '?'} port={u.port or '?'} "
+        f"user={u.username or '?'} db={(u.path or '/').lstrip('/') or '?'} "
+        f"password={'***SET***' if u.password else 'EMPTY'}"
+    )
+PY
+
 if [ -n "${DATABASE_URL:-}" ]; then
   # Wait for Postgres to be reachable before running migrations.
   # Railway's Postgres container accepts TCP before it's ready to authenticate,
