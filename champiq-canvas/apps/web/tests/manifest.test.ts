@@ -41,25 +41,27 @@ describe('manifest utilities', () => {
 describe('manifest structure validation', () => {
   it('all manifests have required x-champiq fields', () => {
     for (const m of allManifests) {
-      expect(m['x-champiq']).toBeDefined()
-      expect(m['x-champiq'].tool_id).toBeTruthy()
-      expect(m['x-champiq'].canvas.node.label).toBeTruthy()
-      expect(m['x-champiq'].canvas.node.color).toMatch(/^#[0-9a-fA-F]{6}$/)
-      expect(Array.isArray(m['x-champiq'].canvas.node.accepts_input_from)).toBe(true)
+      const xchampiq = m['x-champiq']
+      expect(xchampiq).toBeDefined()
+      expect(xchampiq?.tool_id).toBeTruthy()
+      expect(xchampiq?.canvas.node.label).toBeTruthy()
+      expect(xchampiq?.canvas.node.color).toMatch(/^#[0-9a-fA-F]{6}$/)
+      expect(Array.isArray(xchampiq?.canvas.node.accepts_input_from)).toBe(true)
     }
   })
 
   it('all manifests have config and output properties', () => {
     for (const m of allManifests) {
       expect(getConfigSchema(m)).toBeDefined()
-      expect(m.properties.output).toBeDefined()
+      expect(m.properties?.output).toBeDefined()
     }
   })
 
   it('all manifests have transport.rest.action', () => {
     for (const m of allManifests) {
-      expect(m['x-champiq'].transport.rest.action.endpoint).toBeTruthy()
-      expect(m['x-champiq'].transport.rest.action.button_label).toBeTruthy()
+      const xchampiq = m['x-champiq']
+      expect(xchampiq?.transport.rest.action.endpoint).toBeTruthy()
+      expect(xchampiq?.transport.rest.action.button_label).toBeTruthy()
     }
   })
 })
