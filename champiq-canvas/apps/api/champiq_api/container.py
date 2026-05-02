@@ -122,12 +122,20 @@ def get_container() -> Container:
     ):
         registry.register(executor)
 
+    # GraphitiClient constructed early so orchestrator can reference it for
+    # execution memory collection. ChampGraphService wired below after registry.
+    graphiti_client = GraphitiClient(
+        base_url=settings.champgraph_url,
+        api_key=settings.champgraph_api_key,
+    )
+
     orchestrator = Orchestrator(
         session_factory=session_factory,
         registry=registry,
         credentials=credential_resolver,
         expressions=expressions,
         events=event_bus,
+        graphiti_client=graphiti_client,
     )
 
     cron = CronScheduler(session_factory, orchestrator)
@@ -170,10 +178,6 @@ def get_container() -> Container:
     # ChampGraph dispatcher — prospect actions hit local Postgres,
     # graph/intel/campaign actions hit Graphiti (BlueOcean VPS). Empty URL =
     # graph actions return {"available": false} instead of crashing.
-    graphiti_client = GraphitiClient(
-        base_url=settings.champgraph_url,
-        api_key=settings.champgraph_api_key,
-    )
     champgraph = ChampGraphService(session_factory, graphiti_client)
     registry.register(ChampGraphLocalExecutor(champgraph))
 

@@ -33,6 +33,7 @@ class SenderRepository:
         row = CMSender(**fields)
         self._session.add(row)
         await self._session.flush()
+        await self._session.refresh(row)
         return row
 
     async def update(self, sender_id: int, **fields: Any) -> Optional[CMSender]:
@@ -43,6 +44,11 @@ class SenderRepository:
             if v is not None:
                 setattr(row, k, v)
         await self._session.flush()
+        # Server-side onupdate=func.now() expires `updated_at` after flush.
+        # Refresh now so callers (e.g. Pydantic SenderOut.model_validate) can
+        # read it from sync context without triggering a lazy load that
+        # would raise MissingGreenlet.
+        await self._session.refresh(row)
         return row
 
     async def delete(self, sender_id: int) -> bool:

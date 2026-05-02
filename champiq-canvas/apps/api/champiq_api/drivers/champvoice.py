@@ -22,6 +22,7 @@ from typing import Any, Optional
 
 import httpx
 
+from ._elevenlabs_agents import ElevenLabsAgentResolver, is_real_agent_id
 from .base import HttpToolDriver
 
 EL_BASE = "https://api.elevenlabs.io/v1"
@@ -30,6 +31,10 @@ EL_BASE = "https://api.elevenlabs.io/v1"
 class ChampVoiceDriver(HttpToolDriver):
 
     tool_id = "champvoice"
+
+    # Single shared resolver — its in-process TTL cache persists across calls.
+    # Instantiated lazily on first use so the driver's __init__ stays trivial.
+    _agent_resolver: ElevenLabsAgentResolver | None = None
 
     def _build_headers(self, auth_kind: str, credentials: dict[str, Any]) -> dict[str, str]:
         return {}
@@ -44,13 +49,36 @@ class ChampVoiceDriver(HttpToolDriver):
             )
         return {"Content-Type": "application/json", "xi-api-key": api_key}
 
-    def _resolve_agent_id(self, inputs: dict[str, Any], credentials: dict[str, Any]) -> str:
-        agent_id = inputs.get("agent_id") or credentials.get("agent_id") or ""
-        if not agent_id:
+    def _get_resolver(self) -> ElevenLabsAgentResolver:
+        # Per-class singleton. Cleaner than a module global and easier to
+        # swap in tests via monkeypatch.
+        if self._agent_resolver is None:
+            self.__class__._agent_resolver = ElevenLabsAgentResolver()
+        return self._agent_resolver  # type: ignore[return-value]
+
+    async def _resolve_agent_id(
+        self, inputs: dict[str, Any], credentials: dict[str, Any],
+    ) -> str:
+        """Translate inputs.agent_id (or credentials.agent_id) into the real
+        ElevenLabs UUID. Accepts:
+          - a UUID like 'agent_3501kf4e3ak0eqkrxg1rttttk881' (fast-path; never
+            hits the network)
+          - a friendly name like 'leadqualifier' or 'Champ Qualifier' (looked
+            up against the live ElevenLabs agent list, cached 5 min).
+        """
+        raw = (inputs.get("agent_id") or credentials.get("agent_id") or "").strip()
+        if not raw:
             raise ValueError(
                 "ChampVoice: 'agent_id' is required — set it in the ChampVoice credential panel."
             )
-        return agent_id
+        if is_real_agent_id(raw):
+            return raw
+        api_key = credentials.get("elevenlabs_api_key") or ""
+        if not api_key:
+            raise ValueError(
+                "ChampVoice: cannot resolve agent name without elevenlabs_api_key."
+            )
+        return await self._get_resolver().resolve(raw, api_key=api_key)
 
     def _resolve_phone_number_id(self, inputs: dict[str, Any], credentials: dict[str, Any]) -> str:
         phone_number_id = (
@@ -109,7 +137,7 @@ class ChampVoiceDriver(HttpToolDriver):
             raise ValueError("champvoice.initiate_call: 'to_number' is required")
 
         headers = self._el_headers(credentials)
-        agent_id = self._resolve_agent_id(inputs, credentials)
+        agent_id = await self._resolve_agent_id(inputs, credentials)
         phone_number_id = self._resolve_phone_number_id(inputs, credentials)
 
         # Build dynamic variables for ElevenLabs conversation
@@ -284,7 +312,16 @@ class ChampVoiceDriver(HttpToolDriver):
     ) -> dict[str, Any]:
         """GET /v1/convai/conversations?agent_id=..."""
         headers = self._el_headers(credentials)
-        agent_id = credentials.get("agent_id") or inputs.get("agent_id")
+        # Optional filter — if a friendly name was passed, resolve it; if
+        # nothing was passed, list all conversations for the account.
+        raw_agent = inputs.get("agent_id") or credentials.get("agent_id") or ""
+        agent_id = ""
+        if raw_agent:
+            try:
+                agent_id = await self._resolve_agent_id(inputs, credentials)
+            except ValueError:
+                # Best-effort filter — bad name shouldn't break list_calls.
+                agent_id = ""
 
         params: dict[str, str] = {}
         if agent_id:

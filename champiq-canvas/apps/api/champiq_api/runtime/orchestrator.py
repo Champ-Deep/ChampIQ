@@ -37,6 +37,7 @@ from .fan_out import (
     envelope_from_loop_output,
 )
 from .registry import NodeRegistry
+from .memory_collector import collect_execution_memory
 
 log = logging.getLogger(__name__)
 
@@ -56,12 +57,14 @@ class Orchestrator:
         credentials: CredentialResolver,
         expressions: ExpressionEvaluator,
         events: EventBus,
+        graphiti_client: Any = None,
     ) -> None:
         self._session_factory = session_factory
         self._registry = registry
         self._credentials = credentials
         self._expressions = expressions
         self._events = events
+        self._graphiti = graphiti_client
 
     # -- Public entry points ---------------------------------------------
 
@@ -276,6 +279,9 @@ class Orchestrator:
 
         final_status = "error" if any(r.output.get("error") for r in results.values()) else "success"
         await self._finalize_execution(execution_id, final_status, results)
+        asyncio.create_task(collect_execution_memory(
+            execution_id, self._session_factory, self._graphiti,
+        ))
 
     async def _execute_node_fan_out(
         self,

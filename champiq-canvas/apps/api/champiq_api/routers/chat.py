@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -212,7 +213,12 @@ champvoice action="initiate_call"
   inputs.sequence_active         ← {{ prev.sequence_active }}
   inputs.script                  ← <literal script string OR {{ ... }} expression>
   inputs.call_reason             ← <literal: cold_outreach | email_follow_up | sequence_completed | replied_follow_up>
-  inputs.agent_id                ← <literal agent id — overrides credential default; usually omit>
+  inputs.agent_id                ← OMIT in 99% of workflows. Only set if you have the EXACT
+                                    ElevenLabs agent UUID (shape: agent_<32 hex chars>, e.g.
+                                    "agent_3501kf4e3ak0eqkrxg1rttttk881"). Never write a friendly
+                                    name like "leadqualifier" or "sales-agent" — ElevenLabs's API
+                                    only accepts opaque IDs and returns HTTP 404 otherwise. The
+                                    credential's stored agent_id wins when this field is absent.
   inputs.phone_number_id         ← <literal phone number id — overrides credential default; usually omit>
   inputs.dynamic_vars            ← <pre-built object merged into ElevenLabs dynamic_variables>
 
@@ -679,6 +685,34 @@ async def chat_message(body: ChatMessageIn, db: AsyncSession = Depends(get_db)):
         user_turn += json.dumps(body.current_workflow, indent=2)[:6000]
         user_turn += "\n```"
 
+    # Augment the user message with the available champvoice agents so the
+    # LLM picks correct friendly names. Best-effort — never fails the chat
+    # call if ElevenLabs is unreachable or a credential isn't configured.
+    try:
+        agents_hint = await _list_champvoice_agents(container)
+        if agents_hint:
+            user_turn += (
+                "\n\nAvailable ChampVoice agents on this account "
+                "(use these EXACT names — case is fine — when populating "
+                "champvoice.inputs.agent_id; or omit agent_id to use the "
+                "credential's default):\n"
+            )
+            user_turn += "\n".join(f"  - {n}" for n in agents_hint)
+    except Exception:
+        log.exception("chat: champvoice agent list unavailable; continuing without hint")
+
+    # Inject past execution memories from ChampGraph so the LLM learns from
+    # previous runs. Best-effort — never fails the chat call.
+    memory_context = ""
+    try:
+        memory_context = await _fetch_execution_memories(container, body.content)
+    except Exception:
+        log.exception("chat: execution memory fetch failed; continuing without context")
+
+    system_prompt = SYSTEM_PROMPT
+    if memory_context:
+        system_prompt = SYSTEM_PROMPT + "\n\n" + memory_context
+
     messages: list[LLMMessage] = []
     for row in history_rows[:-1]:
         if row.role in ("user", "assistant"):
@@ -688,7 +722,7 @@ async def chat_message(body: ChatMessageIn, db: AsyncSession = Depends(get_db)):
     try:
         resp = await container.llm.complete(
             messages,
-            system=SYSTEM_PROMPT,
+            system=system_prompt,
             temperature=0.2,
             max_tokens=2048,
         )
@@ -709,6 +743,98 @@ async def chat_message(body: ChatMessageIn, db: AsyncSession = Depends(get_db)):
     await db.commit()
     await db.refresh(assistant_row)
     return assistant_row
+
+
+async def _list_champvoice_agents(container: Any) -> list[str]:
+    """Return display names of ElevenLabs agents available to the first
+    configured champvoice credential. Best-effort.
+
+    Caches via the resolver itself (5-min TTL) so this adds at most one
+    HTTP call per chat session per cache window. Returns [] when no
+    champvoice credential is configured.
+    """
+    from ..drivers._elevenlabs_agents import ElevenLabsAgentResolver
+    # Find any credential of type "champvoice"
+    try:
+        creds = await container.credential_resolver.list_by_type("champvoice")
+    except AttributeError:
+        # SqlCredentialResolver doesn't expose list_by_type — read raw DB instead.
+        creds = []
+        from ..models import CredentialTable
+        from sqlalchemy import select
+        from ..database import get_session_factory
+        factory = get_session_factory()
+        async with factory() as s:
+            rows = (await s.execute(select(CredentialTable).where(CredentialTable.type == "champvoice"))).scalars().all()
+            for row in rows:
+                creds.append(await container.credential_resolver.resolve(row.name))
+    if not creds:
+        return []
+    cred = creds[0]
+    api_key = cred.get("elevenlabs_api_key")
+    if not api_key:
+        return []
+    # Reuse the driver's shared resolver if it exists; otherwise spin a
+    # one-off (still uses the same TTL cache via class attribute).
+    from ..drivers.champvoice import ChampVoiceDriver
+    resolver = ChampVoiceDriver._agent_resolver or ElevenLabsAgentResolver()
+    ChampVoiceDriver._agent_resolver = resolver
+    return await resolver.list_friendly_names(api_key=api_key)
+
+
+async def _fetch_execution_memories(container: Any, user_message: str) -> str:
+    """Query ChampGraph's champiq-orchestrator account for past execution
+    memories semantically similar to the user's current intent.
+
+    Returns a formatted string injected into the system prompt so the LLM
+    learns from real past runs — good patterns to repeat, bad patterns to
+    avoid, future notes already identified.
+
+    Returns "" when ChampGraph is unavailable or has no relevant memories.
+    """
+    graphiti = getattr(container.champgraph, "graphiti", None)
+    if graphiti is None or not graphiti.configured:
+        return ""
+    if not await graphiti.is_reachable():
+        return ""
+
+    try:
+        result = await graphiti._post("/api/query", {
+            "account":     "champiq-orchestrator",
+            "query":       user_message[:500],
+            "num_results": 5,
+        })
+    except Exception:
+        return ""
+
+    nodes = (result.get("data") or {}).get("nodes") or []
+    if not nodes:
+        return ""
+
+    # Filter to execution memory nodes (have meaningful summaries)
+    memories = [
+        n for n in nodes
+        if n.get("summary") and len(n.get("summary", "")) > 40
+    ][:3]
+
+    if not memories:
+        return ""
+
+    lines = [
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        "LEARNED FROM PAST EXECUTIONS (read before generating workflow)",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        "These are real workflow runs stored in ChampGraph memory.",
+        "Use them to avoid known failure patterns and repeat proven ones.",
+        "",
+    ]
+    for i, m in enumerate(memories, 1):
+        lines.append(f"Memory {i}: {m.get('name', 'execution')}")
+        lines.append(f"  {m['summary']}")
+        lines.append("")
+
+    lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    return "\n".join(lines)
 
 
 def _extract_patch(text: str) -> dict | None:
