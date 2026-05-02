@@ -20,6 +20,8 @@ from typing import Any
 
 from simpleeval import EvalWithCompoundTypes, InvalidExpression
 
+from .diagnostics import ExpressionDiagnostics, ExpressionErrorTranslator
+
 _EXPR_RE = re.compile(r"\{\{\s*(.+?)\s*\}\}")
 _WHOLE_EXPR_RE = re.compile(r"^\s*\{\{\s*(.+?)\s*\}\}\s*$")
 
@@ -116,6 +118,13 @@ class SimpleExpressionEvaluator:
         return value
 
     def _render_str(self, raw: str, names: dict[str, Any]) -> Any:
+        # Static authoring-mistake check BEFORE we hand the string to
+        # simpleeval. Catches bare expressions, hyphen-id-as-subtraction,
+        # mismatched braces, empty {{ }} — see ExpressionDiagnostics.
+        warning = ExpressionDiagnostics.inspect(raw)
+        if warning is not None and warning.severity == "error":
+            raise warning.to_value_error()
+
         whole = _WHOLE_EXPR_RE.match(raw)
         if whole is not None:
             return self._eval(whole.group(1), names)
@@ -131,6 +140,9 @@ class SimpleExpressionEvaluator:
         try:
             return evaluator.eval(expr)
         except InvalidExpression as err:
-            raise ValueError(f"Invalid expression {expr!r}: {err}") from err
-        except Exception as err:  # attribute misses on None etc.
-            raise ValueError(f"Expression error {expr!r}: {err}") from err
+            # simpleeval-internal validation failure (bad syntax, disallowed
+            # constructs). Translator decides if it's a known authoring
+            # mistake worth a richer suggestion.
+            raise ExpressionErrorTranslator.translate(expr, err) from err
+        except Exception as err:  # attribute misses on None, undefined names, etc.
+            raise ExpressionErrorTranslator.translate(expr, err) from err

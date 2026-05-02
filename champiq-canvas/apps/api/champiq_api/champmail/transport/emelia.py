@@ -5,8 +5,16 @@ Why per-send campaigns?
     campaign with at least one step and one contact, then `start`. We mirror
     "send one email" by creating a tiny single-step single-contact campaign,
     naming it `champiq:<tracking_id>` so we can correlate webhooks back to
-    our send row, and starting it. Emelia's own scheduler then dispatches
-    within the campaign's send window (default 08:00–17:00 Europe/Brussels).
+    our send row, and starting it.
+
+Schedule override (why it matters):
+    Emelia stamps every new campaign with a hard default of Mon–Fri
+    08:00–17:00 Europe/Brussels. Campaigns created outside that window sit
+    in RUNNING state forever with providersUsed=[] — no mail dispatches.
+    We call `updateCampaignSettings` (GraphQL) immediately after creation,
+    while the campaign is still DRAFT, to widen the window to 7 days /
+    00:00–23:59. This must happen before contacts are added; Emelia silently
+    ignores the mutation on already-RUNNING campaigns.
 
 Auth: raw API key in `Authorization` header (no `Bearer` prefix).
 
@@ -27,6 +35,34 @@ from .base import EmailEnvelope, SendResult
 log = logging.getLogger(__name__)
 
 EMELIA_REST_URL = "https://api.emelia.io"
+EMELIA_GQL_URL  = "https://graphql.emelia.io/graphql"
+
+# Schedule applied to every outbound campaign.
+# 7 days / 00:00–23:59 so sends are never blocked by day-of-week or hour.
+# minInterval=60s keeps Emelia's internal rate-limiter happy while still
+# dispatching within a minute of campaign start.
+_DEFAULT_SCHEDULE = {
+    "dailyContact":      50,
+    "dailyLimit":        200,
+    "minInterval":       60,
+    "maxInterval":       120,
+    "blacklistUnsub":    False,
+    "trackLinks":        True,
+    "trackOpens":        True,
+    "timeZone":          "Europe/Brussels",
+    "days":              [0, 1, 2, 3, 4, 5, 6],
+    "start":             "00:00",
+    "end":               "23:59",
+    "eventToStopMails":  ["REPLIED"],
+}
+
+_UPDATE_SCHEDULE_MUTATION = """
+mutation UpdateSchedule($id: ID!, $data: JSON!) {
+  updateCampaignSettings(id: $id, data: $data) {
+    _id
+  }
+}
+"""
 
 
 class EmeliaTransport:
@@ -55,7 +91,7 @@ class EmeliaTransport:
         campaign_name = f"champiq:{envelope.tracking_id or 'oneoff'}-{abs(hash(envelope.to_email)) % 10**8}"
 
         async with httpx.AsyncClient(timeout=self._timeout, headers=self._headers()) as client:
-            # 1. Create the campaign
+            # 1. Create the campaign (lands in DRAFT)
             try:
                 r = await client.post(
                     f"{EMELIA_REST_URL}/emails/campaigns",
@@ -72,6 +108,27 @@ class EmeliaTransport:
                     success=False,
                     error=f"Emelia create-campaign returned no _id: {r.text[:300]}",
                 )
+
+            # 1b. Widen the send window while still DRAFT.
+            # Emelia defaults to Mon–Fri 08:00–17:00 Brussels; without this
+            # override, any send created outside business hours (or on a
+            # weekend) sits queued indefinitely with providersUsed=[].
+            # The mutation is idempotent and a no-op on failure (non-fatal).
+            try:
+                gql_r = await client.post(
+                    EMELIA_GQL_URL,
+                    json={
+                        "query": _UPDATE_SCHEDULE_MUTATION,
+                        "variables": {"id": campaign_id, "data": {"schedule": _DEFAULT_SCHEDULE}},
+                    },
+                )
+                if gql_r.status_code >= 400 or (gql_r.json() or {}).get("errors"):
+                    log.warning(
+                        "Emelia updateCampaignSettings failed for %s (non-fatal): %s",
+                        campaign_id, gql_r.text[:300],
+                    )
+            except httpx.HTTPError as e:
+                log.warning("Emelia updateCampaignSettings HTTP error for %s (non-fatal): %s", campaign_id, e)
 
             # 2. Set the single step (subject + body)
             steps_payload = {

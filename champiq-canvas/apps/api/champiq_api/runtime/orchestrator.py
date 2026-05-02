@@ -29,7 +29,15 @@ from ..core.interfaces import (
     NodeResult,
 )
 from ..models import ExecutionTable, NodeRunTable, WorkflowTable
+from .fan_out import (
+    CADENCE_KEY,
+    FAN_OUT_ITEMS_KEY,
+    FanOutItem,
+    envelope_from_chained_output,
+    envelope_from_loop_output,
+)
 from .registry import NodeRegistry
+from .memory_collector import collect_execution_memory
 
 log = logging.getLogger(__name__)
 
@@ -49,12 +57,14 @@ class Orchestrator:
         credentials: CredentialResolver,
         expressions: ExpressionEvaluator,
         events: EventBus,
+        graphiti_client: Any = None,
     ) -> None:
         self._session_factory = session_factory
         self._registry = registry
         self._credentials = credentials
         self._expressions = expressions
         self._events = events
+        self._graphiti = graphiti_client
 
     # -- Public entry points ---------------------------------------------
 
@@ -235,17 +245,19 @@ class Orchestrator:
 
                 # Detect if this node produced loop items that should be fanned out.
                 # A loop node (kind == "loop") outputs {"items": [...], "count": N,
-                # "_cadence": {mode,pace_seconds,...}}. Propagate items + cadence
-                # to downstream nodes so they execute per-item with the right timing.
+                # "_cadence": {mode,pace_seconds,...}}. A chained fan-out node emits
+                # {FAN_OUT_ITEMS_KEY: [<envelope_payload>, ...]} where each payload
+                # carries the original loop row + the node's per-item output —
+                # see fan_out.FanOutItem.to_chain_payload.
                 produced_items: Optional[list[Any]] = None
                 produced_cadence: Optional[dict[str, Any]] = None
                 if node_kind == "loop" and result.output.get("items") is not None:
                     produced_items = result.output["items"]
-                    produced_cadence = result.output.get("_cadence")
-                elif result.output.get("_fan_out_items") is not None:
-                    produced_items = result.output["_fan_out_items"]
+                    produced_cadence = result.output.get(CADENCE_KEY)
+                elif result.output.get(FAN_OUT_ITEMS_KEY) is not None:
+                    produced_items = result.output[FAN_OUT_ITEMS_KEY]
                     # Carry the cadence forward so chained fan-outs keep the same pacing.
-                    produced_cadence = result.output.get("_cadence")
+                    produced_cadence = result.output.get(CADENCE_KEY)
 
                 log.info("[orchestrator] node %s done | kind=%s | produced_items=%s | chosen_edges=%s",
                          node_id, node_kind, len(produced_items) if produced_items is not None else None,
@@ -267,6 +279,9 @@ class Orchestrator:
 
         final_status = "error" if any(r.output.get("error") for r in results.values()) else "success"
         await self._finalize_execution(execution_id, final_status, results)
+        asyncio.create_task(collect_execution_memory(
+            execution_id, self._session_factory, self._graphiti,
+        ))
 
     async def _execute_node_fan_out(
         self,
@@ -314,15 +329,21 @@ class Orchestrator:
             if aborted:
                 item_results[index] = {"skipped": True, "reason": "aborted by stop_on_error"}
                 return
-            # Loop outputs {"_item": <raw CSV row>, "_index": N, ...rendered fields}
-            # Unwrap so {{ item.phone }} resolves to the CSV field directly.
+            # Build the per-item envelope. Two cases:
+            #   1. First hop after a loop: items are {_item, _index, ...} envelopes
+            #      directly emitted by LoopExecutor — `prev` is empty.
+            #   2. Chained fan-out (loop → A → B): items already carry the original
+            #      _item AND the upstream's per-item _prev (written by to_chain_payload
+            #      on the previous hop) — recover both so {{ item.X }} keeps resolving
+            #      to the original CSV row at every depth.
             if isinstance(item, dict) and "_item" in item:
-                raw_item = item["_item"]
-                raw_index = item.get("_index", index)
+                envelope = envelope_from_chained_output(item, index)
             else:
-                raw_item = item
-                raw_index = index
-            per_item_input = {**direct_input, "item": raw_item, "index": raw_index}
+                envelope = envelope_from_loop_output(item, index)
+            raw_item = envelope.item
+            raw_index = envelope.index
+            raw_prev = envelope.prev
+            per_item_input = {**direct_input, "item": raw_item, "index": raw_index, "prev": raw_prev}
 
             async def emit(topic: str, payload: dict[str, Any]) -> None:
                 await self._publish(topic, {"execution_id": execution_id, "node_id": node_id, **payload})
@@ -341,14 +362,17 @@ class Orchestrator:
                 emit=emit,
             )
 
-            def _patched_ctx(item=raw_item, index=raw_index, ctx=ctx):
+            def _patched_ctx(envelope=envelope, ctx=ctx):
+                # `prev` resolves to the immediately-upstream node's per-item
+                # output — NOT the upstream node's full envelope. This is the
+                # invariant the FanOutItem dataclass enforces.
                 return {
                     "node": ctx.upstream,
-                    "prev": ctx.input,
+                    "prev": envelope.prev,
                     "trigger": ctx.trigger,
                     "execution_id": ctx.execution_id,
-                    "item": item,
-                    "index": index,
+                    "item": envelope.item,
+                    "index": envelope.index,
                 }
 
             ctx.expression_context = _patched_ctx  # type: ignore[method-assign]
@@ -356,11 +380,16 @@ class Orchestrator:
             executor = self._registry.get(node_kind)
             try:
                 r = await executor.execute(ctx)
-                item_results[index] = r.output
+                # Wrap the executor's output so the next downstream fan-out can
+                # recover the original loop row + this node's output as `prev`.
+                item_results[index] = envelope.to_chain_payload(r.output)
             except Exception as err:  # noqa: BLE001
                 log.warning("fan-out node %s item %d failed: %s", node_id, index, err)
                 errors.append(f"item[{index}]: {err}")
-                item_results[index] = {"error": str(err), "item": raw_item}
+                # Even on failure, propagate the original item so downstream
+                # nodes that handle the error can still see what they were
+                # supposed to be processing.
+                item_results[index] = envelope.to_chain_payload({"error": str(err), "item": raw_item})
                 if stop_on_error:
                     aborted = True
 
@@ -413,13 +442,13 @@ class Orchestrator:
                 await _run_one(i, it)
 
         output: dict[str, Any] = {
-            "_fan_out_items": item_results,
+            FAN_OUT_ITEMS_KEY: item_results,
             "count": len(item_results),
             "items": item_results,
         }
         # Carry cadence forward so chained fan-outs (loop → A → B) share pacing.
         if cadence:
-            output["_cadence"] = cadence
+            output[CADENCE_KEY] = cadence
         if errors:
             output["errors"] = errors
         if aborted:

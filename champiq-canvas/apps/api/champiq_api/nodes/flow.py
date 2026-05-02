@@ -5,13 +5,15 @@ import asyncio
 from typing import Any
 
 from ..core.interfaces import NodeContext, NodeExecutor, NodeResult
-
-
-# Cadence modes — see _MODES tuple in docstring below for semantics.
-LOOP_MODE_PARALLEL = "parallel"
-LOOP_MODE_SEQUENTIAL = "sequential"
-LOOP_MODE_PACED = "paced"
-_VALID_MODES = (LOOP_MODE_PARALLEL, LOOP_MODE_SEQUENTIAL, LOOP_MODE_PACED)
+from ._loop_helpers import (
+    LOOP_MODE_PACED,
+    LOOP_MODE_PARALLEL,
+    LOOP_MODE_SEQUENTIAL,
+    cap_items,
+    coerce_to_items_list,
+    parse_cadence,
+    render_each_template,
+)
 
 
 class LoopExecutor(NodeExecutor):
@@ -48,77 +50,33 @@ class LoopExecutor(NodeExecutor):
     kind = "loop"
 
     async def execute(self, ctx: NodeContext) -> NodeResult:
-        items = ctx.render(ctx.config.get("items", []))
-
-        # If no items expression configured, auto-detect from upstream input.
-        # Handles the case where the loop node has empty config ({}) but the
-        # trigger passed payload.items from a CSV upload.
-        if not items and isinstance(ctx.input, dict):
-            payload = ctx.input.get("payload") or {}
-            if isinstance(payload, dict) and isinstance(payload.get("items"), list):
-                items = payload["items"]
-            elif isinstance(ctx.input.get("items"), list):
-                items = ctx.input["items"]
-
-        if not isinstance(items, list):
-            raise TypeError("loop.items must render to a list")
-
         cfg = ctx.config or {}
-        template = cfg.get("each", {}) or {}
+        raw_items_expr = cfg.get("items", [])
 
-        # --- Resolve cadence config (with safe defaults + clamping) ----------
-        mode = (cfg.get("mode") or LOOP_MODE_PARALLEL).strip().lower()
-        if mode not in _VALID_MODES:
-            mode = LOOP_MODE_PARALLEL
+        # 1. Resolve the items list — render expression, fall back to upstream
+        #    auto-detect, or raise a friendly TypeError. See _loop_helpers.
+        rendered = ctx.render(raw_items_expr)
+        items = coerce_to_items_list(rendered, raw_items_expr, ctx.input)
 
-        concurrency = max(int(cfg.get("concurrency", 1) or 1), 1)
-        pace_seconds = max(int(cfg.get("pace_seconds", 0) or 0), 0)
-        initial_delay = max(int(cfg.get("initial_delay_seconds", 0) or 0), 0)
-        jitter = max(int(cfg.get("jitter_seconds", 0) or 0), 0)
-        stop_on_error = bool(cfg.get("stop_on_error", False))
+        # 2. Apply max_items cap (testing aid — process only the first N rows).
+        items = cap_items(items, cfg.get("max_items"))
 
-        max_items_raw = cfg.get("max_items")
-        max_items = int(max_items_raw) if max_items_raw not in (None, "", 0) else None
-        if max_items is not None and max_items > 0:
-            items = items[:max_items]
+        # 3. Parse cadence with safe defaults / clamping.
+        cadence = parse_cadence(cfg)
 
-        # In paced mode, concurrency is implicitly 1 — running items in parallel
-        # while pacing their starts is contradictory.
-        if mode == LOOP_MODE_PACED:
-            concurrency = 1
-
-        cadence = {
-            "mode": mode,
-            "concurrency": concurrency,
-            "pace_seconds": pace_seconds,
-            "initial_delay_seconds": initial_delay,
-            "jitter_seconds": jitter,
-            "stop_on_error": stop_on_error,
-        }
-
-        # --- Render per-item template (cheap, sync-ish) ---------------------
-        def _make_sub_ctx(item: Any, index: int) -> dict[str, Any]:
-            sub = dict(ctx.expression_context())
-            sub["item"] = item
-            sub["index"] = index
-            sub["prev"] = {"item": item, "index": index, **(ctx.input or {})}
-            return sub
-
-        def _render_one(item: Any, index: int) -> dict[str, Any]:
-            sub_ctx = _make_sub_ctx(item, index)
-            if template:
-                rendered = ctx.expressions.evaluate(template, sub_ctx)
-                base = rendered if isinstance(rendered, dict) else {"value": rendered}
-            else:
-                base = {}
-            return {"_item": item, "_index": index, **base}
-
-        results = [_render_one(item, i) for i, item in enumerate(items)]
+        # 4. Render per-item `each` template into the fan-out envelopes.
+        results = render_each_template(
+            cfg.get("each") or {},
+            items,
+            base_expression_context=ctx.expression_context(),
+            upstream_input=ctx.input,
+            evaluator_evaluate=ctx.expressions.evaluate,
+        )
 
         return NodeResult(output={
             "items": results,
             "count": len(results),
-            "_cadence": cadence,
+            "_cadence": cadence.to_dict(),
         })
 
 

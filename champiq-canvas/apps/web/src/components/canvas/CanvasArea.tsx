@@ -7,6 +7,7 @@ import {
   MiniMap,
   addEdge,
   type Connection,
+  type Node,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { useCanvasStore } from '@/store/canvasStore'
@@ -15,17 +16,25 @@ import { CustomEdge } from './CustomEdge'
 import { getNodeMeta, getToolId, isEdgeCompatible } from '@/lib/manifest'
 import type { ChampIQManifest } from '@/types'
 
-const nodeTypes = { toolNode: ToolNode }
-const edgeTypes = { customEdge: CustomEdge }
+function WrapNode({ data, ...props }: { data: Record<string, unknown> } & Node) {
+  return <ToolNode data={data} {...props} type={(props as { type?: string }).type ?? 'toolNode'} />
+}
 
+// React Flow REQUIRES nodeTypes / edgeTypes to be stable references across
+// renders. If their identity changes, React Flow re-mounts every node, which
+// tears down and rebuilds the hooks inside each node — and in that transition
+// React fires `Rendered more hooks than during the previous render` (minified
+// error #310). Build these once at module scope. Do NOT inline-spread or use a
+// fresh object literal in the JSX prop — that breaks stability and revives the
+// bug.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const WrapNode = (props: any) => <ToolNode {...props} type={props.type ?? 'toolNode'} />
-
-const fallbackNodeTypes: Record<string, React.ComponentType<unknown>> = {
+const nodeTypes: Record<string, React.ComponentType<any>> = {
+  toolNode: ToolNode,
   triggerNode: WrapNode,
   builtinNode: WrapNode,
   default: WrapNode,
 }
+const edgeTypes = { customEdge: CustomEdge }
 
 interface CanvasAreaProps {
   onNodeOpen?: (nodeId: string) => void
@@ -110,7 +119,7 @@ export function CanvasArea({ onNodeOpen }: CanvasAreaProps) {
       <ReactFlow
         nodes={nodes}
         edges={edges}
-        nodeTypes={{ ...nodeTypes, ...fallbackNodeTypes }}
+        nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}

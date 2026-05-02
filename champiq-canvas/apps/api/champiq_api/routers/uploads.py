@@ -27,7 +27,16 @@ def _parse_csv(content: bytes) -> list[dict[str, Any]]:
     for i, row in enumerate(reader):
         if i >= _MAX_ROWS:
             break
-        rows.append({k.strip(): v.strip() for k, v in row.items() if k})
+        # csv.DictReader returns None for missing columns (short rows) and
+        # also yields rows of all-None for trailing blank lines. Coerce to ""
+        # and skip rows where every value is blank.
+        cleaned = {
+            k.strip(): (v.strip() if isinstance(v, str) else "")
+            for k, v in row.items()
+            if k
+        }
+        if any(cleaned.values()):
+            rows.append(cleaned)
     return rows
 
 
@@ -52,7 +61,16 @@ def _parse_excel(content: bytes) -> list[dict[str, Any]]:
     for i, row in enumerate(rows_iter):
         if i >= _MAX_ROWS:
             break
-        rows.append({headers[j]: (str(v).strip() if v is not None else "") for j, v in enumerate(row)})
+        # Cells past the header width are dropped silently; trailing all-blank
+        # rows are skipped so an empty bottom of the sheet doesn't create
+        # phantom records.
+        cleaned: dict[str, Any] = {}
+        for j, v in enumerate(row):
+            if j >= len(headers):
+                break
+            cleaned[headers[j]] = str(v).strip() if v is not None else ""
+        if any(cleaned.values()):
+            rows.append(cleaned)
     wb.close()
     return rows
 

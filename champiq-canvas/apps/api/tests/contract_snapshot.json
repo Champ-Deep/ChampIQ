@@ -1,0 +1,4679 @@
+[
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "name": "oauth_callback",
+    "path": "/api/auth/lakeb2b/callback",
+    "path_params": [],
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "name": "save_linkedin_cookie",
+    "path": "/api/auth/lakeb2b/linkedin-cookie",
+    "path_params": [],
+    "request_schema": {
+      "properties": {
+        "credential_id": {
+          "title": "Credential Id",
+          "type": "integer"
+        },
+        "li_at": {
+          "title": "Li At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "credential_id",
+        "li_at"
+      ],
+      "title": "LinkedInCookieRequest",
+      "type": "object"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "name": "linkedin_login_start",
+    "path": "/api/auth/lakeb2b/linkedin-login-start",
+    "path_params": [],
+    "request_schema": {
+      "properties": {
+        "credential_id": {
+          "title": "Credential Id",
+          "type": "integer"
+        },
+        "email": {
+          "title": "Email",
+          "type": "string"
+        },
+        "password": {
+          "title": "Password",
+          "type": "string"
+        }
+      },
+      "required": [
+        "credential_id",
+        "email",
+        "password"
+      ],
+      "title": "LinkedInLoginStartRequest",
+      "type": "object"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "name": "linkedin_login_verify",
+    "path": "/api/auth/lakeb2b/linkedin-login-verify",
+    "path_params": [],
+    "request_schema": {
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "credential_id": {
+          "title": "Credential Id",
+          "type": "integer"
+        },
+        "session_id": {
+          "title": "Session Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "credential_id",
+        "session_id",
+        "code"
+      ],
+      "title": "LinkedInLoginVerifyRequest",
+      "type": "object"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "name": "get_oauth_url",
+    "path": "/api/auth/lakeb2b/oauth-url",
+    "path_params": [],
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "name": "get_pairing_token",
+    "path": "/api/auth/lakeb2b/pair",
+    "path_params": [],
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "name": "lakeb2b_status",
+    "path": "/api/auth/lakeb2b/status/{credential_id}",
+    "path_params": [
+      "credential_id"
+    ],
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "name": "get_ws_token",
+    "path": "/api/auth/lakeb2b/ws-token/{credential_id}",
+    "path_params": [
+      "credential_id"
+    ],
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "name": "get_canvas_state",
+    "path": "/api/canvas/state",
+    "path_params": [],
+    "response_schema": {
+      "properties": {
+        "edges": {
+          "items": {},
+          "title": "Edges",
+          "type": "array"
+        },
+        "nodes": {
+          "items": {},
+          "title": "Nodes",
+          "type": "array"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "nodes",
+        "edges",
+        "updated_at"
+      ],
+      "title": "CanvasStateOut",
+      "type": "object"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "name": "save_canvas_state",
+    "path": "/api/canvas/state",
+    "path_params": [],
+    "request_schema": {
+      "properties": {
+        "edges": {
+          "default": [],
+          "items": {},
+          "title": "Edges",
+          "type": "array"
+        },
+        "nodes": {
+          "default": [],
+          "items": {},
+          "title": "Nodes",
+          "type": "array"
+        }
+      },
+      "title": "CanvasStateIn",
+      "type": "object"
+    },
+    "response_schema": {
+      "properties": {
+        "edges": {
+          "items": {},
+          "title": "Edges",
+          "type": "array"
+        },
+        "nodes": {
+          "items": {},
+          "title": "Nodes",
+          "type": "array"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "nodes",
+        "edges",
+        "updated_at"
+      ],
+      "title": "CanvasStateOut",
+      "type": "object"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "name": "sequence_analytics",
+    "path": "/api/champmail/analytics/sequences/{sequence_id}",
+    "path_params": [
+      "sequence_id"
+    ],
+    "response_schema": {
+      "properties": {
+        "bounce_rate": {
+          "title": "Bounce Rate",
+          "type": "number"
+        },
+        "bounces": {
+          "title": "Bounces",
+          "type": "integer"
+        },
+        "click_rate": {
+          "title": "Click Rate",
+          "type": "number"
+        },
+        "clicks": {
+          "title": "Clicks",
+          "type": "integer"
+        },
+        "enrollments_active": {
+          "title": "Enrollments Active",
+          "type": "integer"
+        },
+        "enrollments_total": {
+          "title": "Enrollments Total",
+          "type": "integer"
+        },
+        "open_rate": {
+          "title": "Open Rate",
+          "type": "number"
+        },
+        "opens": {
+          "title": "Opens",
+          "type": "integer"
+        },
+        "replies": {
+          "title": "Replies",
+          "type": "integer"
+        },
+        "reply_rate": {
+          "title": "Reply Rate",
+          "type": "number"
+        },
+        "sends_failed": {
+          "title": "Sends Failed",
+          "type": "integer"
+        },
+        "sends_total": {
+          "title": "Sends Total",
+          "type": "integer"
+        },
+        "sequence_id": {
+          "title": "Sequence Id",
+          "type": "integer"
+        },
+        "unsubscribes": {
+          "title": "Unsubscribes",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "sequence_id",
+        "enrollments_total",
+        "enrollments_active",
+        "sends_total",
+        "sends_failed",
+        "opens",
+        "clicks",
+        "replies",
+        "bounces",
+        "unsubscribes",
+        "open_rate",
+        "click_rate",
+        "reply_rate",
+        "bounce_rate"
+      ],
+      "title": "SequenceAnalyticsOut",
+      "type": "object"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "name": "test_emelia_credential",
+    "path": "/api/champmail/credentials/test",
+    "path_params": [],
+    "request_schema": {
+      "properties": {
+        "api_key": {
+          "title": "Api Key",
+          "type": "string"
+        }
+      },
+      "required": [
+        "api_key"
+      ],
+      "title": "CredentialTestIn",
+      "type": "object"
+    },
+    "response_schema": {
+      "properties": {
+        "account_email": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Account Email"
+        },
+        "account_uid": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Account Uid"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        },
+        "providers": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/EmeliaProviderOut"
+          },
+          "title": "Providers",
+          "type": "array"
+        },
+        "valid": {
+          "title": "Valid",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "valid"
+      ],
+      "title": "CredentialTestOut",
+      "type": "object"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "name": "enroll",
+    "path": "/api/champmail/enrollments",
+    "path_params": [],
+    "request_schema": {
+      "properties": {
+        "prospect_id": {
+          "title": "Prospect Id",
+          "type": "integer"
+        },
+        "sequence_id": {
+          "title": "Sequence Id",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "prospect_id",
+        "sequence_id"
+      ],
+      "title": "EnrollmentIn",
+      "type": "object"
+    },
+    "response_schema": {
+      "properties": {
+        "completed_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Completed At"
+        },
+        "current_step_index": {
+          "title": "Current Step Index",
+          "type": "integer"
+        },
+        "enrolled_at": {
+          "format": "date-time",
+          "title": "Enrolled At",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "next_step_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Next Step At"
+        },
+        "paused_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Paused At"
+        },
+        "prospect_id": {
+          "title": "Prospect Id",
+          "type": "integer"
+        },
+        "sequence_id": {
+          "title": "Sequence Id",
+          "type": "integer"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "prospect_id",
+        "sequence_id",
+        "current_step_index",
+        "status",
+        "enrolled_at"
+      ],
+      "title": "EnrollmentOut",
+      "type": "object"
+    },
+    "status_code": 201
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "name": "get_enrollment",
+    "path": "/api/champmail/enrollments/{enrollment_id}",
+    "path_params": [
+      "enrollment_id"
+    ],
+    "response_schema": {
+      "properties": {
+        "completed_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Completed At"
+        },
+        "current_step_index": {
+          "title": "Current Step Index",
+          "type": "integer"
+        },
+        "enrolled_at": {
+          "format": "date-time",
+          "title": "Enrolled At",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "next_step_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Next Step At"
+        },
+        "paused_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Paused At"
+        },
+        "prospect_id": {
+          "title": "Prospect Id",
+          "type": "integer"
+        },
+        "sequence_id": {
+          "title": "Sequence Id",
+          "type": "integer"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "prospect_id",
+        "sequence_id",
+        "current_step_index",
+        "status",
+        "enrolled_at"
+      ],
+      "title": "EnrollmentOut",
+      "type": "object"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "name": "complete",
+    "path": "/api/champmail/enrollments/{enrollment_id}/complete",
+    "path_params": [
+      "enrollment_id"
+    ],
+    "response_schema": {
+      "properties": {
+        "completed_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Completed At"
+        },
+        "current_step_index": {
+          "title": "Current Step Index",
+          "type": "integer"
+        },
+        "enrolled_at": {
+          "format": "date-time",
+          "title": "Enrolled At",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "next_step_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Next Step At"
+        },
+        "paused_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Paused At"
+        },
+        "prospect_id": {
+          "title": "Prospect Id",
+          "type": "integer"
+        },
+        "sequence_id": {
+          "title": "Sequence Id",
+          "type": "integer"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "prospect_id",
+        "sequence_id",
+        "current_step_index",
+        "status",
+        "enrolled_at"
+      ],
+      "title": "EnrollmentOut",
+      "type": "object"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "name": "pause",
+    "path": "/api/champmail/enrollments/{enrollment_id}/pause",
+    "path_params": [
+      "enrollment_id"
+    ],
+    "response_schema": {
+      "properties": {
+        "completed_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Completed At"
+        },
+        "current_step_index": {
+          "title": "Current Step Index",
+          "type": "integer"
+        },
+        "enrolled_at": {
+          "format": "date-time",
+          "title": "Enrolled At",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "next_step_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Next Step At"
+        },
+        "paused_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Paused At"
+        },
+        "prospect_id": {
+          "title": "Prospect Id",
+          "type": "integer"
+        },
+        "sequence_id": {
+          "title": "Sequence Id",
+          "type": "integer"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "prospect_id",
+        "sequence_id",
+        "current_step_index",
+        "status",
+        "enrolled_at"
+      ],
+      "title": "EnrollmentOut",
+      "type": "object"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "name": "resume",
+    "path": "/api/champmail/enrollments/{enrollment_id}/resume",
+    "path_params": [
+      "enrollment_id"
+    ],
+    "response_schema": {
+      "properties": {
+        "completed_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Completed At"
+        },
+        "current_step_index": {
+          "title": "Current Step Index",
+          "type": "integer"
+        },
+        "enrolled_at": {
+          "format": "date-time",
+          "title": "Enrolled At",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "next_step_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Next Step At"
+        },
+        "paused_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Paused At"
+        },
+        "prospect_id": {
+          "title": "Prospect Id",
+          "type": "integer"
+        },
+        "sequence_id": {
+          "title": "Sequence Id",
+          "type": "integer"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "prospect_id",
+        "sequence_id",
+        "current_step_index",
+        "status",
+        "enrolled_at"
+      ],
+      "title": "EnrollmentOut",
+      "type": "object"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "name": "list_prospects",
+    "path": "/api/champmail/prospects",
+    "path_params": [],
+    "response_schema": {
+      "_error": "could not serialize"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "name": "create_prospect",
+    "path": "/api/champmail/prospects",
+    "path_params": [],
+    "request_schema": {
+      "properties": {
+        "company": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Company"
+        },
+        "custom_fields": {
+          "title": "Custom Fields",
+          "type": "object"
+        },
+        "email": {
+          "format": "email",
+          "title": "Email",
+          "type": "string"
+        },
+        "first_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "First Name"
+        },
+        "last_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Name"
+        },
+        "linkedin_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Linkedin Url"
+        },
+        "phone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Phone"
+        },
+        "timezone": {
+          "default": "UTC",
+          "title": "Timezone",
+          "type": "string"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        }
+      },
+      "required": [
+        "email"
+      ],
+      "title": "ProspectIn",
+      "type": "object"
+    },
+    "response_schema": {
+      "properties": {
+        "company": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Company"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "custom_fields": {
+          "title": "Custom Fields",
+          "type": "object"
+        },
+        "email": {
+          "title": "Email",
+          "type": "string"
+        },
+        "first_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "First Name"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "last_clicked_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Clicked At"
+        },
+        "last_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Name"
+        },
+        "last_opened_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Opened At"
+        },
+        "last_replied_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Replied At"
+        },
+        "last_sent_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Sent At"
+        },
+        "linkedin_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Linkedin Url"
+        },
+        "phone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Phone"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        },
+        "timezone": {
+          "title": "Timezone",
+          "type": "string"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "email",
+        "timezone",
+        "status",
+        "custom_fields",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "ProspectOut",
+      "type": "object"
+    },
+    "status_code": 201
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "name": "get_prospect_by_email",
+    "path": "/api/champmail/prospects/by-email/{email}",
+    "path_params": [
+      "email"
+    ],
+    "response_schema": {
+      "properties": {
+        "company": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Company"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "custom_fields": {
+          "title": "Custom Fields",
+          "type": "object"
+        },
+        "email": {
+          "title": "Email",
+          "type": "string"
+        },
+        "first_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "First Name"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "last_clicked_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Clicked At"
+        },
+        "last_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Name"
+        },
+        "last_opened_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Opened At"
+        },
+        "last_replied_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Replied At"
+        },
+        "last_sent_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Sent At"
+        },
+        "linkedin_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Linkedin Url"
+        },
+        "phone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Phone"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        },
+        "timezone": {
+          "title": "Timezone",
+          "type": "string"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "email",
+        "timezone",
+        "status",
+        "custom_fields",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "ProspectOut",
+      "type": "object"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "DELETE"
+    ],
+    "name": "delete_prospect",
+    "path": "/api/champmail/prospects/{prospect_id}",
+    "path_params": [
+      "prospect_id"
+    ],
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "name": "get_prospect",
+    "path": "/api/champmail/prospects/{prospect_id}",
+    "path_params": [
+      "prospect_id"
+    ],
+    "response_schema": {
+      "properties": {
+        "company": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Company"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "custom_fields": {
+          "title": "Custom Fields",
+          "type": "object"
+        },
+        "email": {
+          "title": "Email",
+          "type": "string"
+        },
+        "first_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "First Name"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "last_clicked_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Clicked At"
+        },
+        "last_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Name"
+        },
+        "last_opened_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Opened At"
+        },
+        "last_replied_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Replied At"
+        },
+        "last_sent_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Sent At"
+        },
+        "linkedin_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Linkedin Url"
+        },
+        "phone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Phone"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        },
+        "timezone": {
+          "title": "Timezone",
+          "type": "string"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "email",
+        "timezone",
+        "status",
+        "custom_fields",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "ProspectOut",
+      "type": "object"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "PATCH"
+    ],
+    "name": "update_prospect",
+    "path": "/api/champmail/prospects/{prospect_id}",
+    "path_params": [
+      "prospect_id"
+    ],
+    "request_schema": {
+      "properties": {
+        "company": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Company"
+        },
+        "custom_fields": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Custom Fields"
+        },
+        "first_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "First Name"
+        },
+        "last_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Name"
+        },
+        "linkedin_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Linkedin Url"
+        },
+        "phone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Phone"
+        },
+        "status": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Status"
+        },
+        "timezone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Timezone"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        }
+      },
+      "title": "ProspectUpdate",
+      "type": "object"
+    },
+    "response_schema": {
+      "properties": {
+        "company": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Company"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "custom_fields": {
+          "title": "Custom Fields",
+          "type": "object"
+        },
+        "email": {
+          "title": "Email",
+          "type": "string"
+        },
+        "first_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "First Name"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "last_clicked_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Clicked At"
+        },
+        "last_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Name"
+        },
+        "last_opened_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Opened At"
+        },
+        "last_replied_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Replied At"
+        },
+        "last_sent_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Sent At"
+        },
+        "linkedin_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Linkedin Url"
+        },
+        "phone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Phone"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        },
+        "timezone": {
+          "title": "Timezone",
+          "type": "string"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "email",
+        "timezone",
+        "status",
+        "custom_fields",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "ProspectOut",
+      "type": "object"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "name": "list_senders",
+    "path": "/api/champmail/senders",
+    "path_params": [],
+    "response_schema": {
+      "_error": "could not serialize"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "name": "create_sender",
+    "path": "/api/champmail/senders",
+    "path_params": [],
+    "request_schema": {
+      "properties": {
+        "credential_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Credential Id"
+        },
+        "daily_cap": {
+          "default": 100,
+          "title": "Daily Cap",
+          "type": "integer"
+        },
+        "emelia_sender_id": {
+          "title": "Emelia Sender Id",
+          "type": "string"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "from_email": {
+          "format": "email",
+          "title": "From Email",
+          "type": "string"
+        },
+        "from_name": {
+          "title": "From Name",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "from_email",
+        "from_name",
+        "emelia_sender_id"
+      ],
+      "title": "SenderIn",
+      "type": "object"
+    },
+    "response_schema": {
+      "properties": {
+        "consecutive_bounces": {
+          "title": "Consecutive Bounces",
+          "type": "integer"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "credential_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Credential Id"
+        },
+        "daily_cap": {
+          "title": "Daily Cap",
+          "type": "integer"
+        },
+        "emelia_sender_id": {
+          "title": "Emelia Sender Id",
+          "type": "string"
+        },
+        "enabled": {
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "from_email": {
+          "title": "From Email",
+          "type": "string"
+        },
+        "from_name": {
+          "title": "From Name",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "from_email",
+        "from_name",
+        "emelia_sender_id",
+        "daily_cap",
+        "enabled",
+        "consecutive_bounces",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "SenderOut",
+      "type": "object"
+    },
+    "status_code": 201
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "DELETE"
+    ],
+    "name": "delete_sender",
+    "path": "/api/champmail/senders/{sender_id}",
+    "path_params": [
+      "sender_id"
+    ],
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "name": "get_sender",
+    "path": "/api/champmail/senders/{sender_id}",
+    "path_params": [
+      "sender_id"
+    ],
+    "response_schema": {
+      "properties": {
+        "consecutive_bounces": {
+          "title": "Consecutive Bounces",
+          "type": "integer"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "credential_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Credential Id"
+        },
+        "daily_cap": {
+          "title": "Daily Cap",
+          "type": "integer"
+        },
+        "emelia_sender_id": {
+          "title": "Emelia Sender Id",
+          "type": "string"
+        },
+        "enabled": {
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "from_email": {
+          "title": "From Email",
+          "type": "string"
+        },
+        "from_name": {
+          "title": "From Name",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "from_email",
+        "from_name",
+        "emelia_sender_id",
+        "daily_cap",
+        "enabled",
+        "consecutive_bounces",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "SenderOut",
+      "type": "object"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "PATCH"
+    ],
+    "name": "update_sender",
+    "path": "/api/champmail/senders/{sender_id}",
+    "path_params": [
+      "sender_id"
+    ],
+    "request_schema": {
+      "properties": {
+        "credential_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Credential Id"
+        },
+        "daily_cap": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Daily Cap"
+        },
+        "emelia_sender_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Emelia Sender Id"
+        },
+        "enabled": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Enabled"
+        },
+        "from_email": {
+          "anyOf": [
+            {
+              "format": "email",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "From Email"
+        },
+        "from_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "From Name"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        }
+      },
+      "title": "SenderUpdate",
+      "type": "object"
+    },
+    "response_schema": {
+      "properties": {
+        "consecutive_bounces": {
+          "title": "Consecutive Bounces",
+          "type": "integer"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "credential_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Credential Id"
+        },
+        "daily_cap": {
+          "title": "Daily Cap",
+          "type": "integer"
+        },
+        "emelia_sender_id": {
+          "title": "Emelia Sender Id",
+          "type": "string"
+        },
+        "enabled": {
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "from_email": {
+          "title": "From Email",
+          "type": "string"
+        },
+        "from_name": {
+          "title": "From Name",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "from_email",
+        "from_name",
+        "emelia_sender_id",
+        "daily_cap",
+        "enabled",
+        "consecutive_bounces",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "SenderOut",
+      "type": "object"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "name": "send_oneoff",
+    "path": "/api/champmail/sends",
+    "path_params": [],
+    "request_schema": {
+      "description": "Fire-once send (no sequence). Pick a sender via the round-robin pool\nunless `sender_id` is explicitly provided.",
+      "properties": {
+        "prospect_id": {
+          "title": "Prospect Id",
+          "type": "integer"
+        },
+        "sender_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sender Id"
+        },
+        "template_id": {
+          "title": "Template Id",
+          "type": "integer"
+        },
+        "variables": {
+          "title": "Variables",
+          "type": "object"
+        }
+      },
+      "required": [
+        "prospect_id",
+        "template_id"
+      ],
+      "title": "SingleSendIn",
+      "type": "object"
+    },
+    "response_schema": {
+      "properties": {
+        "body_html_rendered": {
+          "title": "Body Html Rendered",
+          "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "emelia_message_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Emelia Message Id"
+        },
+        "enrollment_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Enrollment Id"
+        },
+        "failed_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Failed Reason"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "idempotency_key": {
+          "title": "Idempotency Key",
+          "type": "string"
+        },
+        "prospect_id": {
+          "title": "Prospect Id",
+          "type": "integer"
+        },
+        "sender_id": {
+          "title": "Sender Id",
+          "type": "integer"
+        },
+        "sent_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sent At"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        },
+        "step_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Step Id"
+        },
+        "subject_rendered": {
+          "title": "Subject Rendered",
+          "type": "string"
+        },
+        "template_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Template Id"
+        }
+      },
+      "required": [
+        "id",
+        "sender_id",
+        "prospect_id",
+        "idempotency_key",
+        "subject_rendered",
+        "body_html_rendered",
+        "status",
+        "created_at"
+      ],
+      "title": "SendOut",
+      "type": "object"
+    },
+    "status_code": 201
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "name": "list_for_prospect",
+    "path": "/api/champmail/sends/by-prospect/{prospect_id}",
+    "path_params": [
+      "prospect_id"
+    ],
+    "response_schema": {
+      "_error": "could not serialize"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "name": "get_send",
+    "path": "/api/champmail/sends/{send_id}",
+    "path_params": [
+      "send_id"
+    ],
+    "response_schema": {
+      "properties": {
+        "body_html_rendered": {
+          "title": "Body Html Rendered",
+          "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "emelia_message_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Emelia Message Id"
+        },
+        "enrollment_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Enrollment Id"
+        },
+        "failed_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Failed Reason"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "idempotency_key": {
+          "title": "Idempotency Key",
+          "type": "string"
+        },
+        "prospect_id": {
+          "title": "Prospect Id",
+          "type": "integer"
+        },
+        "sender_id": {
+          "title": "Sender Id",
+          "type": "integer"
+        },
+        "sent_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sent At"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        },
+        "step_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Step Id"
+        },
+        "subject_rendered": {
+          "title": "Subject Rendered",
+          "type": "string"
+        },
+        "template_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Template Id"
+        }
+      },
+      "required": [
+        "id",
+        "sender_id",
+        "prospect_id",
+        "idempotency_key",
+        "subject_rendered",
+        "body_html_rendered",
+        "status",
+        "created_at"
+      ],
+      "title": "SendOut",
+      "type": "object"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "name": "list_sequences",
+    "path": "/api/champmail/sequences",
+    "path_params": [],
+    "response_schema": {
+      "_error": "could not serialize"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "name": "create_sequence",
+    "path": "/api/champmail/sequences",
+    "path_params": [],
+    "request_schema": {
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/SequenceStepIn"
+          },
+          "title": "Steps",
+          "type": "array"
+        },
+        "timezone": {
+          "default": "UTC",
+          "title": "Timezone",
+          "type": "string"
+        },
+        "working_hours_end": {
+          "default": 17,
+          "title": "Working Hours End",
+          "type": "integer"
+        },
+        "working_hours_start": {
+          "default": 9,
+          "title": "Working Hours Start",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "SequenceIn",
+      "type": "object"
+    },
+    "response_schema": {
+      "properties": {
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "enabled": {
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/SequenceStepOut"
+          },
+          "title": "Steps",
+          "type": "array"
+        },
+        "timezone": {
+          "title": "Timezone",
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        },
+        "working_hours_end": {
+          "title": "Working Hours End",
+          "type": "integer"
+        },
+        "working_hours_start": {
+          "title": "Working Hours Start",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "timezone",
+        "working_hours_start",
+        "working_hours_end",
+        "enabled",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "SequenceOut",
+      "type": "object"
+    },
+    "status_code": 201
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "DELETE"
+    ],
+    "name": "remove_step",
+    "path": "/api/champmail/sequences/steps/{step_id}",
+    "path_params": [
+      "step_id"
+    ],
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "DELETE"
+    ],
+    "name": "delete_sequence",
+    "path": "/api/champmail/sequences/{sequence_id}",
+    "path_params": [
+      "sequence_id"
+    ],
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "name": "get_sequence",
+    "path": "/api/champmail/sequences/{sequence_id}",
+    "path_params": [
+      "sequence_id"
+    ],
+    "response_schema": {
+      "properties": {
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "enabled": {
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/SequenceStepOut"
+          },
+          "title": "Steps",
+          "type": "array"
+        },
+        "timezone": {
+          "title": "Timezone",
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        },
+        "working_hours_end": {
+          "title": "Working Hours End",
+          "type": "integer"
+        },
+        "working_hours_start": {
+          "title": "Working Hours Start",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "timezone",
+        "working_hours_start",
+        "working_hours_end",
+        "enabled",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "SequenceOut",
+      "type": "object"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "PATCH"
+    ],
+    "name": "update_sequence",
+    "path": "/api/champmail/sequences/{sequence_id}",
+    "path_params": [
+      "sequence_id"
+    ],
+    "request_schema": {
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "enabled": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Enabled"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "timezone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Timezone"
+        },
+        "working_hours_end": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Working Hours End"
+        },
+        "working_hours_start": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Working Hours Start"
+        }
+      },
+      "title": "SequenceUpdate",
+      "type": "object"
+    },
+    "response_schema": {
+      "properties": {
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "enabled": {
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/SequenceStepOut"
+          },
+          "title": "Steps",
+          "type": "array"
+        },
+        "timezone": {
+          "title": "Timezone",
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        },
+        "working_hours_end": {
+          "title": "Working Hours End",
+          "type": "integer"
+        },
+        "working_hours_start": {
+          "title": "Working Hours Start",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "timezone",
+        "working_hours_start",
+        "working_hours_end",
+        "enabled",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "SequenceOut",
+      "type": "object"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "name": "add_step",
+    "path": "/api/champmail/sequences/{sequence_id}/steps",
+    "path_params": [
+      "sequence_id"
+    ],
+    "request_schema": {
+      "properties": {
+        "condition": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Condition"
+        },
+        "delay_days": {
+          "default": 0,
+          "title": "Delay Days",
+          "type": "integer"
+        },
+        "delay_hours": {
+          "default": 0,
+          "title": "Delay Hours",
+          "type": "integer"
+        },
+        "template_id": {
+          "title": "Template Id",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "template_id"
+      ],
+      "title": "SequenceStepIn",
+      "type": "object"
+    },
+    "response_schema": {
+      "properties": {
+        "condition": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Condition"
+        },
+        "delay_days": {
+          "default": 0,
+          "title": "Delay Days",
+          "type": "integer"
+        },
+        "delay_hours": {
+          "default": 0,
+          "title": "Delay Hours",
+          "type": "integer"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "sequence_id": {
+          "title": "Sequence Id",
+          "type": "integer"
+        },
+        "step_index": {
+          "title": "Step Index",
+          "type": "integer"
+        },
+        "template_id": {
+          "title": "Template Id",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "template_id",
+        "id",
+        "sequence_id",
+        "step_index"
+      ],
+      "title": "SequenceStepOut",
+      "type": "object"
+    },
+    "status_code": 201
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "name": "list_templates",
+    "path": "/api/champmail/templates",
+    "path_params": [],
+    "response_schema": {
+      "_error": "could not serialize"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "name": "create_template",
+    "path": "/api/champmail/templates",
+    "path_params": [],
+    "request_schema": {
+      "properties": {
+        "body_html": {
+          "title": "Body Html",
+          "type": "string"
+        },
+        "body_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Body Text"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "subject": {
+          "title": "Subject",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "subject",
+        "body_html"
+      ],
+      "title": "TemplateIn",
+      "type": "object"
+    },
+    "response_schema": {
+      "properties": {
+        "body_html": {
+          "title": "Body Html",
+          "type": "string"
+        },
+        "body_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Body Text"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "subject": {
+          "title": "Subject",
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        },
+        "variables": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Variables",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "subject",
+        "body_html",
+        "variables",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "TemplateOut",
+      "type": "object"
+    },
+    "status_code": 201
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "name": "preview_template",
+    "path": "/api/champmail/templates/preview",
+    "path_params": [],
+    "request_schema": {
+      "properties": {
+        "template_id": {
+          "title": "Template Id",
+          "type": "integer"
+        },
+        "variables": {
+          "title": "Variables",
+          "type": "object"
+        }
+      },
+      "required": [
+        "template_id"
+      ],
+      "title": "TemplatePreviewIn",
+      "type": "object"
+    },
+    "response_schema": {
+      "properties": {
+        "body_html": {
+          "title": "Body Html",
+          "type": "string"
+        },
+        "body_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Body Text"
+        },
+        "subject": {
+          "title": "Subject",
+          "type": "string"
+        }
+      },
+      "required": [
+        "subject",
+        "body_html"
+      ],
+      "title": "TemplatePreviewOut",
+      "type": "object"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "DELETE"
+    ],
+    "name": "delete_template",
+    "path": "/api/champmail/templates/{template_id}",
+    "path_params": [
+      "template_id"
+    ],
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "name": "get_template",
+    "path": "/api/champmail/templates/{template_id}",
+    "path_params": [
+      "template_id"
+    ],
+    "response_schema": {
+      "properties": {
+        "body_html": {
+          "title": "Body Html",
+          "type": "string"
+        },
+        "body_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Body Text"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "subject": {
+          "title": "Subject",
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        },
+        "variables": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Variables",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "subject",
+        "body_html",
+        "variables",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "TemplateOut",
+      "type": "object"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "PATCH"
+    ],
+    "name": "update_template",
+    "path": "/api/champmail/templates/{template_id}",
+    "path_params": [
+      "template_id"
+    ],
+    "request_schema": {
+      "properties": {
+        "body_html": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Body Html"
+        },
+        "body_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Body Text"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "subject": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Subject"
+        }
+      },
+      "title": "TemplateUpdate",
+      "type": "object"
+    },
+    "response_schema": {
+      "properties": {
+        "body_html": {
+          "title": "Body Html",
+          "type": "string"
+        },
+        "body_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Body Text"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "subject": {
+          "title": "Subject",
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        },
+        "variables": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Variables",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "subject",
+        "body_html",
+        "variables",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "TemplateOut",
+      "type": "object"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "name": "issue_token",
+    "path": "/api/champmail/unsubscribe/issue/{prospect_id}",
+    "path_params": [
+      "prospect_id"
+    ],
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "name": "unsubscribe_get",
+    "path": "/api/champmail/unsubscribe/{token}",
+    "path_params": [
+      "token"
+    ],
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "name": "emelia_webhook",
+    "path": "/api/champmail/webhooks/emelia",
+    "path_params": [],
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "name": "chat_history",
+    "path": "/api/chat/history",
+    "path_params": [],
+    "response_schema": {
+      "_error": "could not serialize"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "name": "chat_message",
+    "path": "/api/chat/message",
+    "path_params": [],
+    "request_schema": {
+      "properties": {
+        "content": {
+          "title": "Content",
+          "type": "string"
+        },
+        "current_workflow": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Current Workflow"
+        },
+        "session_id": {
+          "default": "default",
+          "title": "Session Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "content"
+      ],
+      "title": "ChatMessageIn",
+      "type": "object"
+    },
+    "response_schema": {
+      "properties": {
+        "content": {
+          "title": "Content",
+          "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "role": {
+          "title": "Role",
+          "type": "string"
+        },
+        "session_id": {
+          "title": "Session Id",
+          "type": "string"
+        },
+        "workflow_patch": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Workflow Patch"
+        }
+      },
+      "required": [
+        "id",
+        "session_id",
+        "role",
+        "content",
+        "created_at"
+      ],
+      "title": "ChatMessageOut",
+      "type": "object"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "name": "list_credentials",
+    "path": "/api/credentials",
+    "path_params": [],
+    "response_schema": {
+      "_error": "could not serialize"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "name": "create_credential",
+    "path": "/api/credentials",
+    "path_params": [],
+    "request_schema": {
+      "properties": {
+        "data": {
+          "title": "Data",
+          "type": "object"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "type": {
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "type",
+        "data"
+      ],
+      "title": "CredentialIn",
+      "type": "object"
+    },
+    "response_schema": {
+      "properties": {
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "type": {
+          "title": "Type",
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "type",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "CredentialOut",
+      "type": "object"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "DELETE"
+    ],
+    "name": "delete_credential",
+    "path": "/api/credentials/{cred_id}",
+    "path_params": [
+      "cred_id"
+    ],
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "PUT"
+    ],
+    "name": "update_credential",
+    "path": "/api/credentials/{cred_id}",
+    "path_params": [
+      "cred_id"
+    ],
+    "request_schema": {
+      "properties": {
+        "data": {
+          "title": "Data",
+          "type": "object"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "type": {
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "type",
+        "data"
+      ],
+      "title": "CredentialIn",
+      "type": "object"
+    },
+    "response_schema": {
+      "properties": {
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "type": {
+          "title": "Type",
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "type",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "CredentialOut",
+      "type": "object"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "name": "get_execution",
+    "path": "/api/executions/{execution_id}",
+    "path_params": [
+      "execution_id"
+    ],
+    "response_schema": {
+      "properties": {
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        },
+        "finished_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Finished At"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "result": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Result"
+        },
+        "started_at": {
+          "format": "date-time",
+          "title": "Started At",
+          "type": "string"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        },
+        "trigger_kind": {
+          "title": "Trigger Kind",
+          "type": "string"
+        },
+        "trigger_payload": {
+          "title": "Trigger Payload",
+          "type": "object"
+        },
+        "workflow_id": {
+          "title": "Workflow Id",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "workflow_id",
+        "status",
+        "trigger_kind",
+        "trigger_payload",
+        "started_at"
+      ],
+      "title": "ExecutionOut",
+      "type": "object"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "name": "get_node_runs",
+    "path": "/api/executions/{execution_id}/node_runs",
+    "path_params": [
+      "execution_id"
+    ],
+    "response_schema": {
+      "_error": "could not serialize"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "name": "get_job",
+    "path": "/api/jobs/{job_id}",
+    "path_params": [
+      "job_id"
+    ],
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "name": "list_manifests",
+    "path": "/api/registry/manifests",
+    "path_params": [],
+    "response_schema": {
+      "_error": "could not serialize"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "name": "get_settings",
+    "path": "/api/settings",
+    "path_params": [],
+    "response_schema": {
+      "properties": {
+        "default_email_credential_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Default Email Credential Id"
+        },
+        "default_engine_provider": {
+          "title": "Default Engine Provider",
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "default_engine_provider",
+        "default_email_credential_id",
+        "updated_at"
+      ],
+      "title": "AppSettingsOut",
+      "type": "object"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "PUT"
+    ],
+    "name": "update_settings",
+    "path": "/api/settings",
+    "path_params": [],
+    "request_schema": {
+      "properties": {
+        "default_email_credential_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Default Email Credential Id"
+        },
+        "default_engine_provider": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Default Engine Provider"
+        }
+      },
+      "title": "AppSettingsIn",
+      "type": "object"
+    },
+    "response_schema": {
+      "properties": {
+        "default_email_credential_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Default Email Credential Id"
+        },
+        "default_engine_provider": {
+          "title": "Default Engine Provider",
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "default_engine_provider",
+        "default_email_credential_id",
+        "updated_at"
+      ],
+      "title": "AppSettingsOut",
+      "type": "object"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "name": "tool_status",
+    "path": "/api/tools/{tool}/status",
+    "path_params": [
+      "tool"
+    ],
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "name": "run_action",
+    "path": "/api/tools/{tool}/{action}",
+    "path_params": [
+      "action",
+      "tool"
+    ],
+    "request_schema": {
+      "_error": "could not serialize"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "name": "populate_resource",
+    "path": "/api/tools/{tool}/{resource}",
+    "path_params": [
+      "resource",
+      "tool"
+    ],
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "name": "upload_prospects",
+    "path": "/api/uploads/prospects",
+    "path_params": [],
+    "request_schema": {
+      "properties": {
+        "file": {
+          "format": "binary",
+          "title": "File",
+          "type": "string"
+        }
+      },
+      "required": [
+        "file"
+      ],
+      "title": "Body_upload_prospects_api_uploads_prospects_post",
+      "type": "object"
+    },
+    "response_schema": {
+      "_error": "could not serialize"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "name": "tool_webhook",
+    "path": "/api/webhooks/tools/{tool_id}",
+    "path_params": [
+      "tool_id"
+    ],
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "name": "workflow_webhook",
+    "path": "/api/webhooks/wf/{workflow_id}/{trigger_id}",
+    "path_params": [
+      "trigger_id",
+      "workflow_id"
+    ],
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "name": "list_workflows",
+    "path": "/api/workflows",
+    "path_params": [],
+    "response_schema": {
+      "_error": "could not serialize"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "name": "create_workflow",
+    "path": "/api/workflows",
+    "path_params": [],
+    "request_schema": {
+      "properties": {
+        "active": {
+          "default": true,
+          "title": "Active",
+          "type": "boolean"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "edges": {
+          "default": [],
+          "items": {
+            "type": "object"
+          },
+          "title": "Edges",
+          "type": "array"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "nodes": {
+          "default": [],
+          "items": {
+            "type": "object"
+          },
+          "title": "Nodes",
+          "type": "array"
+        },
+        "triggers": {
+          "default": [],
+          "items": {
+            "type": "object"
+          },
+          "title": "Triggers",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "WorkflowIn",
+      "type": "object"
+    },
+    "response_schema": {
+      "properties": {
+        "active": {
+          "default": true,
+          "title": "Active",
+          "type": "boolean"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "edges": {
+          "default": [],
+          "items": {
+            "type": "object"
+          },
+          "title": "Edges",
+          "type": "array"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "nodes": {
+          "default": [],
+          "items": {
+            "type": "object"
+          },
+          "title": "Nodes",
+          "type": "array"
+        },
+        "triggers": {
+          "default": [],
+          "items": {
+            "type": "object"
+          },
+          "title": "Triggers",
+          "type": "array"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "id",
+        "version",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "WorkflowOut",
+      "type": "object"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "name": "run_ad_hoc",
+    "path": "/api/workflows/ad-hoc/run",
+    "path_params": [],
+    "request_schema": {
+      "properties": {
+        "edges": {
+          "items": {
+            "type": "object"
+          },
+          "maxItems": 1000,
+          "title": "Edges",
+          "type": "array"
+        },
+        "nodes": {
+          "items": {
+            "type": "object"
+          },
+          "maxItems": 500,
+          "title": "Nodes",
+          "type": "array"
+        },
+        "trigger": {
+          "title": "Trigger",
+          "type": "object"
+        }
+      },
+      "title": "AdHocRunIn",
+      "type": "object"
+    },
+    "response_schema": {
+      "_error": "could not serialize"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "DELETE"
+    ],
+    "name": "delete_workflow",
+    "path": "/api/workflows/{workflow_id}",
+    "path_params": [
+      "workflow_id"
+    ],
+    "response_schema": {
+      "_error": "could not serialize"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "name": "get_workflow",
+    "path": "/api/workflows/{workflow_id}",
+    "path_params": [
+      "workflow_id"
+    ],
+    "response_schema": {
+      "properties": {
+        "active": {
+          "default": true,
+          "title": "Active",
+          "type": "boolean"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "edges": {
+          "default": [],
+          "items": {
+            "type": "object"
+          },
+          "title": "Edges",
+          "type": "array"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "nodes": {
+          "default": [],
+          "items": {
+            "type": "object"
+          },
+          "title": "Nodes",
+          "type": "array"
+        },
+        "triggers": {
+          "default": [],
+          "items": {
+            "type": "object"
+          },
+          "title": "Triggers",
+          "type": "array"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "id",
+        "version",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "WorkflowOut",
+      "type": "object"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "PUT"
+    ],
+    "name": "update_workflow",
+    "path": "/api/workflows/{workflow_id}",
+    "path_params": [
+      "workflow_id"
+    ],
+    "request_schema": {
+      "properties": {
+        "active": {
+          "default": true,
+          "title": "Active",
+          "type": "boolean"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "edges": {
+          "default": [],
+          "items": {
+            "type": "object"
+          },
+          "title": "Edges",
+          "type": "array"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "nodes": {
+          "default": [],
+          "items": {
+            "type": "object"
+          },
+          "title": "Nodes",
+          "type": "array"
+        },
+        "triggers": {
+          "default": [],
+          "items": {
+            "type": "object"
+          },
+          "title": "Triggers",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "WorkflowIn",
+      "type": "object"
+    },
+    "response_schema": {
+      "properties": {
+        "active": {
+          "default": true,
+          "title": "Active",
+          "type": "boolean"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "edges": {
+          "default": [],
+          "items": {
+            "type": "object"
+          },
+          "title": "Edges",
+          "type": "array"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "nodes": {
+          "default": [],
+          "items": {
+            "type": "object"
+          },
+          "title": "Nodes",
+          "type": "array"
+        },
+        "triggers": {
+          "default": [],
+          "items": {
+            "type": "object"
+          },
+          "title": "Triggers",
+          "type": "array"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "id",
+        "version",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "WorkflowOut",
+      "type": "object"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "name": "list_executions",
+    "path": "/api/workflows/{workflow_id}/executions",
+    "path_params": [
+      "workflow_id"
+    ],
+    "response_schema": {
+      "_error": "could not serialize"
+    },
+    "status_code": null
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "name": "run_workflow",
+    "path": "/api/workflows/{workflow_id}/run",
+    "path_params": [
+      "workflow_id"
+    ],
+    "request_schema": {
+      "_error": "could not serialize"
+    },
+    "response_schema": {
+      "_error": "could not serialize"
+    },
+    "status_code": null
+  },
+  {
+    "kind": "framework-http",
+    "methods": [
+      "GET",
+      "HEAD"
+    ],
+    "name": "swagger_ui_html",
+    "path": "/docs"
+  },
+  {
+    "kind": "framework-http",
+    "methods": [
+      "GET",
+      "HEAD"
+    ],
+    "name": "swagger_ui_redirect",
+    "path": "/docs/oauth2-redirect"
+  },
+  {
+    "include_in_schema": true,
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "name": "health",
+    "path": "/health",
+    "path_params": [],
+    "status_code": null
+  },
+  {
+    "kind": "framework-http",
+    "methods": [
+      "GET",
+      "HEAD"
+    ],
+    "name": "openapi",
+    "path": "/openapi.json"
+  },
+  {
+    "kind": "framework-http",
+    "methods": [
+      "GET",
+      "HEAD"
+    ],
+    "name": "redoc_html",
+    "path": "/redoc"
+  },
+  {
+    "kind": "ws",
+    "name": "ws_events",
+    "path": "/ws/events"
+  }
+]
