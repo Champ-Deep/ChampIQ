@@ -7,7 +7,7 @@ import {
   MiniMap,
   addEdge,
   type Connection,
-  type Node,
+  type NodeProps,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { useCanvasStore } from '@/store/canvasStore'
@@ -16,8 +16,8 @@ import { CustomEdge } from './CustomEdge'
 import { getNodeMeta, getToolId, isEdgeCompatible } from '@/lib/manifest'
 import type { ChampIQManifest } from '@/types'
 
-function WrapNode({ data, ...props }: { data: Record<string, unknown> } & Node) {
-  return <ToolNode data={data} {...props} type={(props as { type?: string }).type ?? 'toolNode'} />
+function WrapNode(props: NodeProps) {
+  return <ToolNode {...props} type={props.type ?? 'toolNode'} />
 }
 
 // React Flow REQUIRES nodeTypes / edgeTypes to be stable references across
