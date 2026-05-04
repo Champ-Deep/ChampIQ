@@ -16,7 +16,7 @@ import { HubScreen } from '@/components/hub/HubScreen'
 import { CommandPalette } from '@/components/layout/CommandPalette'
 import { Onboarding } from '@/components/layout/Onboarding'
 import { useManifests } from '@/hooks/useManifests'
-import { usePersistence } from '@/hooks/usePersistence'
+import { usePersistence, saveCurrentCanvas } from '@/hooks/usePersistence'
 import { useExecutionStream } from '@/hooks/useExecutionStream'
 import { useB2BPulseEvents } from '@/hooks/useB2BPulseEvents'
 import { useUIStore } from '@/store/uiStore'
@@ -173,6 +173,8 @@ function AppInner() {
   }, [setCmdOpen, setActiveRail, setAppView, appView, setSettingsOpen, setLeftPanelVisible, leftPanelVisible])
 
   const openCanvas = useCallback((id: string) => {
+    // Flush any pending debounced save before leaving the current canvas
+    saveCurrentCanvas()
     const { setCurrentCanvasId, canvasList } = useCanvasStore.getState()
     const canvas = canvasList.find((c) => c.id === id)
     setCurrentCanvasId(id)

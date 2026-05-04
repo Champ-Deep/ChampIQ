@@ -93,7 +93,10 @@ export function usePersistence() {
   }, [])
 
   // 2. Load canvas state whenever active canvas ID changes.
-  //    Clear first to avoid flashing stale content from previous canvas.
+  //    Always clear first so switching canvases never flashes stale nodes.
+  //    Only read from localStorage — no API fallback. The API state is from
+  //    the single-canvas era; falling back to it caused new canvases to
+  //    inherit the last API-saved graph.
   useEffect(() => {
     setNodes([])
     setEdges([])
@@ -102,21 +105,8 @@ export function usePersistence() {
     if (saved) {
       setNodes(saved.nodes)
       setEdges(saved.edges)
-      return
     }
-
-    // Fallback: try the API.
-    api.getCanvasState().then((s) => {
-      if (s.nodes.length > 0 || s.edges.length > 0) {
-        const uniqueNodes = (s.nodes as Node[]).filter((n, i, arr) => arr.findIndex(x => x.id === n.id) === i)
-        const nodeIds = new Set(uniqueNodes.map(n => n.id))
-        const uniqueEdges = (s.edges as Edge[])
-          .filter((e, i, arr) => arr.findIndex(x => x.id === e.id) === i)
-          .filter(e => nodeIds.has(e.source) && nodeIds.has(e.target))
-        setNodes(uniqueNodes)
-        setEdges(uniqueEdges)
-      }
-    }).catch(() => {})
+    // If nothing is saved for this ID, the canvas starts blank — correct behaviour.
   }, [currentCanvasId, setNodes, setEdges])
 
   // 3. Debounced save on ANY store change (nodes, edges, or config updates).
