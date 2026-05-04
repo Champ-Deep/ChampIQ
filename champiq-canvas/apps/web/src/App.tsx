@@ -16,7 +16,7 @@ import { HubScreen } from '@/components/hub/HubScreen'
 import { CommandPalette } from '@/components/layout/CommandPalette'
 import { Onboarding } from '@/components/layout/Onboarding'
 import { useManifests } from '@/hooks/useManifests'
-import { usePersistence, saveCurrentCanvas } from '@/hooks/usePersistence'
+import { usePersistence, saveCurrentCanvas, loadCanvasFromStorage } from '@/hooks/usePersistence'
 import { useExecutionStream } from '@/hooks/useExecutionStream'
 import { useB2BPulseEvents } from '@/hooks/useB2BPulseEvents'
 import { useUIStore } from '@/store/uiStore'
@@ -173,21 +173,35 @@ function AppInner() {
   }, [setCmdOpen, setActiveRail, setAppView, appView, setSettingsOpen, setLeftPanelVisible, leftPanelVisible])
 
   const openCanvas = useCallback((id: string) => {
-    // Flush any pending debounced save before leaving the current canvas
+    // Flush any pending debounced save BEFORE leaving the current canvas
     saveCurrentCanvas()
-    const { setCurrentCanvasId, canvasList } = useCanvasStore.getState()
+
+    const { canvasList } = useCanvasStore.getState()
     const canvas = canvasList.find((c) => c.id === id)
-    setCurrentCanvasId(id)
-    if (canvas) useCanvasStore.setState({ canvasName: canvas.name })
+
+    // Load the target canvas data from localStorage in one atomic setState so
+    // the cockpit never renders with a stale (previous canvas's) node list.
+    const saved = loadCanvasFromStorage(id)
+    useCanvasStore.setState({
+      currentCanvasId: id,
+      canvasName: canvas?.name ?? 'Canvas',
+      nodes: saved?.nodes ?? [],
+      edges: saved?.edges ?? [],
+      nodeRuntimeStates: {},
+    })
+
     setActiveCanvas(id)
     setAppView('cockpit')
   }, [setActiveCanvas, setAppView])
 
   const newCanvas = useCallback(() => {
+    // Flush any pending save for the canvas we're leaving
+    saveCurrentCanvas()
+
     const id = crypto.randomUUID()
     const meta = { id, name: 'New Canvas', updatedAt: new Date().toISOString() }
     const list = [...useCanvasStore.getState().canvasList, meta]
-    // Always start a fresh canvas — clear nodes/edges so prior canvas doesn't bleed in
+    // Atomically switch ID and clear content so the cockpit renders blank immediately
     useCanvasStore.setState({
       canvasList: list,
       currentCanvasId: id,

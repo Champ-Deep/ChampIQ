@@ -44,7 +44,8 @@ function migrateNodes(nodes: Node[]): Node[] {
   })
 }
 
-function loadCanvasFromStorage(id: string): { nodes: Node[]; edges: Edge[] } | null {
+/** Public: load a canvas by ID from localStorage. Returns null if not found. */
+export function loadCanvasFromStorage(id: string): { nodes: Node[]; edges: Edge[] } | null {
   const raw = localStorage.getItem(`champiq:canvas:${id}`)
   if (!raw) return null
   try {
@@ -92,21 +93,15 @@ export function usePersistence() {
     }
   }, [])
 
-  // 2. Load canvas state whenever active canvas ID changes.
-  //    Always clear first so switching canvases never flashes stale nodes.
-  //    Only read from localStorage — no API fallback. The API state is from
-  //    the single-canvas era; falling back to it caused new canvases to
-  //    inherit the last API-saved graph.
+  // 2. Load canvas state when active canvas ID changes.
+  //    openCanvas/newCanvas already do a synchronous setState (nodes+ID together)
+  //    so this effect is a safety net for the initial mount only.
+  //    Do NOT pre-clear nodes here — that caused a one-frame flash of the old
+  //    canvas's nodes on every switch.
   useEffect(() => {
-    setNodes([])
-    setEdges([])
-
     const saved = loadCanvasFromStorage(currentCanvasId)
-    if (saved) {
-      setNodes(saved.nodes)
-      setEdges(saved.edges)
-    }
-    // If nothing is saved for this ID, the canvas starts blank — correct behaviour.
+    setNodes(saved?.nodes ?? [])
+    setEdges(saved?.edges ?? [])
   }, [currentCanvasId, setNodes, setEdges])
 
   // 3. Debounced save on ANY store change (nodes, edges, or config updates).

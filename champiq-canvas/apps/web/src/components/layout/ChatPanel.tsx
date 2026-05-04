@@ -8,8 +8,6 @@ import { Pixie, PixieOnlinePill } from '@/components/pixie/Pixie'
 import type { ChatMessage } from '@/types'
 import type { CloakColor, VoicePreset } from '@/store/uiStore'
 
-const SESSION_ID = 'default'
-
 const SUGGESTIONS = [
   'Every weekday at 9am, list prospects from ChampGraph and call each one with ChampVoice.',
   'When a new lead submits a form (webhook), create them in ChampGraph and call immediately.',
@@ -226,6 +224,10 @@ interface ChatPanelProps {
 }
 
 export function ChatPanel({ pixieCloak = '#1E5FCB', voice = 'Friendly' }: ChatPanelProps) {
+  // Session ID is per-canvas so each canvas has its own chat history
+  const currentCanvasId = useCanvasStore((s) => s.currentCanvasId)
+  const SESSION_ID = `canvas-${currentCanvasId}`
+
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [draft, setDraft] = useState('')
   const [pending, setPending] = useState(false)
@@ -246,8 +248,10 @@ export function ChatPanel({ pixieCloak = '#1E5FCB', voice = 'Friendly' }: ChatPa
         : 'Describe what you want. I\'ll build the workflow.'
 
   useEffect(() => {
+    setMessages([])
+    setErr(null)
     api.chatHistory(SESSION_ID).then(setMessages).catch(() => setMessages([]))
-  }, [])
+  }, [SESSION_ID])
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })
