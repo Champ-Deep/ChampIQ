@@ -122,6 +122,7 @@ export function CanvasCard({ canvas, delay = 0, onClick }: CanvasCardProps) {
         transform: hovered ? 'translateY(-2px)' : 'none',
         borderColor: hovered ? accent : undefined,
         boxShadow: hovered ? `0 8px 28px -10px ${accent}55` : undefined,
+        zIndex: menuOpen ? 100 : 1,
       }}
     >
       {/* Accent top bar */}

@@ -21,14 +21,63 @@ function tagIcon(tag: string) {
   return <Network size={13} />
 }
 
+interface TemplateSpec {
+  id: string
+  title: string
+  nodes: { kind: string; label: string; x: number; y: number }[]
+  edges: [number, number][]
+}
+
+const TEMPLATE_SPECS: Record<string, TemplateSpec> = {
+  t1: {
+    id: 't1', title: 'Cold outbound',
+    nodes: [
+      { kind: 'trigger.manual', label: 'Start',             x: 80,  y: 200 },
+      { kind: 'loop',           label: 'For each prospect', x: 300, y: 200 },
+      { kind: 'champgraph',     label: 'Enrich prospect',   x: 520, y: 200 },
+      { kind: 'champmail',      label: 'Send email',        x: 740, y: 200 },
+    ],
+    edges: [[0,1],[1,2],[2,3]],
+  },
+  t2: {
+    id: 't2', title: 'Reply classifier',
+    nodes: [
+      { kind: 'trigger.webhook', label: 'Inbox webhook',  x: 80,  y: 200 },
+      { kind: 'llm',             label: 'Classify intent',x: 300, y: 200 },
+      { kind: 'if',              label: 'Positive reply?',x: 520, y: 200 },
+    ],
+    edges: [[0,1],[1,2]],
+  },
+  t3: {
+    id: 't3', title: 'Lead enrichment',
+    nodes: [
+      { kind: 'trigger.manual', label: 'Start',          x: 80,  y: 200 },
+      { kind: 'champgraph',     label: 'List prospects', x: 300, y: 200 },
+      { kind: 'loop',           label: 'For each lead',  x: 520, y: 200 },
+      { kind: 'set',            label: 'Write output',   x: 740, y: 200 },
+    ],
+    edges: [[0,1],[1,2],[2,3]],
+  },
+  t4: {
+    id: 't4', title: 'Voice screener',
+    nodes: [
+      { kind: 'champvoice', label: 'Place call',       x: 80,  y: 200 },
+      { kind: 'llm',        label: 'Score transcript', x: 300, y: 200 },
+      { kind: 'set',        label: 'Tag prospect',     x: 520, y: 200 },
+    ],
+    edges: [[0,1],[1,2]],
+  },
+}
+
 interface HubScreenProps {
   onOpenCanvas: (id: string) => void
   onNewCanvas: () => void
+  onNewCanvasFromTemplate: (spec: TemplateSpec) => void
 }
 
 type NavKey = 'home' | 'canvases' | 'templates' | 'archive' | 'stages' | 'bullpen'
 
-export function HubScreen({ onOpenCanvas, onNewCanvas }: HubScreenProps) {
+export function HubScreen({ onOpenCanvas, onNewCanvas, onNewCanvasFromTemplate }: HubScreenProps) {
   const { canvasList, logs } = useCanvasStore()
   const { cloak, voice, accent, density, hubView, setHubView, setCmdOpen, setSettingsOpen } = useUIStore()
   const [navActive, setNavActive] = useState<NavKey>(
@@ -186,7 +235,11 @@ export function HubScreen({ onOpenCanvas, onNewCanvas }: HubScreenProps) {
               <SectionHeader title="Start from a template" sub="Curated by Pixie." />
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
                 {TEMPLATES.map((t, i) => (
-                  <TemplateCard key={t.id} t={t} delay={i * 25} onClick={onNewCanvas} />
+                  <TemplateCard key={t.id} t={t} delay={i * 25} onClick={() => {
+                    const spec = TEMPLATE_SPECS[t.id]
+                    if (spec) onNewCanvasFromTemplate(spec)
+                    else onNewCanvas()
+                  }} />
                 ))}
               </div>
             </div>

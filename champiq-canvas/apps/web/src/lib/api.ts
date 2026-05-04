@@ -84,6 +84,11 @@ export const api = {
     req<Record<string, unknown>>('/api/champmail/prospects', { method: 'POST', body: JSON.stringify(body) }),
   cmDeleteProspect: (id: number) => req(`/api/champmail/prospects/${id}`, { method: 'DELETE' }),
 
+  cmListSequences: () => req<Record<string, unknown>[]>('/api/champmail/sequences'),
+  cmCreateSequence: (body: { name: string }) =>
+    req<Record<string, unknown>>('/api/champmail/sequences', { method: 'POST', body: JSON.stringify(body) }),
+  cmDeleteSequence: (id: number) => req(`/api/champmail/sequences/${id}`, { method: 'DELETE' }),
+
   cmListTemplates: () => req<Record<string, unknown>[]>('/api/champmail/templates'),
   cmCreateTemplate: (body: { name: string; subject: string; body_html: string; body_text?: string }) =>
     req<Record<string, unknown>>('/api/champmail/templates', { method: 'POST', body: JSON.stringify(body) }),

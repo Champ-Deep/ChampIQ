@@ -15,6 +15,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { HubScreen } from '@/components/hub/HubScreen'
 import { CommandPalette } from '@/components/layout/CommandPalette'
 import { Onboarding } from '@/components/layout/Onboarding'
+import type { Node, Edge } from '@xyflow/react'
 import { useManifests } from '@/hooks/useManifests'
 import { usePersistence, saveCurrentCanvas, loadCanvasFromStorage } from '@/hooks/usePersistence'
 import { useExecutionStream } from '@/hooks/useExecutionStream'
@@ -194,6 +195,31 @@ function AppInner() {
     setAppView('cockpit')
   }, [setActiveCanvas, setAppView])
 
+  const newCanvasFromTemplate = useCallback((spec: { id: string; title: string; nodes: { kind: string; label: string; x: number; y: number }[]; edges: [number, number][] }) => {
+    saveCurrentCanvas()
+    const canvasId = crypto.randomUUID()
+    const nodes: Node[] = spec.nodes.map((n, i) => ({
+      id: `${n.kind}-${i}`,
+      type: 'toolNode',
+      position: { x: n.x, y: n.y },
+      data: { kind: n.kind, config: {}, label: n.label },
+    }))
+    const edges: Edge[] = spec.edges.map(([src, tgt], i) => ({
+      id: `e${i}`,
+      source: nodes[src].id,
+      target: nodes[tgt].id,
+      type: 'customEdge',
+      data: { state: 'waiting' },
+    }))
+    const meta = { id: canvasId, name: spec.title, updatedAt: new Date().toISOString() }
+    const list = [...useCanvasStore.getState().canvasList, meta]
+    useCanvasStore.setState({ canvasList: list, currentCanvasId: canvasId, canvasName: spec.title, nodes, edges, nodeRuntimeStates: {} })
+    localStorage.setItem('champiq:canvas:list', JSON.stringify(list))
+    localStorage.setItem(`champiq:canvas:${canvasId}`, JSON.stringify({ nodes, edges }))
+    setActiveCanvas(canvasId)
+    setAppView('cockpit')
+  }, [setActiveCanvas, setAppView])
+
   const newCanvas = useCallback(() => {
     // Flush any pending save for the canvas we're leaving
     saveCurrentCanvas()
@@ -232,7 +258,7 @@ function AppInner() {
   if (appView === 'hub') {
     return (
       <>
-        <HubScreen onOpenCanvas={openCanvas} onNewCanvas={newCanvas} />
+        <HubScreen onOpenCanvas={openCanvas} onNewCanvas={newCanvas} onNewCanvasFromTemplate={newCanvasFromTemplate} />
         {/* Command palette available from hub too */}
         {cmdOpen && (
           <CommandPalette
