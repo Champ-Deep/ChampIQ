@@ -64,7 +64,7 @@ export function CommandPalette({ onClose, onOpenCanvas, onNewCanvas }: CommandPa
     {
       group: 'Actions',
       icon: <Play size={13} />,
-      label: 'Run All — current stage',
+      label: 'Run All: current stage',
       meta: '⌘⏎',
       color: 'var(--accent-2)',
       action: undefined,

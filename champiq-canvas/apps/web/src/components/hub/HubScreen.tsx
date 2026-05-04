@@ -293,7 +293,7 @@ export function HubScreen({ onOpenCanvas, onNewCanvas, onNewCanvasFromTemplate }
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--mint-2)' }}>PIXIE · ONLINE</div>
               <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2, lineHeight: 1.4 }}>
-                Open a canvas — I'll meet you there.
+                Open a canvas. I'll meet you there.
               </div>
             </div>
           </div>

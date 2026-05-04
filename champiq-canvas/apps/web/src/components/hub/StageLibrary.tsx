@@ -82,7 +82,7 @@ export function StageLibrary({ onOpenCanvas, onNewCanvas }: StageLibraryProps) {
           <Pixie pose="idle" size={36} cloak={cloak} ambient={false} />
           <div style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.5, alignSelf: 'center' }}>
             {view === 'recent'
-              ? `${canvasList.length} canvas${canvasList.length !== 1 ? 'es' : ''} — click any to open it in the cockpit.`
+              ? `${canvasList.length} canvas${canvasList.length !== 1 ? 'es' : ''} . Click any to open it.`
               : "Pick a template and I'll pre-fill your credentials and branch logic automatically."}
           </div>
         </div>

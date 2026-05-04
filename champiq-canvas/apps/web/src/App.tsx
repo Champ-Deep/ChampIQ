@@ -106,7 +106,8 @@ function CockpitView({ onGoHub }: { onGoHub: () => void }) {
         voice={voice}
       />
 
-      <TweaksPanel />
+      {/* TweaksPanel only on canvas view — not on ChampMail/ChampGraph full panels */}
+      {activeRail === 'chat' && <TweaksPanel />}
 
       {/* Command palette overlay */}
       {cmdOpen && (

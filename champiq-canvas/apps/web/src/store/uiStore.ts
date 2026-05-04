@@ -73,6 +73,10 @@ interface UIStore {
   nodeSheetId: string | null
   setNodeSheet: (id: string | null) => void
 
+  // Canvas lock (locked = pan only, no edit/select/connect)
+  canvasLocked: boolean
+  setCanvasLocked: (v: boolean) => void
+
   // Node palette (collapsible)
   paletteOpen: boolean
   setPaletteOpen: (open: boolean) => void
@@ -135,6 +139,9 @@ export const useUIStore = create<UIStore>()(
 
       nodeSheetId: null,
       setNodeSheet: (id) => set({ nodeSheetId: id }),
+
+      canvasLocked: false,
+      setCanvasLocked: (v) => set({ canvasLocked: v }),
 
       paletteOpen: true,
       setPaletteOpen: (open) => set({ paletteOpen: open }),

@@ -46,9 +46,10 @@ function configSummary(config: Record<string, unknown>, kind: string): string | 
   if (kind === 'split') return `split into ${config.n ?? 2} branches`
   if (kind === 'wait') return config.seconds ? `wait ${config.seconds}s` : null
   if (kind.startsWith('trigger.cron')) return config.cron ? String(config.cron) : null
-  if (['champmail', 'champgraph', 'champvoice', 'lakeb2b_pulse'].includes(kind)) {
-    return config.action ? `action: ${config.action}` : null
-  }
+  if (kind === 'champmail')     return config.action ? `action: ${config.action}` : 'No action selected'
+  if (kind === 'champgraph')    return config.action ? `action: ${config.action}` : 'No action selected'
+  if (kind === 'champvoice')    return config.action ? `action: ${config.action}` : 'No action selected'
+  if (kind === 'lakeb2b_pulse') return config.action ? `action: ${config.action}` : 'No action selected'
   if (kind === 'http') return config.url ? String(config.url).slice(0, 35) : null
   if (kind === 'llm') return config.prompt ? String(config.prompt).slice(0, 35) + '…' : null
   return null

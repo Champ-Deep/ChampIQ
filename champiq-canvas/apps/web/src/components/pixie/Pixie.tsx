@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 
 export type PixiePose = 'idle' | 'lean' | 'point' | 'read' | 'carry' | 'cheer' | 'think' | 'sleep'
 export type PixieCloak = '#0EA968' | '#E63A87' | '#1E5FCB' | '#2A2F44'
@@ -137,12 +137,7 @@ export function Pixie({
           </>
         )}
 
-        <img
-          src={src}
-          alt=""
-          className="pixie-sprite"
-          style={{ width: size, height: size, objectFit: 'contain' }}
-        />
+        <PixieImg src={src} size={size} />
 
         {showSpark && (
           <div style={{
@@ -164,6 +159,36 @@ export function Pixie({
         </div>
       )}
     </div>
+  )
+}
+
+// ── PixieImg — eager-load with fade-in so the sprite never flashes blank ──
+function PixieImg({ src, size }: { src: string; size: number }) {
+  const [loaded, setLoaded] = useState(false)
+  return (
+    <>
+      {/* Placeholder: cloak-colored circle shown while image loads */}
+      {!loaded && (
+        <div style={{
+          position: 'absolute', inset: 0, borderRadius: '50%',
+          background: 'rgba(255,255,255,.04)',
+          animation: 'pixie-breathe 2s ease-in-out infinite',
+        }} />
+      )}
+      <img
+        src={src}
+        alt=""
+        loading="eager"
+        decoding="async"
+        className="pixie-sprite"
+        onLoad={() => setLoaded(true)}
+        style={{
+          width: size, height: size, objectFit: 'contain',
+          opacity: loaded ? 1 : 0,
+          transition: 'opacity .3s ease',
+        }}
+      />
+    </>
   )
 }
 

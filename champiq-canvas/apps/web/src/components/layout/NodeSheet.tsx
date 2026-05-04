@@ -32,12 +32,12 @@ const NODE_ICONS: Record<string, React.ReactNode> = {
 }
 
 const PIXIE_TIPS: Record<string, { pose: 'point' | 'read' | 'think' | 'idle'; message: string; action?: string }> = {
-  champmail:  { pose: 'point', message: 'Keep subject lines under 40 chars — open rates drop 18% above that threshold.', action: 'Rewrite subject' },
-  champgraph: { pose: 'read',  message: 'Filter by intent signal before pulling status — reduces wasted API calls by ~60%.', action: 'Add filter' },
+  champmail:  { pose: 'point', message: 'Keep subject lines under 40 chars. Open rates drop 18% above that threshold.', action: 'Rewrite subject' },
+  champgraph: { pose: 'read',  message: 'Filter by intent signal before pulling status. Reduces wasted API calls by ~60%.', action: 'Add filter' },
   loop:       { pose: 'think', message: 'Batch in groups of 25 to avoid rate-limit backpressure from downstream nodes.', action: 'Set batch size' },
   trigger:    { pose: 'idle',  message: 'Use cron triggers for scheduled campaigns; manual triggers for A/B test launches.' },
-  if:         { pose: 'think', message: 'Branch on "replied = true" first — shorter happy path leads to faster execution.' },
-  data:       { pose: 'read',  message: 'Validate CSV headers before the loop — saves you from silent row-skip bugs.' },
+  if:         { pose: 'think', message: 'Branch on "replied = true" first. Shorter happy paths lead to faster execution.' },
+  data:       { pose: 'read',  message: 'Validate CSV headers before the loop. Saves you from silent row-skip bugs.' },
 }
 
 interface NodeSheetProps {

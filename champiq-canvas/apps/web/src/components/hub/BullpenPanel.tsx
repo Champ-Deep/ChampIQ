@@ -194,7 +194,7 @@ export function BullpenPanel() {
             <Pixie pose="read" size={36} cloak={cloak} ambient={false} />
             <div style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.5, alignSelf: 'center' }}>
               {total === 0
-                ? "No prospects yet — import a CSV to get started. I'll help you enrich and enroll them."
+                ? "No prospects yet. Import a CSV to get started. I'll help you enrich and enroll them."
                 : statusCounts.bounced > 0
                   ? `${statusCounts.bounced} bounced address${statusCounts.bounced !== 1 ? 'es' : ''}. I can remove them or find alternatives via ChampGraph.`
                   : `${statusCounts.active} active prospect${statusCounts.active !== 1 ? 's' : ''}${statusCounts.replied > 0 ? ` · ${statusCounts.replied} repl${statusCounts.replied !== 1 ? 'ies' : 'y'}` : ''}. Ready to enroll.`

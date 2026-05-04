@@ -176,7 +176,7 @@ export function ChampMailRailPanel({ pixieCloak, sidebar: _sidebar }: Props) {
             {/* Error */}
             {error && (
               <div style={{ padding: '10px 14px', background: 'rgba(255,77,109,.08)', border: '1px solid rgba(255,77,109,.2)', borderRadius: 8, fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}>
-                {error} — <button onClick={load} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', textDecoration: 'underline', fontSize: 13 }}>Retry</button>
+                {error}. <button onClick={load} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', textDecoration: 'underline', fontSize: 13 }}>Retry</button>
               </div>
             )}
 

@@ -73,7 +73,7 @@ export function LogsStrip({ expanded, onToggle }: LogsStripProps) {
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
           }}>
-            {lastLog.nodeName} — {lastLog.message}
+            {lastLog.nodeName}: {lastLog.message}
           </span>
         )}
         {!expanded && !lastLog && (

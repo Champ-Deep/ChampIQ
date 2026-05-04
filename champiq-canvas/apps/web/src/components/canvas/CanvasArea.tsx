@@ -11,6 +11,7 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { useCanvasStore } from '@/store/canvasStore'
+import { useUIStore } from '@/store/uiStore'
 import { ToolNode } from './ToolNode'
 import { CustomEdge } from './CustomEdge'
 import { getNodeMeta, getToolId, isEdgeCompatible } from '@/lib/manifest'
@@ -43,9 +44,10 @@ interface CanvasAreaProps {
 export function CanvasArea({ onNodeOpen }: CanvasAreaProps) {
   const {
     nodes, edges, manifests,
-    onNodesChange, onEdgesChange, setEdges,
+    onNodesChange, onEdgesChange, setEdges, setNodes,
     setSelectedNode, addLog,
   } = useCanvasStore()
+  const { canvasLocked } = useUIStore()
 
   const reactFlowWrapper = useRef<HTMLDivElement>(null)
 
@@ -115,7 +117,7 @@ export function CanvasArea({ onNodeOpen }: CanvasAreaProps) {
   }
 
   return (
-    <div ref={reactFlowWrapper} style={{ flex: 1, height: '100%', position: 'relative' }}>
+    <div ref={reactFlowWrapper} style={{ flex: 1, height: '100%', position: 'relative' }} tabIndex={-1}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -127,11 +129,21 @@ export function CanvasArea({ onNodeOpen }: CanvasAreaProps) {
         onDrop={onDrop}
         onDragOver={onDragOver}
         onNodeClick={(_, node) => setSelectedNode(node.id)}
-        onNodeDoubleClick={(_, node) => onNodeOpen?.(node.id)}
+        onNodeDoubleClick={(_, node) => !canvasLocked && onNodeOpen?.(node.id)}
         onPaneClick={() => setSelectedNode(null)}
-        deleteKeyCode={['Delete', 'Backspace']}
-        selectionOnDrag
-        panOnDrag={[1, 2]}
+        onKeyDown={(e) => {
+          if (!canvasLocked && (e.metaKey || e.ctrlKey) && e.key === 'a') {
+            e.preventDefault()
+            setNodes(nodes.map(n => ({ ...n, selected: true })))
+          }
+        }}
+        deleteKeyCode={canvasLocked ? null : ['Delete', 'Backspace']}
+        selectionOnDrag={!canvasLocked}
+        nodesDraggable={!canvasLocked}
+        nodesConnectable={!canvasLocked}
+        elementsSelectable={!canvasLocked}
+        // locked = pan with left-drag; unlocked = pan with middle/right only
+        panOnDrag={canvasLocked ? true : [1, 2]}
         colorMode="dark"
         fitView
         proOptions={{ hideAttribution: true }}
