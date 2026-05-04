@@ -47,6 +47,20 @@ import {
   // Workflow activation
   CalendarClock,
   Power,
+  // Node kind icons
+  Zap,
+  Clock,
+  GitBranch,
+  RefreshCw,
+  Code2,
+  Mic,
+  Database,
+  Variable,
+  Timer,
+  Webhook,
+  SplitSquareHorizontal,
+  Merge,
+  PlayCircle,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -65,6 +79,22 @@ export const iconMap: Record<string, LucideIcon> = {
   Pulse: Activity,
   Box,
   box: Box,
+  // Node kind icons
+  play_node: PlayCircle,
+  webhook: Webhook,
+  cron: Clock,
+  timer: Timer,
+  bolt: Zap,
+  if_node: GitBranch,
+  branch: GitBranch,
+  loop: RefreshCw,
+  code: Code2,
+  sparkle: Sparkles,
+  voice: Mic,
+  db: Database,
+  set_node: Variable,
+  merge: Merge,
+  split: SplitSquareHorizontal,
   // UI controls
   X,
   Plus,
@@ -92,6 +122,14 @@ export const iconMap: Record<string, LucideIcon> = {
   Activity,
   CalendarClock,
   Power,
+  Zap,
+  Clock,
+  GitBranch,
+  RefreshCw,
+  Code2,
+  Mic,
+  Database,
+  Variable,
 }
 
 /** Resolve an icon name string from a manifest to a renderable component. */
@@ -107,4 +145,5 @@ export {
   Loader2, Moon, Sun, ZoomIn, ZoomOut, Sparkles, Bot, User,
   Network, Activity, Phone, Mail, Settings, ExternalLink,
   CalendarClock, Power,
+  Zap, Clock, GitBranch, RefreshCw, Code2, Mic, Database, Variable,
 }

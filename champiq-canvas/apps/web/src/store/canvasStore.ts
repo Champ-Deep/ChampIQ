@@ -39,6 +39,7 @@ interface CanvasStore {
   setCurrentCanvasId: (id: string) => void
   setIsRunningAll: (v: boolean) => void
   updateNodeConfig: (nodeId: string, config: Record<string, unknown>) => void
+  clearCanvas: () => void
 }
 
 export const useCanvasStore = create<CanvasStore>()(
@@ -114,5 +115,7 @@ export const useCanvasStore = create<CanvasStore>()(
           n.id === nodeId ? { ...n, data: { ...n.data, config } } : n
         ),
       })),
+
+    clearCanvas: () => set({ nodes: [], edges: [], nodeRuntimeStates: {} }),
   }))
 )

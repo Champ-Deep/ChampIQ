@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Layers, MoreHorizontal, ExternalLink, Copy, Trash2, Pin } from 'lucide-react'
+import { Layers, MoreHorizontal, ExternalLink, Copy, Trash2, Pin, Pencil } from 'lucide-react'
 import type { CanvasMeta } from '@/types'
 import { useCanvasStore } from '@/store/canvasStore'
 
@@ -29,6 +29,9 @@ interface CanvasCardProps {
 export function CanvasCard({ canvas, delay = 0, onClick }: CanvasCardProps) {
   const [hovered, setHovered] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [renaming, setRenaming] = useState(false)
+  const [draftName, setDraftName] = useState(canvas.name)
+  const renameRef = useRef<HTMLInputElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const accent = canvasAccent(canvas.id)
   const status = statusUI(canvas)
@@ -43,6 +46,24 @@ export function CanvasCard({ canvas, delay = 0, onClick }: CanvasCardProps) {
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [menuOpen])
+
+  useEffect(() => {
+    if (renaming) renameRef.current?.select()
+  }, [renaming])
+
+  function commitRename() {
+    const trimmed = draftName.trim() || canvas.name
+    setDraftName(trimmed)
+    setRenaming(false)
+    if (trimmed === canvas.name) return
+    const { canvasList } = useCanvasStore.getState()
+    const updated = canvasList.map((c) => c.id === canvas.id ? { ...c, name: trimmed } : c)
+    useCanvasStore.setState({ canvasList: updated })
+    localStorage.setItem('champiq:canvas:list', JSON.stringify(updated))
+    if (useCanvasStore.getState().currentCanvasId === canvas.id) {
+      useCanvasStore.setState({ canvasName: trimmed })
+    }
+  }
 
   function handleDelete(e: React.MouseEvent) {
     e.stopPropagation()
@@ -114,10 +135,29 @@ export function CanvasCard({ canvas, delay = 0, onClick }: CanvasCardProps) {
         }}>
           <Layers size={18} />
         </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600, color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {canvas.name}
-          </div>
+        <div style={{ flex: 1, minWidth: 0 }} onDoubleClick={(e) => { e.stopPropagation(); setRenaming(true) }}>
+          {renaming ? (
+            <input
+              ref={renameRef}
+              value={draftName}
+              onChange={(e) => setDraftName(e.target.value)}
+              onBlur={commitRename}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitRename()
+                if (e.key === 'Escape') { setDraftName(canvas.name); setRenaming(false) }
+              }}
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                width: '100%', fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600,
+                color: 'var(--text-1)', background: 'var(--bg-2)', border: '1px solid var(--accent-2)',
+                borderRadius: 5, outline: 'none', padding: '2px 6px',
+              }}
+            />
+          ) : (
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600, color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {canvas.name}
+            </div>
+          )}
           <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9.5, letterSpacing: '.06em', color: 'var(--text-3)', marginTop: 2 }}>
             {nodeCount} nodes · {updatedLabel}
           </div>
@@ -160,6 +200,7 @@ export function CanvasCard({ canvas, delay = 0, onClick }: CanvasCardProps) {
             }}>
               {[
                 { icon: <ExternalLink size={13} />, label: 'Open', action: () => { setMenuOpen(false); onClick() } },
+                { icon: <Pencil size={13} />, label: 'Rename', action: (e: React.MouseEvent) => { e.stopPropagation(); setMenuOpen(false); setRenaming(true) } },
                 { icon: <Copy size={13} />, label: 'Duplicate', action: handleDuplicate },
                 { icon: <Pin size={13} />, label: 'Pin', action: (e: React.MouseEvent) => { e.stopPropagation(); setMenuOpen(false) } },
               ].map((item, i) => (

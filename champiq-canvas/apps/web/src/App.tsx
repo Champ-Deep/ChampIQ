@@ -185,7 +185,15 @@ function AppInner() {
     const id = crypto.randomUUID()
     const meta = { id, name: 'New Canvas', updatedAt: new Date().toISOString() }
     const list = [...useCanvasStore.getState().canvasList, meta]
-    useCanvasStore.setState({ canvasList: list, currentCanvasId: id, canvasName: 'New Canvas' })
+    // Always start a fresh canvas — clear nodes/edges so prior canvas doesn't bleed in
+    useCanvasStore.setState({
+      canvasList: list,
+      currentCanvasId: id,
+      canvasName: 'New Canvas',
+      nodes: [],
+      edges: [],
+      nodeRuntimeStates: {},
+    })
     localStorage.setItem('champiq:canvas:list', JSON.stringify(list))
     setActiveCanvas(id)
     setAppView('cockpit')

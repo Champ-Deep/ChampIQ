@@ -130,6 +130,8 @@ export function CanvasArea({ onNodeOpen }: CanvasAreaProps) {
         onNodeDoubleClick={(_, node) => onNodeOpen?.(node.id)}
         onPaneClick={() => setSelectedNode(null)}
         deleteKeyCode={['Delete', 'Backspace']}
+        selectionOnDrag
+        panOnDrag={[1, 2]}
         colorMode="dark"
         fitView
         proOptions={{ hideAttribution: true }}

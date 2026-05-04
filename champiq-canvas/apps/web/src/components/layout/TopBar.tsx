@@ -1,9 +1,8 @@
 import { useState } from 'react'
 import { useCanvasStore } from '@/store/canvasStore'
 import { api } from '@/lib/api'
-import { getToolId } from '@/lib/manifest'
 import { saveCurrentCanvas } from '@/hooks/usePersistence'
-import { Save, Play, Check, CalendarClock, Power, ChevronLeft, ChevronRight, Search } from 'lucide-react'
+import { Save, Play, Check, CalendarClock, Power, ChevronLeft, ChevronRight, Search, Trash2 } from 'lucide-react'
 import type { Node } from '@xyflow/react'
 
 function extractCronTriggers(nodes: Node[]): Record<string, unknown>[] {
@@ -21,7 +20,7 @@ interface TopBarProps {
 }
 
 export function TopBar({ onHub, onCmdOpen }: TopBarProps = {}) {
-  const { canvasName, nodes, edges, toolHealthStatus, manifests, setCanvasName, setNodeRuntime, addLog } = useCanvasStore()
+  const { canvasName, nodes, edges, setCanvasName, setNodeRuntime, addLog, clearCanvas } = useCanvasStore()
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [running, setRunning] = useState(false)
@@ -107,6 +106,13 @@ export function TopBar({ onHub, onCmdOpen }: TopBarProps = {}) {
     }
   }
 
+  function handleClear() {
+    if (nodes.length === 0) return
+    if (!confirm('Clear the canvas? All nodes and edges will be removed.')) return
+    clearCanvas()
+    saveCurrentCanvas()
+  }
+
   return (
     <div style={{
       height: 48,
@@ -115,10 +121,10 @@ export function TopBar({ onHub, onCmdOpen }: TopBarProps = {}) {
       borderBottom: '1px solid var(--border-1)',
       display: 'flex',
       alignItems: 'center',
-      padding: '0 14px',
-      gap: 12,
+      padding: '0 12px',
+      gap: 8,
     }}>
-      {/* Breadcrumb */}
+      {/* Left: breadcrumb + canvas name + clear */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-3)', flexShrink: 0 }}>
         {onHub && (
           <>
@@ -126,8 +132,8 @@ export function TopBar({ onHub, onCmdOpen }: TopBarProps = {}) {
               onClick={onHub}
               style={{
                 display: 'flex', alignItems: 'center', gap: 4, background: 'transparent', border: 'none',
-                color: 'var(--text-3)', fontFamily: 'var(--font-body)', fontSize: 12, cursor: 'pointer', padding: '2px 4px', borderRadius: 4,
-                transition: 'color .15s',
+                color: 'var(--text-3)', fontFamily: 'var(--font-body)', fontSize: 12, cursor: 'pointer',
+                padding: '2px 4px', borderRadius: 4, transition: 'color .15s',
               }}
               onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-1)' }}
               onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-3)' }}
@@ -141,69 +147,81 @@ export function TopBar({ onHub, onCmdOpen }: TopBarProps = {}) {
         <input
           value={canvasName}
           onChange={(e) => setCanvasName(e.target.value)}
+          onBlur={() => saveCurrentCanvas()}
           aria-label="Canvas name"
           style={{
             background: 'transparent', border: 'none', outline: 'none',
             fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 600,
-            color: 'var(--text-1)', width: 160, minWidth: 0,
+            color: 'var(--text-1)', width: 180, minWidth: 0,
+            borderBottom: '1px solid transparent',
+            transition: 'border-color .15s',
+            paddingBottom: 1,
           }}
+          onFocus={(e) => { e.currentTarget.style.borderBottomColor = 'rgba(var(--accent-2-rgb),.45)' }}
+          onBlurCapture={(e) => { e.currentTarget.style.borderBottomColor = 'transparent' }}
         />
-      </div>
 
-      {/* ⌘K search trigger */}
-      {onCmdOpen && (
+        {/* Clear canvas */}
         <button
-          onClick={onCmdOpen}
+          onClick={handleClear}
+          title="Clear canvas"
+          disabled={nodes.length === 0}
           style={{
-            display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px 4px 8px',
-            background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 7,
-            color: 'var(--text-3)', fontFamily: 'var(--font-body)', fontSize: 12, cursor: 'pointer',
+            display: 'grid', placeItems: 'center', width: 26, height: 26,
+            background: 'transparent', border: '1px solid transparent', borderRadius: 6,
+            color: 'var(--text-4)', cursor: nodes.length === 0 ? 'not-allowed' : 'pointer',
+            opacity: nodes.length === 0 ? 0.35 : 1, transition: 'all .14s',
+          }}
+          onMouseEnter={(e) => {
+            if (nodes.length > 0) {
+              e.currentTarget.style.color = 'var(--danger)'
+              e.currentTarget.style.borderColor = 'rgba(255,77,109,.3)'
+              e.currentTarget.style.background = 'rgba(255,77,109,.07)'
+            }
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = 'var(--text-4)'
+            e.currentTarget.style.borderColor = 'transparent'
+            e.currentTarget.style.background = 'transparent'
           }}
         >
-          <Search size={12} />
-          <span>Search…</span>
-          <kbd style={{ fontFamily: 'var(--font-mono)', fontSize: 9, padding: '1px 4px', borderRadius: 3, background: 'var(--bg-3)', border: '1px solid var(--border-1)', color: 'var(--text-4)' }}>⌘K</kbd>
+          <Trash2 size={13} />
         </button>
-      )}
-
-      {/* Tool health dots */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        {manifests.map((m) => {
-          const toolId = getToolId(m)
-          if (!toolId) return null
-          const status = toolHealthStatus[toolId] ?? 'unknown'
-          const color = status === 'ok' ? 'var(--success)' : status === 'error' ? 'var(--danger)' : 'var(--text-4)'
-          return (
-            <div
-              key={toolId}
-              title={`${toolId}: ${status}`}
-              style={{
-                width: 7, height: 7, borderRadius: '50%', background: color,
-                boxShadow: status === 'ok' ? `0 0 6px ${color}` : 'none',
-              }}
-            />
-          )
-        })}
       </div>
 
-      <div style={{ flex: 1 }} />
+      {/* Center: search — truly centered */}
+      <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+        {onCmdOpen && (
+          <button
+            onClick={onCmdOpen}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px 5px 10px',
+              background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 8,
+              color: 'var(--text-3)', fontFamily: 'var(--font-body)', fontSize: 12, cursor: 'pointer',
+              width: 260, textAlign: 'left',
+              transition: 'border-color .15s',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--border-2)' }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-1)' }}
+          >
+            <Search size={12} />
+            <span style={{ flex: 1 }}>Search Stages, Bullpen…</span>
+            <kbd style={{ fontFamily: 'var(--font-mono)', fontSize: 9, padding: '1px 4px', borderRadius: 3, background: 'var(--bg-3)', border: '1px solid var(--border-1)', color: 'var(--text-4)' }}>⌘K</kbd>
+          </button>
+        )}
+      </div>
 
-      {/* Actions */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        {/* Run All */}
+      {/* Right: actions */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
         <TopBtn
           onClick={handleRunAll}
           disabled={running || nodes.length === 0}
           variant={running ? 'accent' : 'ghost'}
           title="Run all nodes"
         >
-          {running
-            ? <><Loader size/> Running…</>
-            : <><Play size={13} /> Run All</>
-          }
+          {running ? <><Loader size /> Running…</> : <><Play size={13} /> Run All</>}
         </TopBtn>
 
-        {/* Activate */}
         <TopBtn
           onClick={handleActivate}
           disabled={activating || nodes.length === 0}
@@ -211,14 +229,13 @@ export function TopBar({ onHub, onCmdOpen }: TopBarProps = {}) {
           title={activeWorkflowId ? `Re-sync #${activeWorkflowId}` : 'Register cron + activate'}
         >
           {activating
-            ? <><Loader size/> Activating…</>
+            ? <><Loader size /> Activating…</>
             : activeWorkflowId
               ? <><Power size={13} /> Active</>
               : <><CalendarClock size={13} /> Activate</>
           }
         </TopBtn>
 
-        {/* Save */}
         <button
           onClick={handleSave}
           disabled={saving}
