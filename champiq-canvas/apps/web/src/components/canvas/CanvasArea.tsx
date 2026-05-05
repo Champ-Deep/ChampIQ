@@ -4,12 +4,14 @@ import {
   Background,
   BackgroundVariant,
   Controls,
+  ControlButton,
   MiniMap,
   addEdge,
   type Connection,
   type NodeProps,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
+import { Lock, Unlock } from 'lucide-react'
 import { useCanvasStore } from '@/store/canvasStore'
 import { useUIStore } from '@/store/uiStore'
 import { ToolNode } from './ToolNode'
@@ -47,7 +49,7 @@ export function CanvasArea({ onNodeOpen }: CanvasAreaProps) {
     onNodesChange, onEdgesChange, setEdges, setNodes,
     setSelectedNode, addLog,
   } = useCanvasStore()
-  const { canvasLocked } = useUIStore()
+  const { canvasLocked, setCanvasLocked } = useUIStore()
 
   const reactFlowWrapper = useRef<HTMLDivElement>(null)
 
@@ -154,7 +156,14 @@ export function CanvasArea({ onNodeOpen }: CanvasAreaProps) {
           size={1}
           color="rgba(124,92,255,0.12)"
         />
-        <Controls />
+        <Controls showInteractive={false}>
+          <ControlButton
+            onClick={() => setCanvasLocked(!canvasLocked)}
+            title={canvasLocked ? 'Unlock canvas — enable node editing' : 'Lock canvas — pan only'}
+          >
+            {canvasLocked ? <Lock size={12} /> : <Unlock size={12} />}
+          </ControlButton>
+        </Controls>
         <MiniMap
           nodeColor={(n) => {
             const m = n.data?.manifest as ChampIQManifest | undefined

@@ -6,6 +6,7 @@ import {
   type CredentialType,
   type Credential,
 } from '@/store/credentialStore'
+import { api } from '@/lib/api'
 
 const TYPE_LABELS: Record<CredentialType, string> = {
   champmail:  'ChampMail',
@@ -536,18 +537,29 @@ function AddCredentialForm({ initialType, onDone }: { initialType?: CredentialTy
   const [fields, setFields] = useState<Record<string, string>>({})
   const [showSecrets, setShowSecrets] = useState(false)
   const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
 
   const fieldDefs = CREDENTIAL_TYPE_FIELDS[type]
 
   function handleTypeChange(t: CredentialType) {
     setType(t)
     setFields({})
+    setError('')
   }
 
-  function handleSubmit() {
+  async function handleSubmit() {
     if (!name.trim()) { setError('Name is required'); return }
-    addCredential(name.trim(), type, fields)
-    onDone()
+    setSaving(true)
+    setError('')
+    try {
+      await api.createCredential(name.trim(), type, fields)
+      addCredential(name.trim(), type, fields)
+      onDone()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to save credential')
+    } finally {
+      setSaving(false)
+    }
   }
 
   // LakeB2B uses its own guided flow
@@ -665,10 +677,11 @@ function AddCredentialForm({ initialType, onDone }: { initialType?: CredentialTy
       <div className="flex gap-2">
         <button
           onClick={handleSubmit}
-          className="flex-1 text-xs py-1.5 rounded-md font-medium"
+          disabled={saving}
+          className="flex-1 text-xs py-1.5 rounded-md font-medium disabled:opacity-50"
           style={{ background: '#6366f1', color: '#fff' }}
         >
-          Save
+          {saving ? 'Saving…' : 'Save'}
         </button>
         <button
           onClick={onDone}

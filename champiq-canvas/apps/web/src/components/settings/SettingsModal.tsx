@@ -4,6 +4,8 @@ import { Pixie, PixieOnlinePill } from '@/components/pixie/Pixie'
 import { X, Key, Palette, User, Plus, Moon, Sun, Trash2 } from 'lucide-react'
 import { api } from '@/lib/api'
 import type { AccentPreset, VoicePreset, CloakColor } from '@/store/uiStore'
+import { CREDENTIAL_TYPES, CREDENTIAL_TYPE_FIELDS } from '@/store/credentialStore'
+import type { CredentialType } from '@/store/credentialStore'
 
 interface Props {
   open: boolean
@@ -104,14 +106,24 @@ interface ApiCredential {
   updated_at?: string
 }
 
+const CREDENTIAL_TYPE_LABELS: Record<CredentialType, string> = {
+  champmail:  'ChampMail (Emelia)',
+  champgraph: 'ChampGraph',
+  champvoice: 'ChampVoice (ElevenLabs)',
+  lakeb2b:    'LakeB2B Pulse',
+  http:       'HTTP / Bearer',
+  generic:    'Generic Secret',
+}
+
 function CredentialsTab() {
   const [creds, setCreds] = useState<ApiCredential[]>([])
   const [loading, setLoading] = useState(true)
   const [showAdd, setShowAdd] = useState(false)
   const [newName, setNewName] = useState('')
-  const [newType, setNewType] = useState('champmail')
-  const [newKey, setNewKey] = useState('')
+  const [newType, setNewType] = useState<CredentialType>('champmail')
+  const [newFields, setNewFields] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
+  const [addError, setAddError] = useState('')
 
   useEffect(() => {
     api.listCredentials().then((list) => {
@@ -119,15 +131,22 @@ function CredentialsTab() {
     }).catch(() => {}).finally(() => setLoading(false))
   }, [])
 
+  function handleTypeChange(t: CredentialType) {
+    setNewType(t)
+    setNewFields({})
+    setAddError('')
+  }
+
   async function handleAdd() {
-    if (!newName || !newKey) return
+    if (!newName.trim()) { setAddError('Name is required'); return }
     setSaving(true)
+    setAddError('')
     try {
-      const created = await api.createCredential(newName, newType, { api_key: newKey })
+      const created = await api.createCredential(newName.trim(), newType, newFields)
       setCreds((prev) => [...prev, created as unknown as ApiCredential])
-      setNewName(''); setNewType('champmail'); setNewKey(''); setShowAdd(false)
-    } catch {
-      // noop
+      setNewName(''); setNewType('champmail'); setNewFields({}); setShowAdd(false)
+    } catch (e) {
+      setAddError(e instanceof Error ? e.message : 'Failed to save')
     } finally {
       setSaving(false)
     }
@@ -141,6 +160,9 @@ function CredentialsTab() {
     } catch { /* noop */ }
   }
 
+  const fieldDefs = CREDENTIAL_TYPE_FIELDS[newType]
+  const isWizardType = newType === 'champmail' || newType === 'lakeb2b'
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
@@ -153,7 +175,7 @@ function CredentialsTab() {
           </p>
         </div>
         <button
-          onClick={() => setShowAdd((v) => !v)}
+          onClick={() => { setShowAdd((v) => !v); setAddError('') }}
           style={{
             display: 'inline-flex', alignItems: 'center', gap: 6,
             padding: '7px 14px', borderRadius: 8,
@@ -172,23 +194,45 @@ function CredentialsTab() {
         <div style={{ background: 'var(--bg-2)', border: '1px solid rgba(var(--accent-2-rgb),.3)', borderRadius: 10, padding: 16, marginBottom: 16, animation: 'bubble-in 160ms var(--ease-spring)' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <SettingsField label="Name">
-              <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="ChampMail · prod" style={fieldInputStyle} />
+              <input value={newName} onChange={(e) => { setNewName(e.target.value); setAddError('') }} placeholder="e.g. champmail-prod" style={fieldInputStyle} />
             </SettingsField>
             <SettingsField label="Type">
-              <select value={newType} onChange={(e) => setNewType(e.target.value)} style={fieldInputStyle}>
-                {['champmail', 'champgraph', 'champvoice', 'lakeb2b', 'openai', 'other'].map((t) => (
-                  <option key={t} value={t}>{t}</option>
+              <select value={newType} onChange={(e) => handleTypeChange(e.target.value as CredentialType)} style={fieldInputStyle}>
+                {CREDENTIAL_TYPES.map((t) => (
+                  <option key={t} value={t}>{CREDENTIAL_TYPE_LABELS[t]}</option>
                 ))}
               </select>
             </SettingsField>
-            <SettingsField label="API key / token">
-              <input value={newKey} onChange={(e) => setNewKey(e.target.value)} type="password" placeholder="••••••••••••" style={{ ...fieldInputStyle, fontFamily: 'var(--font-mono)' }} />
-            </SettingsField>
+
+            {isWizardType ? (
+              <p style={{ margin: 0, fontSize: 12, color: 'var(--text-3)', padding: '8px 10px', background: 'var(--bg-0)', borderRadius: 7, border: '1px solid var(--border-1)' }}>
+                {newType === 'champmail'
+                  ? 'ChampMail requires an Emelia OAuth flow. Use the Credentials panel (Settings → gear icon) for the guided setup.'
+                  : 'LakeB2B Pulse requires a LinkedIn OAuth flow. Use the Credentials panel (Settings → gear icon) for the guided setup.'}
+              </p>
+            ) : (
+              fieldDefs.map((f) => (
+                <SettingsField key={f.key} label={f.label}>
+                  <input
+                    type={f.secret ? 'password' : 'text'}
+                    value={newFields[f.key] ?? ''}
+                    onChange={(e) => setNewFields((prev) => ({ ...prev, [f.key]: e.target.value }))}
+                    placeholder={f.secret ? '••••••••••••' : ''}
+                    style={{ ...fieldInputStyle, fontFamily: f.secret ? 'var(--font-mono)' : 'var(--font-body)' }}
+                  />
+                </SettingsField>
+              ))
+            )}
+
+            {addError && <p style={{ margin: 0, fontSize: 12, color: '#f87171' }}>{addError}</p>}
+
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button onClick={() => setShowAdd(false)} style={ghostSmStyle}>Cancel</button>
-              <button onClick={handleAdd} disabled={saving || !newName || !newKey} style={primarySmStyle}>
-                {saving ? 'Saving…' : 'Save credential'}
-              </button>
+              {!isWizardType && (
+                <button onClick={handleAdd} disabled={saving || !newName.trim()} style={primarySmStyle}>
+                  {saving ? 'Saving…' : 'Save credential'}
+                </button>
+              )}
             </div>
           </div>
         </div>

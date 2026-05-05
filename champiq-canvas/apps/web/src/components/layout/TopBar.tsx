@@ -1,9 +1,8 @@
 import { useState } from 'react'
 import { useCanvasStore } from '@/store/canvasStore'
-import { useUIStore } from '@/store/uiStore'
 import { api } from '@/lib/api'
 import { saveCurrentCanvas } from '@/hooks/usePersistence'
-import { Save, Play, Check, CalendarClock, Power, ChevronLeft, ChevronRight, Search, Trash2, Lock, Unlock } from 'lucide-react'
+import { Save, Play, Check, CalendarClock, Power, ChevronLeft, ChevronRight, Search, Trash2 } from 'lucide-react'
 import type { Node } from '@xyflow/react'
 
 function extractCronTriggers(nodes: Node[]): Record<string, unknown>[] {
@@ -22,7 +21,6 @@ interface TopBarProps {
 
 export function TopBar({ onHub, onCmdOpen }: TopBarProps = {}) {
   const { canvasName, nodes, edges, setCanvasName, setNodeRuntime, addLog, clearCanvas } = useCanvasStore()
-  const { canvasLocked, setCanvasLocked } = useUIStore()
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [running, setRunning] = useState(false)
@@ -169,10 +167,11 @@ export function TopBar({ onHub, onCmdOpen }: TopBarProps = {}) {
           title="Clear canvas"
           disabled={nodes.length === 0}
           style={{
-            display: 'grid', placeItems: 'center', width: 26, height: 26,
+            display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 9px',
             background: 'transparent', border: '1px solid transparent', borderRadius: 6,
             color: 'var(--text-4)', cursor: nodes.length === 0 ? 'not-allowed' : 'pointer',
             opacity: nodes.length === 0 ? 0.35 : 1, transition: 'all .14s',
+            fontFamily: 'var(--font-display)', fontSize: 12, fontWeight: 500,
           }}
           onMouseEnter={(e) => {
             if (nodes.length > 0) {
@@ -187,7 +186,7 @@ export function TopBar({ onHub, onCmdOpen }: TopBarProps = {}) {
             e.currentTarget.style.background = 'transparent'
           }}
         >
-          <Trash2 size={13} />
+          <Trash2 size={12} /> Clear canvas
         </button>
       </div>
 
@@ -237,23 +236,6 @@ export function TopBar({ onHub, onCmdOpen }: TopBarProps = {}) {
               : <><CalendarClock size={13} /> Activate</>
           }
         </TopBtn>
-
-        {/* Lock/unlock canvas */}
-        <button
-          onClick={() => setCanvasLocked(!canvasLocked)}
-          title={canvasLocked ? 'Unlock canvas (pan only)' : 'Lock canvas (pan only)'}
-          style={{
-            display: 'grid', placeItems: 'center', width: 30, height: 30,
-            background: canvasLocked ? 'rgba(255,210,63,.1)' : 'transparent',
-            border: `1px solid ${canvasLocked ? 'rgba(255,210,63,.35)' : 'var(--border-1)'}`,
-            borderRadius: 7, color: canvasLocked ? 'var(--warn)' : 'var(--text-4)',
-            cursor: 'pointer', transition: 'all .15s',
-          }}
-          onMouseEnter={(e) => { if (!canvasLocked) { e.currentTarget.style.borderColor = 'var(--border-2)'; e.currentTarget.style.color = 'var(--text-2)' } }}
-          onMouseLeave={(e) => { if (!canvasLocked) { e.currentTarget.style.borderColor = 'var(--border-1)'; e.currentTarget.style.color = 'var(--text-4)' } }}
-        >
-          {canvasLocked ? <Lock size={13} /> : <Unlock size={13} />}
-        </button>
 
         <button
           onClick={handleSave}

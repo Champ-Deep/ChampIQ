@@ -37,7 +37,7 @@ function displayName(p: Prospect): string {
 
 function NotConfigured({ feature }: { feature: string }) {
   return (
-    <div style={{ textAlign: 'center', padding: '48px 24px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '48px 24px' }}>
       <Network size={32} style={{ color: 'var(--text-4)', marginBottom: 14 }} />
       <div style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 15, color: 'var(--text-1)', marginBottom: 8 }}>
         {feature} unavailable
@@ -179,7 +179,7 @@ export function ChampGraphRailPanel({ pixieCloak, sidebar: _sidebar }: Props) {
             )}
 
             {!loading && total === 0 && !error && (
-              <div style={{ textAlign: 'center', padding: '48px 20px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '48px 20px' }}>
                 <Network size={28} style={{ color: 'var(--text-4)', marginBottom: 12 }} />
                 <div style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 15, color: 'var(--text-1)', marginBottom: 6 }}>No prospects yet</div>
                 <div style={{ fontSize: 13, color: 'var(--text-3)', lineHeight: 1.6 }}>Import a CSV in the Bullpen to populate your pipeline.</div>
