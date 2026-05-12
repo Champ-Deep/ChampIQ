@@ -79,7 +79,7 @@ export function TopBar({ onHub, onCmdOpen }: TopBarProps = {}) {
     } catch (e) {
       for (const n of nodes) setNodeRuntime(n.id, { status: 'idle' })
       addLog({ nodeId: 'run', nodeName: 'Run All', status: 'error', message: String(e) })
-      useExecutionStore.setState({ isRunningAll: false })
+      setIsRunningAll(false)
     }
   }
 
