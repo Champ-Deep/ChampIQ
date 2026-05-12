@@ -6,7 +6,7 @@ import { PixieBriefing } from './PixieBriefing'
 import { CanvasCard }    from './CanvasCard'
 import { ActivityFeed }  from './ActivityFeed'
 import { StageLibrary }  from './StageLibrary'
-import { BullpenPanel }  from './BullpenPanel'
+import { BullpenPage }   from '@/components/bullpen'
 import { useCanvasStore } from '@/store/canvasStore'
 import { useUIStore }     from '@/store/uiStore'
 import { Btn }            from '@/components/atoms'
@@ -122,7 +122,7 @@ export function HubScreen({ onOpenCanvas, onNewCanvas, onNewCanvasFromTemplate, 
         )}
         {activeView === 'bullpen' && (
           <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            <BullpenPanel />
+            <BullpenPage onBack={() => setActiveView('home')} />
           </div>
         )}
 

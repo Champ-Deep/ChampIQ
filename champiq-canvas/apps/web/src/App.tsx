@@ -9,7 +9,7 @@ import { LeftPanel } from '@/components/layout/LeftPanel'
 import { Rail } from '@/components/champiq/Rail'
 import { ChampMailRailPanel } from '@/components/panels/ChampMailRailPanel'
 import { ChampGraphRailPanel } from '@/components/panels/ChampGraphRailPanel'
-import { BullpenPanel } from '@/components/hub/BullpenPanel'
+import { BullpenPage } from '@/components/bullpen'
 import { SettingsModal } from '@/components/settings/SettingsModal'
 import { TweaksPanel } from '@/components/champiq/TweaksPanel'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
@@ -101,7 +101,7 @@ function CockpitView({ onGoHub }: { onGoHub: () => void }) {
         {/* Bullpen full-panel — no canvas */}
         {activeRail === 'bullpen' && (
           <div style={{ flex: 1, minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
-            <BullpenPanel />
+            <BullpenPage />
           </div>
         )}
       </div>
