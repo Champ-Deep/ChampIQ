@@ -4,8 +4,10 @@ import type { Workflow, Execution, NodeRun } from './types'
 export type { Workflow, Execution, NodeRun }
 
 export const listWorkflows  = () => req<Workflow[]>('/api/workflows')
+// Workflow body contains React Flow node data — typed at the canvas layer, not here
 export const createWorkflow = (body: Record<string, unknown>) =>
   req<Workflow>('/api/workflows', { method: 'POST', body: JSON.stringify(body) })
+// Workflow body contains React Flow node data — typed at the canvas layer, not here
 export const updateWorkflow = (id: number, body: Record<string, unknown>) =>
   req<Workflow>(`/api/workflows/${id}`, { method: 'PUT', body: JSON.stringify(body) })
 export const runWorkflow    = (id: number, payload: Record<string, unknown> = {}) =>

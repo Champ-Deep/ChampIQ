@@ -1,5 +1,6 @@
 // champiq-canvas/apps/web/src/lib/api/chat.ts
 import { req } from './req'
+// ChatMessage and WorkflowPatch are app-wide types shared across canvas + chat — live in @/types
 import type { ChatMessage, WorkflowPatch } from '@/types'
 export type { ChatMessage, WorkflowPatch }
 
