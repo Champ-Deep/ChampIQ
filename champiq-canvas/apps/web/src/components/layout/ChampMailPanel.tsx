@@ -8,9 +8,10 @@
  *  - Prospects: table + bulk CSV import (re-uses /api/uploads/prospects to parse)
  *  - Templates: list + open editor modal (subject + body_html with variable picker)
  */
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { api } from '@/lib/api'
 import type { Prospect } from '@/lib/api/champmail'
+import { useProspects } from '@/hooks/useProspects'
 import { ChevronDown, ChevronUp, Plus, Trash2, Mail, X, Eye } from '@/lib/icons'
 
 interface Template {
@@ -26,8 +27,6 @@ interface Template {
 // ── Prospects sub-panel ──────────────────────────────────────────────────────
 
 function ProspectsSection() {
-  const [prospects, setProspects] = useState<Prospect[]>([])
-  const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
   const [adding, setAdding] = useState(false)
   const [importing, setImporting] = useState(false)
@@ -35,19 +34,7 @@ function ProspectsSection() {
   const [form, setForm] = useState({ email: '', first_name: '', last_name: '', company: '', phone: '' })
   const fileRef = useRef<HTMLInputElement>(null)
 
-  async function refresh() {
-    setLoading(true)
-    try {
-      const r = await api.cmListProspects({ limit: 100, search: search || undefined })
-      setProspects(r.items)
-    } catch (e) {
-      console.error('cmListProspects', e)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => { refresh() }, [])  // initial load
+  const { prospects, loading, refresh } = useProspects({ limit: 100, search: search || undefined })
 
   async function addProspect() {
     if (!form.email) return
@@ -64,7 +51,7 @@ function ProspectsSection() {
   async function deleteProspect(id: number) {
     if (!confirm('Delete this prospect?')) return
     await api.cmDeleteProspect(id)
-    setProspects((p) => p.filter((x) => x.id !== id))
+    refresh()
   }
 
   async function importCsv(file: File) {

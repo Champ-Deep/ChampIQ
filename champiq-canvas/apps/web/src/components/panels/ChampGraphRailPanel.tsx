@@ -1,26 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Pixie } from '@/components/pixie/Pixie'
 import { Network, Loader2, RefreshCw, ExternalLink } from 'lucide-react'
-import { api } from '@/lib/api'
+import { useProspects } from '@/hooks/useProspects'
+import type { Prospect } from '@/lib/api/champmail'
 
 interface Props {
   pixieCloak: string
   sidebar?: boolean
-}
-
-interface Prospect {
-  id: number
-  email: string
-  first_name: string | null
-  last_name: string | null
-  company: string | null
-  title: string | null
-  status: 'active' | 'bounced' | 'unsubscribed' | 'replied'
-}
-
-interface ProspectListResponse {
-  items: Prospect[]
-  total: number
 }
 
 const STATUS_STYLES: Record<string, { color: string; bg: string; label: string }> = {
@@ -66,25 +52,7 @@ function NotConfigured({ feature }: { feature: string }) {
 
 export function ChampGraphRailPanel({ pixieCloak, sidebar: _sidebar }: Props) {
   const [tab, setTab] = useState<'prospects' | 'signals' | 'companies'>('prospects')
-  const [prospects, setProspects] = useState<Prospect[]>([])
-  const [total, setTotal] = useState(0)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  const load = () => {
-    setLoading(true)
-    setError(null)
-    api.cmListProspects({ limit: 50 })
-      .then((res) => {
-        const r = res as unknown as ProspectListResponse
-        setProspects(r.items ?? [])
-        setTotal(r.total ?? 0)
-      })
-      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load'))
-      .finally(() => setLoading(false))
-  }
-
-  useEffect(() => { load() }, [])
+  const { prospects, total, loading, error, refresh: load } = useProspects({ limit: 50 })
 
   const pixieTip = loading ? '…'
     : total === 0
