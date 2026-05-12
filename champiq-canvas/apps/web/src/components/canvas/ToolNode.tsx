@@ -80,22 +80,6 @@ function kindToIcon(kind: string): IconName {
   return MAP[kind] ?? 'layers'
 }
 
-function configSummary(config: Record<string, unknown>, kind: string): string | null {
-  if (!config) return null
-  if (kind === 'if') return config.condition ? `if ${String(config.condition).slice(0, 32)}` : null
-  if (kind === 'loop') return config.items ? `loop: ${String(config.items).slice(0, 32)}` : null
-  if (kind === 'split') return `split into ${config.n ?? 2} branches`
-  if (kind === 'wait') return config.seconds ? `wait ${config.seconds}s` : null
-  if (kind.startsWith('trigger.cron')) return config.cron ? String(config.cron) : null
-  if (kind === 'champmail')     return config.action ? `action: ${config.action}` : 'No action selected'
-  if (kind === 'champgraph')    return config.action ? `action: ${config.action}` : 'No action selected'
-  if (kind === 'champvoice')    return config.action ? `action: ${config.action}` : 'No action selected'
-  if (kind === 'lakeb2b_pulse') return config.action ? `action: ${config.action}` : 'No action selected'
-  if (kind === 'http') return config.url ? String(config.url).slice(0, 35) : null
-  if (kind === 'llm') return config.prompt ? String(config.prompt).slice(0, 35) + '…' : null
-  return null
-}
-
 // Kept for LegacyFormNode status dot
 const STATUS_DOT: Record<NodeStatus, { color: string; glow?: string; pulse?: boolean }> = {
   idle:    { color: '#525C7A' },
