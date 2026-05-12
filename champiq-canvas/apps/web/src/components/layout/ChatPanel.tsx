@@ -239,7 +239,8 @@ export function ChatPanel({ pixieCloak = '#1E5FCB', voice = 'Friendly' }: ChatPa
   const scrollRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const pixiePose = pending ? 'think' : err ? 'lean' : messages.length === 0 ? 'idle' : 'read'
+  const [composerFocused, setComposerFocused] = useState(false)
+  const pixiePose = pending ? 'think' : err ? 'lean' : composerFocused ? 'lean' : messages.length === 0 ? 'idle' : 'read'
   const pixieTip = pending
     ? 'Thinking through the best workflow for you…'
     : voice === 'Quirky'
@@ -501,6 +502,8 @@ export function ChatPanel({ pixieCloak = '#1E5FCB', voice = 'Friendly' }: ChatPa
             <textarea
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
+              onFocus={() => setComposerFocused(true)}
+              onBlur={() => setComposerFocused(false)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault()

@@ -12,7 +12,12 @@ const STATUS_COLORS: Record<string, string> = {
   idle:    'var(--text-4)',
   running: 'var(--warn)',
   success: 'var(--success)',
+  ok:      'var(--success)',
+  info:    'var(--success)',
+  warn:    'var(--warn)',
+  warning: 'var(--warn)',
   error:   'var(--danger)',
+  err:     'var(--danger)',
 }
 
 const MIN_H = 80

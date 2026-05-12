@@ -20,6 +20,8 @@ import {
   TOOL_KINDS_WITH_ACTIONS,
   type FieldDef,
 } from '@/lib/nodeFieldSchemas'
+import { VariantsTab } from './VariantsTab'
+import { ChampGraphTab } from './ChampGraphTab'
 
 // Schemas live in lib/nodeFieldSchemas.ts — pure data, extracted so the panel
 // itself stays focused on rendering. See that file for the full list of
@@ -335,6 +337,7 @@ function JsonConfigEditor({ nodeId, config }: { nodeId: string; config: Record<s
 // ── RightPanel ────────────────────────────────────────────────────────────────
 
 type ConfigTab = 'form' | 'json'
+type InspectorTab = 'details' | 'variants' | 'graph'
 
 export function RightPanel() {
   const { selectedNodeId, nodes, setSelectedNode } = useCanvasStore()
@@ -342,6 +345,7 @@ export function RightPanel() {
   const [copied, setCopied] = useState(false)
   const [showRaw, setShowRaw] = useState(true)
   const [activeTab, setActiveTab] = useState<ConfigTab>('form')
+  const [inspectorTab, setInspectorTab] = useState<InspectorTab>('details')
 
   const node = nodes.find((n) => n.id === selectedNodeId)
   if (!node) return null
@@ -386,68 +390,102 @@ export function RightPanel() {
         </div>
       </div>
 
-      {/* Status */}
-      <div className="px-3 py-2" style={{ borderBottom: '1px solid var(--border)' }}>
-        <span className="text-xs font-medium" style={{ color: 'var(--text-2)' }}>Status: </span>
-        <span className="text-xs capitalize" style={{ color: 'var(--text-1)' }}>
-          {runtime?.status ?? 'idle'}
-        </span>
-        {runtime?.error && (
-          <p className="text-xs mt-1 p-1.5 rounded" style={{ background: '#7f1d1d33', color: '#fca5a5' }}>
-            {runtime.error}
-          </p>
-        )}
-      </div>
-
-      {/* Config tabs */}
-      <div className="flex" style={{ borderBottom: '1px solid var(--border)' }}>
-        {(['form', 'json'] as ConfigTab[]).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className="flex-1 text-xs py-2 font-medium capitalize"
-            style={{
-              color: activeTab === tab ? 'var(--text-1)' : 'var(--text-3)',
-              borderBottom: activeTab === tab ? '2px solid #6366f1' : '2px solid transparent',
-            }}
-          >
-            {tab === 'form' ? 'Form' : 'JSON'}
+      {/* Inspector tab bar */}
+      <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+        {(['details', 'variants', 'graph'] as InspectorTab[]).map((k) => (
+          <button key={k} onClick={() => setInspectorTab(k)} style={{
+            flex: 1, padding: '9px 0', background: 'transparent', border: 'none', cursor: 'pointer',
+            borderBottom: inspectorTab === k ? '2px solid var(--accent-2)' : '2px solid transparent',
+            color: inspectorTab === k ? 'var(--text-1)' : 'var(--text-3)',
+            fontFamily: 'var(--font-display)', fontSize: 11, textTransform: 'uppercase',
+            letterSpacing: '.08em', fontWeight: 600, transition: 'color .18s',
+          }}>
+            {k === 'graph' ? 'ChampGraph' : k}
           </button>
         ))}
       </div>
 
-      {/* Config body */}
-      <div className="flex-1 overflow-y-auto">
-        {activeTab === 'form' ? (
-          <NodeConfigForm nodeId={node.id} kind={kind} config={config} />
-        ) : (
-          <JsonConfigEditor nodeId={node.id} config={config} />
-        )}
-
-        {/* Runtime output — always visible after execution */}
-        <div style={{ borderTop: '1px solid var(--border)' }}>
-          <button
-            className="w-full flex items-center justify-between px-3 py-2 text-xs"
-            style={{ color: 'var(--text-3)' }}
-            onClick={() => setShowRaw((v) => !v)}
-          >
-            <span className="font-medium" style={{ color: runtime?.output ? 'var(--text-1)' : 'var(--text-3)' }}>
-              {runtime?.output ? '✓ Runtime output (JSON)' : 'Runtime output (JSON)'}
-            </span>
-            {showRaw ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-          </button>
-          {showRaw && (
-            <pre
-              className="text-xs px-3 pb-3 overflow-x-auto whitespace-pre-wrap break-words"
-              style={{ color: 'var(--text-1)', maxHeight: 400, overflowY: 'auto' }}
-            >
-              {runtime?.output
-                ? JSON.stringify(runtime.output, null, 2)
-                : '// No output yet — run the workflow first'}
-            </pre>
-          )}
+      {/* Variants tab */}
+      {inspectorTab === 'variants' && (
+        <div className="flex-1 overflow-y-auto">
+          <VariantsTab nodeId={selectedNodeId} />
         </div>
-      </div>
+      )}
+
+      {/* ChampGraph tab */}
+      {inspectorTab === 'graph' && (
+        <div className="flex-1 overflow-y-auto">
+          <ChampGraphTab nodeId={selectedNodeId} />
+        </div>
+      )}
+
+      {/* Details tab — existing inspector content */}
+      {inspectorTab === 'details' && (
+        <>
+          {/* Status */}
+          <div className="px-3 py-2" style={{ borderBottom: '1px solid var(--border)' }}>
+            <span className="text-xs font-medium" style={{ color: 'var(--text-2)' }}>Status: </span>
+            <span className="text-xs capitalize" style={{ color: 'var(--text-1)' }}>
+              {runtime?.status ?? 'idle'}
+            </span>
+            {runtime?.error && (
+              <p className="text-xs mt-1 p-1.5 rounded" style={{ background: '#7f1d1d33', color: '#fca5a5' }}>
+                {runtime.error}
+              </p>
+            )}
+          </div>
+
+          {/* Config tabs */}
+          <div className="flex" style={{ borderBottom: '1px solid var(--border)' }}>
+            {(['form', 'json'] as ConfigTab[]).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className="flex-1 text-xs py-2 font-medium capitalize"
+                style={{
+                  color: activeTab === tab ? 'var(--text-1)' : 'var(--text-3)',
+                  borderBottom: activeTab === tab ? '2px solid #6366f1' : '2px solid transparent',
+                }}
+              >
+                {tab === 'form' ? 'Form' : 'JSON'}
+              </button>
+            ))}
+          </div>
+
+          {/* Config body */}
+          <div className="flex-1 overflow-y-auto">
+            {activeTab === 'form' ? (
+              <NodeConfigForm nodeId={node.id} kind={kind} config={config} />
+            ) : (
+              <JsonConfigEditor nodeId={node.id} config={config} />
+            )}
+
+            {/* Runtime output — always visible after execution */}
+            <div style={{ borderTop: '1px solid var(--border)' }}>
+              <button
+                className="w-full flex items-center justify-between px-3 py-2 text-xs"
+                style={{ color: 'var(--text-3)' }}
+                onClick={() => setShowRaw((v) => !v)}
+              >
+                <span className="font-medium" style={{ color: runtime?.output ? 'var(--text-1)' : 'var(--text-3)' }}>
+                  {runtime?.output ? '✓ Runtime output (JSON)' : 'Runtime output (JSON)'}
+                </span>
+                {showRaw ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+              </button>
+              {showRaw && (
+                <pre
+                  className="text-xs px-3 pb-3 overflow-x-auto whitespace-pre-wrap break-words"
+                  style={{ color: 'var(--text-1)', maxHeight: 400, overflowY: 'auto' }}
+                >
+                  {runtime?.output
+                    ? JSON.stringify(runtime.output, null, 2)
+                    : '// No output yet — run the workflow first'}
+                </pre>
+              )}
+            </div>
+          </div>
+        </>
+      )}
     </aside>
   )
 }
