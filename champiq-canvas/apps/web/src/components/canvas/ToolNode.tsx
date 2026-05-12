@@ -16,6 +16,7 @@ import {
 import { api } from '@/lib/api'
 import type { ChampIQManifest, NodeStatus } from '@/types'
 import { useJobPolling } from '@/hooks/useJobPolling'
+import { Icon, type IconName } from '@/components/atoms'
 
 // ── Kind metadata ──────────────────────────────────────────────────────────
 const KIND_META: Record<string, { label: string; color: string; icon: string }> = {
@@ -23,21 +24,60 @@ const KIND_META: Record<string, { label: string; color: string; icon: string }> 
   'trigger.webhook': { label: 'Webhook Trigger', color: '#10b981', icon: 'webhook' },
   'trigger.cron':    { label: 'Cron Schedule',   color: '#10b981', icon: 'cron' },
   'trigger.event':   { label: 'Event Trigger',   color: '#10b981', icon: 'bolt' },
-  'http':            { label: 'HTTP Request',     color: '#3b82f6', icon: 'webhook' },
-  'set':             { label: 'Set / Map',        color: '#8b5cf6', icon: 'set_node' },
-  'merge':           { label: 'Merge',            color: '#8b5cf6', icon: 'merge' },
+  'http':            { label: 'HTTP Request',     color: '#8b5cf6', icon: 'webhook' },
+  'set':             { label: 'Set / Map',        color: '#06b6d4', icon: 'set' },
+  'merge':           { label: 'Merge',            color: '#06b6d4', icon: 'layers' },
   'if':              { label: 'If / Branch',      color: '#f59e0b', icon: 'if_node' },
   'switch':          { label: 'Switch',           color: '#f59e0b', icon: 'branch' },
   'loop':            { label: 'Loop',             color: '#f59e0b', icon: 'loop' },
-  'split':           { label: 'Split / A-B',      color: '#ec4899', icon: 'branch' },
+  'split':           { label: 'Split / A-B',      color: '#f59e0b', icon: 'branch' },
   'wait':            { label: 'Wait',             color: '#6b7280', icon: 'timer' },
-  'code':            { label: 'Code',             color: '#06b6d4', icon: 'code' },
-  'llm':             { label: 'LLM',              color: '#a855f7', icon: 'sparkle' },
-  'champmail_reply': { label: 'Reply Classifier', color: '#ef4444', icon: 'mail' },
-  'champmail':       { label: 'ChampMail',        color: '#22C55E', icon: 'mail' },
-  'champgraph':      { label: 'ChampGraph',       color: '#3B82F6', icon: 'graph' },
-  'champvoice':      { label: 'ChampVoice',       color: '#a855f7', icon: 'voice' },
-  'lakeb2b_pulse':   { label: 'LakeB2B Pulse',   color: '#64748b', icon: 'db' },
+  'code':            { label: 'Code',             color: '#6b7280', icon: 'code' },
+  'llm':             { label: 'LLM',              color: '#8b5cf6', icon: 'sparkle' },
+  'champmail_reply': { label: 'Reply Classifier', color: '#f97316', icon: 'mail' },
+  'champmail':       { label: 'ChampMail',        color: '#f97316', icon: 'mail' },
+  'champgraph':      { label: 'ChampGraph',       color: '#14b8a6', icon: 'graph' },
+  'champvoice':      { label: 'ChampVoice',       color: '#3b82f6', icon: 'voice' },
+  'lakeb2b_pulse':   { label: 'LakeB2B Pulse',   color: '#ec4899', icon: 'bolt' },
+}
+
+// ── Status styles (left-border treatment per execution state) ──────────────
+const STATE_STYLES: Record<string, React.CSSProperties> = {
+  idle:       { borderLeft: '3px solid var(--border-2)' },
+  running:    { borderLeft: '3px solid var(--warn)', animation: 'node-pulse 1.5s ease-in-out infinite' },
+  success:    { borderLeft: '3px solid var(--success)', animation: 'node-success-pop 400ms var(--ease-spring)' },
+  error:      { borderLeft: '3px solid var(--danger)' },
+  suggesting: { borderLeft: '3px dashed var(--mint-2)', animation: 'dash-flow 1.2s linear infinite' },
+}
+
+// ── Kind → accent color ────────────────────────────────────────────────────
+function kindColor(kind: string): string {
+  const COLORS: Record<string, string> = {
+    'trigger.manual': '#10b981', 'trigger.cron': '#10b981',
+    'trigger.webhook': '#10b981', 'trigger.event': '#10b981',
+    'csv.upload': '#06b6d4', 'set': '#06b6d4', 'merge': '#06b6d4',
+    'if': '#f59e0b', 'switch': '#f59e0b', 'loop': '#f59e0b',
+    'split': '#f59e0b', 'wait': '#6b7280', 'code': '#6b7280',
+    'http': '#8b5cf6', 'llm': '#8b5cf6',
+    'champmail': '#f97316', 'champgraph': '#14b8a6',
+    'champvoice': '#3b82f6', 'lakeb2b_pulse': '#ec4899',
+  }
+  return COLORS[kind] ?? '#7C5CFF'
+}
+
+// ── Kind → icon name ───────────────────────────────────────────────────────
+function kindToIcon(kind: string): IconName {
+  const MAP: Record<string, IconName> = {
+    'trigger.manual': 'play_node', 'trigger.cron': 'cron',
+    'trigger.webhook': 'webhook', 'trigger.event': 'bolt',
+    'csv.upload': 'db', 'set': 'set', 'merge': 'layers',
+    'if': 'if_node', 'switch': 'branch', 'loop': 'loop',
+    'split': 'branch', 'wait': 'timer', 'code': 'code',
+    'http': 'webhook', 'llm': 'sparkle',
+    'champmail': 'mail', 'champgraph': 'graph',
+    'champvoice': 'voice', 'lakeb2b_pulse': 'bolt',
+  }
+  return MAP[kind] ?? 'layers'
 }
 
 function configSummary(config: Record<string, unknown>, kind: string): string | null {
@@ -56,27 +96,12 @@ function configSummary(config: Record<string, unknown>, kind: string): string | 
   return null
 }
 
+// Kept for LegacyFormNode status dot
 const STATUS_DOT: Record<NodeStatus, { color: string; glow?: string; pulse?: boolean }> = {
   idle:    { color: '#525C7A' },
   running: { color: '#FFD23F', glow: '#FFD23F', pulse: true },
   success: { color: '#4ADE80', glow: '#4ADE80' },
   error:   { color: '#FF4D6D', glow: '#FF4D6D' },
-}
-
-const STATE_BORDERS: Record<string, { stroke: string; glow: string; dashed?: boolean; anim?: string }> = {
-  idle:      { stroke: 'var(--border-1)', glow: '0 4px 20px rgba(0,0,0,.35)' },
-  selected:  { stroke: 'var(--accent-2)', glow: '0 0 0 3px rgba(var(--accent-2-rgb),.22), 0 8px 32px rgba(0,0,0,.45)' },
-  suggesting:{ stroke: 'var(--mint-2)',   glow: '0 0 0 3px rgba(var(--mint-2-rgb),.18), 0 8px 28px rgba(0,0,0,.4)', dashed: true },
-  running:   { stroke: 'var(--warn)',     glow: '0 0 0 3px rgba(255,210,63,.18), 0 8px 28px rgba(0,0,0,.4)', anim: 'node-pulse 1.6s ease-in-out infinite' },
-  success:   { stroke: 'var(--success)',  glow: '0 0 0 2px rgba(74,222,128,.2), 0 4px 20px rgba(0,0,0,.35)' },
-  error:     { stroke: 'var(--danger)',   glow: '0 0 0 3px rgba(255,77,109,.25), 0 8px 28px rgba(0,0,0,.4)' },
-}
-
-const STATE_BADGE: Partial<Record<NodeStatus | 'suggesting', { label: string; color: string; sparkle?: boolean }>> = {
-  running:    { label: 'Running',  color: 'var(--warn)' },
-  success:    { label: 'Ok',       color: 'var(--success)' },
-  error:      { label: 'Error',    color: 'var(--danger)' },
-  suggesting: { label: 'Pixie',    color: 'var(--mint-2)', sparkle: true },
 }
 
 export function ToolNode(props: NodeProps) {
@@ -90,70 +115,48 @@ export function ToolNode(props: NodeProps) {
   return <LegacyFormNode {...props} manifest={manifest} kindHint={kind} />
 }
 
-// ── SimpleNode — ChampIQ-styled card with full state visuals ─────────────
+// ── SimpleNode — Frame-style 200px card ───────────────────────────────────
 function SimpleNode({ id, data, selected }: NodeProps) {
-  const [hovered, setHovered] = useState(false)
   const manifest = data.manifest as ChampIQManifest | undefined
   const kind = (data.kind as string | undefined) ?? (data.toolId as string | undefined) ?? 'unknown'
-  const kindMeta = KIND_META[kind]
 
-  const metaLabel = (data.label as string) ?? kindMeta?.label ?? kind
-  const metaColor = kindMeta?.color ?? '#6366F1'
-  const metaIcon = kindMeta?.icon ?? 'box'
-
-  const meta = manifest
-    ? getNodeMeta(manifest)
-    : { label: metaLabel, icon: metaIcon, color: metaColor, accepts_input_from: [] as string[] }
-
-  const { nodeRuntimeStates } = useExecutionStore()
+  const runtimeState = useExecutionStore(s => s.nodeRuntimeStates[id])
   const { setSelectedNode } = useCanvasStore()
-  const runtime = nodeRuntimeStates[id] ?? { status: 'idle' as NodeStatus }
-  const IconComponent = resolveIcon(meta.icon)
+  const status = (runtimeState?.status ?? 'idle') as string
   const config = (data.config as Record<string, unknown>) ?? {}
-  const summary = configSummary(config, kind)
-  const statusDot = STATUS_DOT[runtime.status as NodeStatus] ?? STATUS_DOT.idle
+
+  const color = kindColor(kind)
 
   const isSplit = kind === 'split'
   const splitN = isSplit ? Math.max(Number(config.n ?? 2), 2) : 0
   const isRootTrigger = kind.startsWith('trigger.')
-  const color = meta.color
 
-  // State-based visual treatment (from stage.jsx reference)
-  const visualState = selected ? 'selected' : runtime.status
-  const sb = STATE_BORDERS[visualState] || STATE_BORDERS.idle
-  const badge = STATE_BADGE[runtime.status as keyof typeof STATE_BADGE]
+  // Derive label: manifest takes priority, then data fields
+  const metaLabel = manifest
+    ? getNodeMeta(manifest).label
+    : (data.label as string) ?? KIND_META[kind]?.label ?? kind
 
-  const isHot = hovered || selected
+  const STATUS_TEXT: Record<string, string> = {
+    running: 'Running…',
+    success: 'Done',
+    error: 'Error',
+    suggesting: 'Pixie suggests',
+  }
 
   return (
     <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
       onDoubleClick={() => setSelectedNode(id)}
       title="Double-click to open settings"
       style={{
-        width: 210,
-        background: isHot
-          ? `linear-gradient(160deg, var(--bg-2) 0%, color-mix(in oklch, ${color} 5%, var(--bg-2)) 100%)`
-          : 'var(--bg-1)',
-        border: `${sb.dashed ? '1.5px dashed' : '1.5px solid'} ${sb.stroke}`,
-        borderRadius: 12,
-        overflow: 'hidden',
-        boxShadow: sb.glow,
-        transition: 'all .22s var(--ease-swift)',
-        cursor: 'pointer',
-        animation: sb.anim ?? 'none',
-        position: 'relative',
+        width: 200, minHeight: 84,
+        background: 'var(--bg-1)', border: '1px solid var(--border-2)',
+        borderRadius: 12, padding: '10px 12px',
+        cursor: 'pointer', position: 'relative',
+        boxShadow: selected ? `0 0 0 2px var(--accent-2), 0 0 24px -4px rgba(var(--accent-2-rgb),.4)` : 'none',
+        transition: 'box-shadow .18s var(--ease-swift)',
+        ...(STATE_STYLES[status] ?? STATE_STYLES.idle),
       }}
     >
-      {/* Color ribbon */}
-      <div style={{
-        height: 3,
-        background: `linear-gradient(90deg, ${color}, color-mix(in oklch, ${color} 60%, transparent))`,
-        opacity: visualState === 'idle' && !isHot ? 0.55 : 1,
-        transition: 'opacity .22s',
-      }}/>
-
       {!isRootTrigger && (
         <Handle
           type="target"
@@ -161,131 +164,42 @@ function SimpleNode({ id, data, selected }: NodeProps) {
           style={{
             width: 12, height: 12, borderRadius: '50%',
             background: 'var(--bg-3)',
-            border: `2px solid ${isHot ? color : 'var(--border-2)'}`,
-            transition: 'border-color .22s',
-            boxShadow: isHot ? `0 0 6px color-mix(in oklch, ${color} 50%, transparent)` : 'none',
+            border: `2px solid var(--border-2)`,
           }}
         />
       )}
 
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', height: 'calc(100% - 3px)' }}>
-        {/* Icon badge */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: status !== 'idle' ? 6 : 0 }}>
         <div style={{
-          width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-          background: `color-mix(in oklch, ${color} 18%, var(--bg-0))`,
-          border: `1px solid color-mix(in oklch, ${color} 30%, transparent)`,
-          display: 'grid', placeItems: 'center', color,
-          boxShadow: isHot ? `0 0 12px -2px color-mix(in oklch, ${color} 45%, transparent)` : 'none',
-          transition: 'box-shadow .22s',
+          width: 28, height: 28, borderRadius: 7, flexShrink: 0,
+          background: `color-mix(in oklch, ${color} 22%, transparent)`,
+          color: color, display: 'grid', placeItems: 'center',
         }}>
-          <IconComponent size={15} />
+          <Icon name={kindToIcon(kind)} size={14} />
         </div>
-
-        {/* Labels */}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
-            fontFamily: 'var(--font-mono)', fontSize: 8.5, letterSpacing: '.14em',
-            textTransform: 'uppercase', color, opacity: .85, marginBottom: 3,
+            fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '.12em',
+            textTransform: 'uppercase', color: 'var(--text-4)',
           }}>
-            {kindMeta?.label || kind}
+            {(data.kindLabel as string) ?? kind}
           </div>
           <div style={{
-            fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 13,
-            color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.2,
+            fontFamily: 'var(--font-display)', fontSize: 12.5, fontWeight: 600,
+            color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}>
-            {meta.label}
+            {(data.label as string) ?? (data.name as string) ?? metaLabel}
           </div>
-        </div>
-
-        {/* State indicator */}
-        <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-          <div style={{
-            width: 7, height: 7, borderRadius: '50%',
-            background: statusDot.color,
-            boxShadow: statusDot.glow ? `0 0 6px ${statusDot.glow}` : 'none',
-            animation: statusDot.pulse ? 'glow-pulse 1s ease-in-out infinite' : 'none',
-          }}/>
-          {badge && (
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 3,
-              fontFamily: 'var(--font-mono)', fontSize: 8.5, letterSpacing: '.1em', textTransform: 'uppercase',
-              color: badge.color,
-            }}>
-              {badge.sparkle
-                ? <span style={{ fontSize: 8 }}>✦</span>
-                : <span style={{ width: 4, height: 4, borderRadius: '50%', background: badge.color, display: 'inline-block' }} />
-              }
-              {badge.label}
-            </div>
-          )}
-
-          {/* Delete button */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              useCanvasStore.setState((s) => ({
-                nodes: s.nodes.filter((n) => n.id !== id),
-                edges: s.edges.filter((edge) => edge.source !== id && edge.target !== id),
-              }))
-            }}
-            style={{
-              width: 18, height: 18, display: 'grid', placeItems: 'center',
-              background: 'transparent', border: 'none', color: 'var(--text-4)',
-              cursor: 'pointer', borderRadius: 4, opacity: hovered ? 1 : 0,
-              transition: 'opacity .15s',
-            }}
-          >
-            <X size={11} />
-          </button>
         </div>
       </div>
 
-      {/* Summary */}
-      {summary && !hovered && (
+      {status !== 'idle' && (
         <div style={{
-          margin: '0 12px 8px',
-          padding: '3px 7px', borderRadius: 5,
-          background: 'var(--bg-3)',
-          fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-3)',
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '.08em',
+          color: ({ running: 'var(--warn)', success: 'var(--success)', error: 'var(--danger)', suggesting: 'var(--mint-2)' } as Record<string, string>)[status] ?? 'var(--text-3)',
         }}>
-          {summary}
+          {STATUS_TEXT[status] ?? status}
         </div>
-      )}
-
-      {/* Double-click hint on hover */}
-      {hovered && !selected && (
-        <div style={{
-          position: 'absolute', bottom: 6, right: 10,
-          fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '.1em', textTransform: 'uppercase',
-          color: 'var(--text-4)', animation: 'bubble-in 160ms var(--ease-spring)',
-        }}>
-          dbl-click to open ↗
-        </div>
-      )}
-
-      {/* Runtime error */}
-      {runtime.status === 'error' && runtime.error && !hovered && (
-        <div style={{
-          margin: '0 12px 8px', padding: '4px 8px', borderRadius: 5,
-          background: 'rgba(255,77,109,.1)', border: '1px solid rgba(255,77,109,.2)',
-          fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--danger)',
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        }}>
-          {runtime.error}
-        </div>
-      )}
-
-      {/* Success spark burst */}
-      {runtime.status === 'success' && !selected && (
-        <div style={{
-          position: 'absolute', left: '50%', top: '50%',
-          width: 260, height: 130, borderRadius: '50%',
-          background: 'radial-gradient(ellipse at center, rgba(74,222,128,.35), transparent 60%)',
-          animation: 'spark-burst 600ms ease-out',
-          pointerEvents: 'none',
-        }}/>
       )}
 
       {isSplit
@@ -304,9 +218,7 @@ function SimpleNode({ id, data, selected }: NodeProps) {
             style={{
               width: 12, height: 12, borderRadius: '50%',
               background: 'var(--bg-3)',
-              border: `2px solid ${isHot ? color : 'var(--border-2)'}`,
-              transition: 'border-color .22s',
-              boxShadow: isHot ? `0 0 6px color-mix(in oklch, ${color} 50%, transparent)` : 'none',
+              border: `2px solid var(--border-2)`,
             }}
           />
       }
