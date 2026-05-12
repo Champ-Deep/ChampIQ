@@ -59,7 +59,7 @@ function kindColor(kind: string): string {
     'if': '#f59e0b', 'switch': '#f59e0b', 'loop': '#f59e0b',
     'split': '#f59e0b', 'wait': '#6b7280', 'code': '#6b7280',
     'http': '#8b5cf6', 'llm': '#8b5cf6',
-    'champmail': '#f97316', 'champgraph': '#14b8a6',
+    'champmail': '#f97316', 'champmail_reply': '#f97316', 'champgraph': '#14b8a6',
     'champvoice': '#3b82f6', 'lakeb2b_pulse': '#ec4899',
   }
   return COLORS[kind] ?? '#7C5CFF'
@@ -74,7 +74,7 @@ function kindToIcon(kind: string): IconName {
     'if': 'if_node', 'switch': 'branch', 'loop': 'loop',
     'split': 'branch', 'wait': 'timer', 'code': 'code',
     'http': 'webhook', 'llm': 'sparkle',
-    'champmail': 'mail', 'champgraph': 'graph',
+    'champmail': 'mail', 'champmail_reply': 'mail', 'champgraph': 'graph',
     'champvoice': 'voice', 'lakeb2b_pulse': 'bolt',
   }
   return MAP[kind] ?? 'layers'
