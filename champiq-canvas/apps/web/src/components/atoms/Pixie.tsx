@@ -35,9 +35,9 @@ export function Pixie({ pose = 'idle', size = 96, cloak = '#5B3FE0', ambient = t
     : `/pixie/pixie-${colorName}-${pose}.png`
 
   const phase = React.useMemo(() => ({
-    float: -(Math.random() * 4).toFixed(2),
-    pose:  -(Math.random() * 3).toFixed(2),
-    spark: -(Math.random() * 1.6).toFixed(2),
+    float: `${-(Math.random() * 4).toFixed(2)}s`,
+    pose:  `${-(Math.random() * 3).toFixed(2)}s`,
+    spark: `${-(Math.random() * 1.6).toFixed(2)}s`,
   }), [])
 
   const outerAnim = !ambient || pose === 'cheer' ? 'none'
@@ -50,14 +50,14 @@ export function Pixie({ pose = 'idle', size = 96, cloak = '#5B3FE0', ambient = t
       style={{
         position: 'relative', display: 'inline-flex', flexDirection: 'column',
         alignItems: 'center', gap: 6,
-        animation: outerAnim, animationDelay: `${phase.float}s`,
+        animation: outerAnim, animationDelay: phase.float,
         ...style,
       }}
     >
       <div style={{
         position: 'relative', width: size, height: size,
         animation: ambient ? POSE_ANIM[pose] : 'none',
-        animationDelay: `${phase.pose}s`,
+        animationDelay: phase.pose,
         transformOrigin: '50% 85%',
         transform: flip ? 'scaleX(-1)' : 'none',
       }}>
@@ -77,7 +77,7 @@ export function Pixie({ pose = 'idle', size = 96, cloak = '#5B3FE0', ambient = t
             position: 'absolute', left: '38%', top: '8%', width: '24%', height: '14%',
             background: 'radial-gradient(ellipse at center, rgba(255,210,63,.55), transparent 65%)',
             animation: 'antenna-spark 1.6s ease-in-out infinite',
-            animationDelay: `${phase.spark}s`, pointerEvents: 'none',
+            animationDelay: phase.spark, pointerEvents: 'none',
           }} />
         )}
       </div>

@@ -1,5 +1,3 @@
-import React from 'react'
-
 export function ChampMark({ size = 22 }: { size?: number }) {
   return (
     <svg viewBox="0 0 16 16" width={size} height={size} shapeRendering="crispEdges">

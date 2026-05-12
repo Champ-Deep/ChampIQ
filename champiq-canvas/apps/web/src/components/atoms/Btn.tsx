@@ -1,8 +1,8 @@
 import React from 'react'
 import { Icon, type IconName } from './Icon'
 
-type BtnVariant = 'primary' | 'pixie' | 'secondary' | 'ghost' | 'danger'
-type BtnSize    = 'sm' | 'md' | 'lg'
+export type BtnVariant = 'primary' | 'pixie' | 'secondary' | 'ghost' | 'danger'
+export type BtnSize    = 'sm' | 'md' | 'lg'
 
 interface BtnProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: BtnVariant
