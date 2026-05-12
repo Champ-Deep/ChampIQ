@@ -8,6 +8,7 @@
  */
 import { useState, useEffect } from 'react'
 import { useCanvasStore } from '@/store/canvasStore'
+import { useExecutionStore } from '@/store/executionStore'
 import { useCredentialStore, TOOL_CREDENTIAL_TYPE } from '@/store/credentialStore'
 import { X, Copy, Check, ChevronDown, ChevronUp } from '@/lib/icons'
 import { getNodeMeta } from '@/lib/manifest'
@@ -336,7 +337,8 @@ function JsonConfigEditor({ nodeId, config }: { nodeId: string; config: Record<s
 type ConfigTab = 'form' | 'json'
 
 export function RightPanel() {
-  const { selectedNodeId, nodes, nodeRuntimeStates, setSelectedNode } = useCanvasStore()
+  const { selectedNodeId, nodes, setSelectedNode } = useCanvasStore()
+  const { nodeRuntimeStates } = useExecutionStore()
   const [copied, setCopied] = useState(false)
   const [showRaw, setShowRaw] = useState(true)
   const [activeTab, setActiveTab] = useState<ConfigTab>('form')

@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useCanvasStore } from '@/store/canvasStore'
+import { useExecutionStore } from '@/store/executionStore'
 
 export function useExecutionStream() {
   useEffect(() => {
@@ -36,7 +36,7 @@ function handle(msg: Record<string, unknown>) {
   const topic = msg.topic as string | undefined
   if (!topic) return
   const nodeId = msg.node_id as string | undefined
-  const store = useCanvasStore.getState()
+  const store = useExecutionStore.getState()
 
   if (topic === 'node.started' && nodeId) {
     store.setNodeRuntime(nodeId, { status: 'running' })

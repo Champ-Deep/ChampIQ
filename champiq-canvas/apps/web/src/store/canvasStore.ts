@@ -1,14 +1,13 @@
 import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
 import { type Node, type Edge, applyNodeChanges, applyEdgeChanges } from '@xyflow/react'
-import type { NodeRuntimeState, LogEntry, ChampIQManifest, CanvasMeta } from '@/types'
+import type { ChampIQManifest, CanvasMeta } from '@/types'
+import { useExecutionStore } from './executionStore'
 
 interface CanvasStore {
   // ── Canvas content ────────────────────────────────────────────────────────
   nodes: Node[]
   edges: Edge[]
-  nodeRuntimeStates: Record<string, NodeRuntimeState>
-  logs: LogEntry[]
   selectedNodeId: string | null
 
   // ── Multi-canvas ──────────────────────────────────────────────────────────
@@ -20,24 +19,18 @@ interface CanvasStore {
   manifests: ChampIQManifest[]
   toolHealthStatus: Record<string, 'ok' | 'error' | 'unknown'>
 
-  // ── Execution ─────────────────────────────────────────────────────────────
-  isRunningAll: boolean
-
   // ── Actions ───────────────────────────────────────────────────────────────
   setNodes: (nodes: Node[]) => void
   setEdges: (edges: Edge[]) => void
   onNodesChange: (changes: Parameters<typeof applyNodeChanges>[0]) => void
   onEdgesChange: (changes: Parameters<typeof applyEdgeChanges>[0]) => void
   setManifests: (manifests: ChampIQManifest[]) => void
-  setNodeRuntime: (nodeId: string, state: Partial<NodeRuntimeState>) => void
-  addLog: (entry: Omit<LogEntry, 'id' | 'timestamp'>) => void
   setSelectedNode: (nodeId: string | null) => void
   setToolHealth: (tool: string, status: 'ok' | 'error' | 'unknown') => void
   /** Renames the current canvas and keeps canvasList in sync. */
   setCanvasName: (name: string) => void
   setCanvasList: (list: CanvasMeta[]) => void
   setCurrentCanvasId: (id: string) => void
-  setIsRunningAll: (v: boolean) => void
   updateNodeConfig: (nodeId: string, config: Record<string, unknown>) => void
   clearCanvas: () => void
 }
@@ -47,8 +40,6 @@ export const useCanvasStore = create<CanvasStore>()(
   (set) => ({
     nodes: [],
     edges: [],
-    nodeRuntimeStates: {},
-    logs: [],
     selectedNodeId: null,
 
     canvasList: [],
@@ -57,8 +48,6 @@ export const useCanvasStore = create<CanvasStore>()(
 
     manifests: [],
     toolHealthStatus: {},
-
-    isRunningAll: false,
 
     setNodes: (nodes) => set({ nodes }),
     setEdges: (edges) => set({ edges }),
@@ -76,22 +65,6 @@ export const useCanvasStore = create<CanvasStore>()(
 
     setManifests: (manifests) => set({ manifests }),
 
-    setNodeRuntime: (nodeId, state) =>
-      set((prev) => ({
-        nodeRuntimeStates: {
-          ...prev.nodeRuntimeStates,
-          [nodeId]: { ...prev.nodeRuntimeStates[nodeId], ...state },
-        },
-      })),
-
-    addLog: (entry) =>
-      set((s) => ({
-        logs: [
-          { ...entry, id: crypto.randomUUID(), timestamp: new Date().toISOString() },
-          ...s.logs.slice(0, 9),
-        ],
-      })),
-
     setSelectedNode: (nodeId) => set({ selectedNodeId: nodeId }),
 
     setToolHealth: (tool, status) =>
@@ -107,7 +80,6 @@ export const useCanvasStore = create<CanvasStore>()(
 
     setCanvasList: (list) => set({ canvasList: list }),
     setCurrentCanvasId: (id) => set({ currentCanvasId: id }),
-    setIsRunningAll: (v) => set({ isRunningAll: v }),
 
     updateNodeConfig: (nodeId, config) =>
       set((s) => ({
@@ -116,6 +88,9 @@ export const useCanvasStore = create<CanvasStore>()(
         ),
       })),
 
-    clearCanvas: () => set({ nodes: [], edges: [], nodeRuntimeStates: {} }),
+    clearCanvas: () => {
+      useExecutionStore.getState().clearExecution()
+      set({ nodes: [], edges: [] })
+    },
   }))
 )

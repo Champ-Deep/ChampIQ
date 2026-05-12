@@ -4,6 +4,7 @@ import Form from '@rjsf/core'
 import validator from '@rjsf/validator-ajv8'
 import { resolveIcon, X } from '@/lib/icons'
 import { useCanvasStore } from '@/store/canvasStore'
+import { useExecutionStore } from '@/store/executionStore'
 import {
   getNodeMeta,
   getRestAction,
@@ -104,7 +105,8 @@ function SimpleNode({ id, data, selected }: NodeProps) {
     ? getNodeMeta(manifest)
     : { label: metaLabel, icon: metaIcon, color: metaColor, accepts_input_from: [] as string[] }
 
-  const { nodeRuntimeStates, setSelectedNode } = useCanvasStore()
+  const { nodeRuntimeStates } = useExecutionStore()
+  const { setSelectedNode } = useCanvasStore()
   const runtime = nodeRuntimeStates[id] ?? { status: 'idle' as NodeStatus }
   const IconComponent = resolveIcon(meta.icon)
   const config = (data.config as Record<string, unknown>) ?? {}
@@ -321,7 +323,8 @@ function LegacyFormNode({
   const configSchema = getConfigSchema(manifest)
   const populateEndpoints = getPopulateEndpoints(manifest)
 
-  const { nodeRuntimeStates, setNodeRuntime, updateNodeConfig, addLog, setSelectedNode } = useCanvasStore()
+  const { nodeRuntimeStates, setNodeRuntime, addLog } = useExecutionStore()
+  const { updateNodeConfig, setSelectedNode } = useCanvasStore()
   const runtime = nodeRuntimeStates[id] ?? { status: 'idle' as NodeStatus }
 
   const [collapsed, setCollapsed] = useState(false)

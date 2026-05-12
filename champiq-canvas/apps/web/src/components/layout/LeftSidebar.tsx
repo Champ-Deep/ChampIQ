@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useCanvasStore } from '@/store/canvasStore'
+import { useExecutionStore } from '@/store/executionStore'
 import { getToolId, getNodeMeta } from '@/lib/manifest'
 import { saveCurrentCanvas } from '@/hooks/usePersistence'
 import { resolveIcon, Plus, Trash2 } from '@/lib/icons'
@@ -62,8 +63,8 @@ function switchCanvas(targetId: string) {
     currentCanvasId: targetId,
     canvasName: target.name,
     nodes: [], edges: [],
-    nodeRuntimeStates: {}, logs: [],
   })
+  useExecutionStore.getState().clearExecution()
   const raw = localStorage.getItem(`champiq:canvas:${targetId}`)
   if (raw) {
     try {
@@ -97,8 +98,8 @@ function createCanvas() {
     currentCanvasId: id,
     canvasName: meta.name,
     nodes: [], edges: [],
-    nodeRuntimeStates: {}, logs: [],
   }))
+  useExecutionStore.getState().clearExecution()
   localStorage.setItem('champiq:canvas:list', JSON.stringify(useCanvasStore.getState().canvasList))
 }
 

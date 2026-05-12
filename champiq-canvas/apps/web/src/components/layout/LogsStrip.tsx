@@ -1,4 +1,4 @@
-import { useCanvasStore } from '@/store/canvasStore'
+import { useExecutionStore } from '@/store/executionStore'
 import { useUIStore } from '@/store/uiStore'
 import { ResizeHandle } from './ResizeHandle'
 import { Terminal, ChevronUp, ChevronDown } from 'lucide-react'
@@ -19,7 +19,7 @@ const MIN_H = 80
 const MAX_H = 500
 
 export function LogsStrip({ expanded, onToggle }: LogsStripProps) {
-  const logs = useCanvasStore((s) => s.logs)
+  const logs = useExecutionStore((s) => s.logs)
   const lastLog = logs[logs.length - 1]
   const { logsHeight, setLogsHeight } = useUIStore()
 

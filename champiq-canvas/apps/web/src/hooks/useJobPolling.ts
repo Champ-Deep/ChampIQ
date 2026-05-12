@@ -1,9 +1,10 @@
 import { useEffect, useRef } from 'react'
 import { api } from '@/lib/api'
 import { useCanvasStore } from '@/store/canvasStore'
+import { useExecutionStore } from '@/store/executionStore'
 
 export function useJobPolling(jobId: string | undefined, nodeId: string, toolId: string) {
-  const { setNodeRuntime, addLog } = useCanvasStore()
+  const { setNodeRuntime, addLog } = useExecutionStore()
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
@@ -17,13 +18,14 @@ export function useJobPolling(jobId: string | undefined, nodeId: string, toolId:
           setNodeRuntime(nodeId, { status: 'success', output: job.result ?? undefined })
           addLog({ nodeId, nodeName: toolId, status: 'success', message: `Job ${jobId} completed.` })
 
-          const { nodes, edges, isRunningAll } = useCanvasStore.getState()
+          const { nodes, edges } = useCanvasStore.getState()
+          const { isRunningAll } = useExecutionStore.getState()
           const outgoingEdges = edges.filter((e) => e.source === nodeId)
           for (const edge of outgoingEdges) {
             const targetNode = nodes.find((n) => n.id === edge.target)
             if (targetNode && job.result) {
               const records = (job.result as Record<string, unknown>).records
-              useCanvasStore.getState().setNodeRuntime(edge.target, {
+              useExecutionStore.getState().setNodeRuntime(edge.target, {
                 inputPayload: { prospects: Array.isArray(records) ? records : [] },
               })
             }
@@ -31,24 +33,24 @@ export function useJobPolling(jobId: string | undefined, nodeId: string, toolId:
 
           // Run All: trigger downstream nodes whose all dependencies are now done.
           if (isRunningAll) {
-            const rts = useCanvasStore.getState().nodeRuntimeStates
+            const rts = useExecutionStore.getState().nodeRuntimeStates
             for (const edge of outgoingEdges) {
               const incoming = edges.filter((e) => e.target === edge.target)
               const allDone = incoming.every(
                 (e) => rts[e.source]?.status === 'success'
               )
               if (allDone) {
-                useCanvasStore.getState().setNodeRuntime(edge.target, { pendingRun: true })
+                useExecutionStore.getState().setNodeRuntime(edge.target, { pendingRun: true })
               }
             }
 
             // Stop isRunningAll when every node is terminal.
-            const latest = useCanvasStore.getState().nodeRuntimeStates
+            const latest = useExecutionStore.getState().nodeRuntimeStates
             const allSettled = useCanvasStore.getState().nodes.every((n) => {
               const s = latest[n.id]?.status
               return s === 'success' || s === 'error'
             })
-            if (allSettled) useCanvasStore.setState({ isRunningAll: false })
+            if (allSettled) useExecutionStore.getState().setIsRunningAll(false)
           }
 
           clearInterval(intervalRef.current!)

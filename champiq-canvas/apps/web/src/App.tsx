@@ -22,6 +22,7 @@ import { useExecutionStream } from '@/hooks/useExecutionStream'
 import { useB2BPulseEvents } from '@/hooks/useB2BPulseEvents'
 import { useUIStore } from '@/store/uiStore'
 import { useCanvasStore } from '@/store/canvasStore'
+import { useExecutionStore } from '@/store/executionStore'
 
 // ── Cockpit: the per-canvas view (Rail + SidePanel + Canvas always visible) ─
 
@@ -189,8 +190,8 @@ function AppInner() {
       canvasName: canvas?.name ?? 'Canvas',
       nodes: saved?.nodes ?? [],
       edges: saved?.edges ?? [],
-      nodeRuntimeStates: {},
     })
+    useExecutionStore.getState().clearExecution()
 
     setActiveCanvas(id)
     setAppView('cockpit')
@@ -214,7 +215,8 @@ function AppInner() {
     }))
     const meta = { id: canvasId, name: spec.title, updatedAt: new Date().toISOString() }
     const list = [...useCanvasStore.getState().canvasList, meta]
-    useCanvasStore.setState({ canvasList: list, currentCanvasId: canvasId, canvasName: spec.title, nodes, edges, nodeRuntimeStates: {} })
+    useCanvasStore.setState({ canvasList: list, currentCanvasId: canvasId, canvasName: spec.title, nodes, edges })
+    useExecutionStore.getState().clearExecution()
     localStorage.setItem('champiq:canvas:list', JSON.stringify(list))
     localStorage.setItem(`champiq:canvas:${canvasId}`, JSON.stringify({ nodes, edges }))
     setActiveCanvas(canvasId)
@@ -235,8 +237,8 @@ function AppInner() {
       canvasName: 'New Canvas',
       nodes: [],
       edges: [],
-      nodeRuntimeStates: {},
     })
+    useExecutionStore.getState().clearExecution()
     localStorage.setItem('champiq:canvas:list', JSON.stringify(list))
     setActiveCanvas(id)
     setAppView('cockpit')

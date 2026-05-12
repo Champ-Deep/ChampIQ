@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { BaseEdge, EdgeLabelRenderer, getBezierPath, useReactFlow, type EdgeProps } from '@xyflow/react'
-import { useCanvasStore } from '@/store/canvasStore'
+import { useExecutionStore } from '@/store/executionStore'
 
 const EDGE_COLORS: Record<string, string> = {
   waiting: '#64748b',
@@ -25,7 +25,7 @@ export function CustomEdge({
   const strokeColor = selected ? 'var(--accent-2)' : hovered ? '#94a3b8' : baseColor
   const animated = state === 'active'
 
-  const nodeRuntimeStates = useCanvasStore((s) => s.nodeRuntimeStates)
+  const nodeRuntimeStates = useExecutionStore((s) => s.nodeRuntimeStates)
   const sourceRuntime = source ? nodeRuntimeStates[source] : undefined
   const records = sourceRuntime?.output
     ? ((sourceRuntime.output as Record<string, unknown>).records as unknown[] | undefined)

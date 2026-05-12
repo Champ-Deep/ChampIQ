@@ -1,4 +1,4 @@
-import { useCanvasStore } from '@/store/canvasStore'
+import { useExecutionStore } from '@/store/executionStore'
 import type { NodeStatus } from '@/types'
 
 const STATUS_COLORS: Record<NodeStatus, string> = {
@@ -9,7 +9,7 @@ const STATUS_COLORS: Record<NodeStatus, string> = {
 }
 
 export function BottomLog() {
-  const logs = useCanvasStore((s) => s.logs)
+  const logs = useExecutionStore((s) => s.logs)
 
   return (
     <div

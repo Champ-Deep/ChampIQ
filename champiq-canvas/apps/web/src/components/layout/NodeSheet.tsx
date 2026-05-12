@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useCanvasStore } from '@/store/canvasStore'
+import { useExecutionStore } from '@/store/executionStore'
 import { Pixie } from '@/components/pixie/Pixie'
 import { X, Mail, Network, RefreshCw, Play, GitBranch, Database, Zap, Code, Cpu, CornerDownRight, Clock } from 'lucide-react'
 import type { Node } from '@xyflow/react'
@@ -49,7 +50,7 @@ interface NodeSheetProps {
 export function NodeSheet({ node, pixieCloak, onClose }: NodeSheetProps) {
   const [tab, setTab] = useState<'params' | 'output' | 'runs'>('params')
   const [tipDismissed, setTipDismissed] = useState(false)
-  const { nodeRuntimeStates, setNodeRuntime, addLog } = useCanvasStore()
+  const { nodeRuntimeStates, setNodeRuntime, addLog } = useExecutionStore()
 
   function handleRemove() {
     useCanvasStore.setState((s) => ({
