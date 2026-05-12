@@ -11,12 +11,21 @@ export function ChampGraphTab({ nodeId }: ChampGraphTabProps) {
 
   useEffect(() => {
     if (!nodeId) return
+    let cancelled = false
     setLoading(true)
     setError(null)
+    setFacts([])
     getPopulateData('champgraph', 'prospect_context')
-      .then(data => setFacts(data as GraphFact[]))
-      .catch(err => setError(err instanceof Error ? err.message : 'Failed to load'))
-      .finally(() => setLoading(false))
+      .then(data => {
+        if (!cancelled) setFacts(data as GraphFact[])
+      })
+      .catch(err => {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => { cancelled = true }
   }, [nodeId])
 
   if (!nodeId) {

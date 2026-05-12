@@ -10,7 +10,15 @@ export function VariantsTab({ nodeId }: VariantsTabProps) {
   const branches = (nodeState?.output as Record<string, unknown> | undefined)?.branches as
     Array<{ name: string; count: number; pct: number }> | undefined
 
-  if (!branches?.length) {
+  const safeBranches = Array.isArray(branches) && branches.every(
+    (b): b is { name: string; count: number; pct: number } =>
+      typeof b === 'object' && b !== null &&
+      typeof b.name === 'string' &&
+      typeof b.count === 'number' &&
+      typeof b.pct === 'number'
+  ) ? branches : undefined
+
+  if (!safeBranches?.length) {
     return (
       <div style={{ padding: '40px 14px', textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>
         No variant data yet. Run the canvas to see A/B results.
@@ -18,14 +26,14 @@ export function VariantsTab({ nodeId }: VariantsTabProps) {
     )
   }
 
-  const winner = branches.reduce((a, b) => (b.pct > a.pct ? b : a))
+  const winner = safeBranches.reduce((a, b) => (b.pct > a.pct ? b : a))
 
   return (
     <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--text-3)' }}>
-        {branches.length} Variants · A/B split
+        {safeBranches.length} Variants · A/B split
       </div>
-      {branches.map((v, i) => (
+      {safeBranches.map((v, i) => (
         <div key={v.name ?? i} style={{
           background: 'var(--bg-2)',
           border: v.name === winner.name ? '1px solid var(--success)' : '1px solid var(--border-1)',
