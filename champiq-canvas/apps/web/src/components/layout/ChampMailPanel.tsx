@@ -10,18 +10,8 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { api } from '@/lib/api'
+import type { Prospect } from '@/lib/api/champmail'
 import { ChevronDown, ChevronUp, Plus, Trash2, Mail, X, Eye } from '@/lib/icons'
-
-interface Prospect {
-  id: number
-  email: string
-  first_name?: string
-  last_name?: string
-  company?: string
-  status: string
-  last_sent_at?: string
-  last_replied_at?: string
-}
 
 interface Template {
   id: number
@@ -49,7 +39,7 @@ function ProspectsSection() {
     setLoading(true)
     try {
       const r = await api.cmListProspects({ limit: 100, search: search || undefined })
-      setProspects(r.items as unknown as Prospect[])
+      setProspects(r.items)
     } catch (e) {
       console.error('cmListProspects', e)
     } finally {
@@ -62,7 +52,7 @@ function ProspectsSection() {
   async function addProspect() {
     if (!form.email) return
     try {
-      await api.cmCreateProspect({ ...form })
+      await api.cmCreateProspect({ ...form } as unknown as Omit<Prospect, 'id' | 'created_at'>)
       setAdding(false)
       setForm({ email: '', first_name: '', last_name: '', company: '', phone: '' })
       refresh()
@@ -89,7 +79,7 @@ function ProspectsSection() {
       let created = 0, skipped = 0
       for (const rec of data.records) {
         try {
-          await api.cmCreateProspect(rec)
+          await api.cmCreateProspect(rec as unknown as Omit<Prospect, 'id' | 'created_at'>)
           created++
         } catch {
           skipped++

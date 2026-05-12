@@ -52,9 +52,9 @@ export function TopBar({ onHub, onCmdOpen }: TopBarProps = {}) {
     try {
       const { execution_id } = await api.runAdHoc(nodes, edges)
       const poll = async () => {
-        const exec = await api.getExecution(execution_id) as Record<string, unknown>
+        const exec = await api.getExecution(execution_id) as unknown as Record<string, unknown>
         if (exec.status === 'running') { setTimeout(poll, 1000); return }
-        const nodeRuns = await api.getNodeRuns(execution_id) as Array<Record<string, unknown>>
+        const nodeRuns = await api.getNodeRuns(execution_id) as unknown as Array<Record<string, unknown>>
         for (const run of nodeRuns) {
           setNodeRuntime(run.node_id as string, {
             status: run.status === 'success' ? 'success' : 'error',
@@ -90,9 +90,9 @@ export function TopBar({ onHub, onCmdOpen }: TopBarProps = {}) {
       const body = { name: canvasName, description: `From canvas: ${canvasName}`, active: true, nodes, edges, triggers }
       let wf: Record<string, unknown>
       if (activeWorkflowId) {
-        wf = await api.updateWorkflow(activeWorkflowId, body) as Record<string, unknown>
+        wf = await api.updateWorkflow(activeWorkflowId, body) as unknown as Record<string, unknown>
       } else {
-        wf = await api.createWorkflow(body) as Record<string, unknown>
+        wf = await api.createWorkflow(body) as unknown as Record<string, unknown>
         setActiveWorkflowId(wf.id as number)
       }
       addLog({

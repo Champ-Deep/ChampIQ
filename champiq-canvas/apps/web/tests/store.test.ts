@@ -1,31 +1,35 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { useCanvasStore } from '@/store/canvasStore'
+import { useExecutionStore } from '@/store/executionStore'
 
 beforeEach(() => {
   useCanvasStore.setState({
     nodes: [],
     edges: [],
     manifests: [],
-    nodeRuntimeStates: {},
-    logs: [],
     selectedNodeId: null,
     toolHealthStatus: {},
     canvasName: 'My Canvas',
+  })
+  useExecutionStore.setState({
+    nodeRuntimeStates: {},
+    logs: [],
+    isRunningAll: false,
   })
 })
 
 describe('canvasStore', () => {
   it('adds a node runtime state', () => {
-    useCanvasStore.getState().setNodeRuntime('node-1', { status: 'running' })
-    expect(useCanvasStore.getState().nodeRuntimeStates['node-1'].status).toBe('running')
+    useExecutionStore.getState().setNodeRuntime('node-1', { status: 'running' })
+    expect(useExecutionStore.getState().nodeRuntimeStates['node-1'].status).toBe('running')
   })
 
   it('keeps only the last 10 logs', () => {
-    const store = useCanvasStore.getState()
+    const store = useExecutionStore.getState()
     for (let i = 0; i < 12; i++) {
       store.addLog({ nodeId: 'n', nodeName: 'Test', status: 'idle', message: `msg ${i}` })
     }
-    expect(useCanvasStore.getState().logs).toHaveLength(10)
+    expect(useExecutionStore.getState().logs).toHaveLength(10)
   })
 
   it('updates node config', () => {
