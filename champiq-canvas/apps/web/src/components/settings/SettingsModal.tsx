@@ -4,7 +4,7 @@ import { Pixie, PixieOnlinePill } from '@/components/pixie/Pixie'
 import { X, Key, Palette, User, Plus, Moon, Sun, Trash2 } from 'lucide-react'
 import { api } from '@/lib/api'
 import type { AccentPreset, VoicePreset, CloakColor } from '@/store/uiStore'
-import { CREDENTIAL_TYPES, CREDENTIAL_TYPE_FIELDS } from '@/store/credentialStore'
+import { CREDENTIAL_TYPES, CREDENTIAL_TYPE_FIELDS, CREDENTIAL_REQUIRED_FIELDS } from '@/store/credentialStore'
 import type { CredentialType } from '@/store/credentialStore'
 
 interface Props {
@@ -139,6 +139,14 @@ function CredentialsTab() {
 
   async function handleAdd() {
     if (!newName.trim()) { setAddError('Name is required'); return }
+    const required = CREDENTIAL_REQUIRED_FIELDS[newType] ?? []
+    const fieldDefs = CREDENTIAL_TYPE_FIELDS[newType]
+    const missing = required.filter((k) => !newFields[k]?.trim())
+    if (missing.length > 0) {
+      const labels = missing.map((k) => fieldDefs.find((f) => f.key === k)?.label ?? k)
+      setAddError(`Required: ${labels.join(', ')}`)
+      return
+    }
     setSaving(true)
     setAddError('')
     try {
@@ -161,7 +169,7 @@ function CredentialsTab() {
   }
 
   const fieldDefs = CREDENTIAL_TYPE_FIELDS[newType]
-  const isWizardType = newType === 'champmail' || newType === 'lakeb2b'
+  const isLakeB2BWizard = newType === 'lakeb2b'
 
   return (
     <div>
@@ -204,31 +212,40 @@ function CredentialsTab() {
               </select>
             </SettingsField>
 
-            {isWizardType ? (
+            {newType === 'champmail' ? (
+              <EmeliaWizard
+                onSave={(name, fields) => {
+                  api.createCredential(name, 'champmail', fields)
+                    .then((c) => { setCreds((p) => [...p, c as unknown as ApiCredential]); setShowAdd(false) })
+                    .catch((e) => setAddError(e instanceof Error ? e.message : 'Failed to save'))
+                }}
+              />
+            ) : isLakeB2BWizard ? (
               <p style={{ margin: 0, fontSize: 12, color: 'var(--text-3)', padding: '8px 10px', background: 'var(--bg-0)', borderRadius: 7, border: '1px solid var(--border-1)' }}>
-                {newType === 'champmail'
-                  ? 'ChampMail requires an Emelia OAuth flow. Use the Credentials panel (Settings → gear icon) for the guided setup.'
-                  : 'LakeB2B Pulse requires a LinkedIn OAuth flow. Use the Credentials panel (Settings → gear icon) for the guided setup.'}
+                LakeB2B Pulse requires a LinkedIn OAuth flow. Use the Credentials panel (Settings → gear icon) for the guided setup.
               </p>
             ) : (
-              fieldDefs.map((f) => (
-                <SettingsField key={f.key} label={f.label}>
-                  <input
-                    type={f.secret ? 'password' : 'text'}
-                    value={newFields[f.key] ?? ''}
-                    onChange={(e) => setNewFields((prev) => ({ ...prev, [f.key]: e.target.value }))}
-                    placeholder={f.secret ? '••••••••••••' : ''}
-                    style={{ ...fieldInputStyle, fontFamily: f.secret ? 'var(--font-mono)' : 'var(--font-body)' }}
-                  />
-                </SettingsField>
-              ))
+              fieldDefs.map((f) => {
+                const isRequired = (CREDENTIAL_REQUIRED_FIELDS[newType] ?? []).includes(f.key)
+                return (
+                  <SettingsField key={f.key} label={f.label} required={isRequired}>
+                    <input
+                      type={f.secret ? 'password' : 'text'}
+                      value={newFields[f.key] ?? ''}
+                      onChange={(e) => setNewFields((prev) => ({ ...prev, [f.key]: e.target.value }))}
+                      placeholder={f.secret ? '••••••••••••' : ''}
+                      style={{ ...fieldInputStyle, fontFamily: f.secret ? 'var(--font-mono)' : 'var(--font-body)' }}
+                    />
+                  </SettingsField>
+                )
+              })
             )}
 
             {addError && <p style={{ margin: 0, fontSize: 12, color: '#f87171' }}>{addError}</p>}
 
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button onClick={() => setShowAdd(false)} style={ghostSmStyle}>Cancel</button>
-              {!isWizardType && (
+              {newType !== 'champmail' && !isLakeB2BWizard && (
                 <button onClick={handleAdd} disabled={saving || !newName.trim()} style={primarySmStyle}>
                   {saving ? 'Saving…' : 'Save credential'}
                 </button>
@@ -476,12 +493,129 @@ function AccountTab({ pixieCloak, voice }: { pixieCloak: string; voice: VoicePre
   )
 }
 
+// ── Emelia inline wizard ────────────────────────────────────────────────────
+
+interface EmeliaProvider { id: string; email?: string; name?: string }
+
+function EmeliaWizard({ onSave }: { onSave: (name: string, fields: Record<string, string>) => void }) {
+  const [step, setStep] = useState<'key' | 'sender' | 'name'>('key')
+  const [apiKey, setApiKey] = useState('')
+  const [testing, setTesting] = useState(false)
+  const [testError, setTestError] = useState('')
+  const [accountEmail, setAccountEmail] = useState('')
+  const [providers, setProviders] = useState<EmeliaProvider[]>([])
+  const [selectedProvider, setSelectedProvider] = useState('')
+  const [credName, setCredName] = useState('emelia-prod')
+
+  async function handleVerify() {
+    if (!apiKey.trim()) { setTestError('Enter your Emelia API key first'); return }
+    setTesting(true); setTestError('')
+    try {
+      const res = await fetch('/api/champmail/credentials/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ api_key: apiKey.trim() }),
+      })
+      if (!res.ok) { setTestError(`Emelia rejected the key (${res.status})`); return }
+      const data = await res.json()
+      setAccountEmail(data.account_email ?? '')
+      setProviders(data.providers ?? [])
+      setStep('sender')
+    } catch {
+      setTestError('Could not reach the server — is the API running?')
+    } finally {
+      setTesting(false)
+    }
+  }
+
+  function handleSave() {
+    onSave(credName.trim() || 'emelia-prod', {
+      api_key: apiKey.trim(),
+      default_sender_id: selectedProvider,
+    })
+  }
+
+  if (step === 'key') return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <SettingsField label="Emelia API Key" required>
+        <input
+          type="password"
+          value={apiKey}
+          onChange={(e) => { setApiKey(e.target.value); setTestError('') }}
+          placeholder="OoHpr7..."
+          style={{ ...fieldInputStyle, fontFamily: 'var(--font-mono)' }}
+          onKeyDown={(e) => e.key === 'Enter' && handleVerify()}
+        />
+      </SettingsField>
+      <p style={{ margin: 0, fontSize: 11, color: 'var(--text-4)' }}>
+        Get your key from <strong>app.emelia.io → Settings → API Keys</strong>
+      </p>
+      {testError && <p style={{ margin: 0, fontSize: 12, color: 'var(--danger)' }}>{testError}</p>}
+      <button onClick={handleVerify} disabled={testing || !apiKey.trim()} style={primarySmStyle}>
+        {testing ? 'Verifying…' : 'Verify key →'}
+      </button>
+    </div>
+  )
+
+  if (step === 'sender') return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ fontSize: 12, color: 'var(--text-2)', padding: '8px 10px', background: 'var(--bg-0)', borderRadius: 7, border: '1px solid var(--border-1)' }}>
+        ✓ Connected as <strong>{accountEmail || 'your Emelia account'}</strong>
+      </div>
+      <SettingsField label="Default sender (optional)">
+        {providers.length === 0 ? (
+          <p style={{ margin: 0, fontSize: 12, color: 'var(--text-4)' }}>
+            No email inboxes connected in Emelia yet — you can skip this.
+          </p>
+        ) : (
+          <select
+            value={selectedProvider}
+            onChange={(e) => setSelectedProvider(e.target.value)}
+            style={fieldInputStyle}
+          >
+            <option value="">— Skip / use environment default —</option>
+            {providers.map((p) => (
+              <option key={p.id} value={p.id}>{p.email ?? p.name ?? p.id}</option>
+            ))}
+          </select>
+        )}
+      </SettingsField>
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+        <button onClick={() => setStep('key')} style={ghostSmStyle}>← Back</button>
+        <button onClick={() => setStep('name')} style={primarySmStyle}>Next →</button>
+      </div>
+    </div>
+  )
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <SettingsField label="Credential name" required>
+        <input
+          value={credName}
+          onChange={(e) => setCredName(e.target.value)}
+          placeholder="emelia-prod"
+          style={fieldInputStyle}
+        />
+      </SettingsField>
+      <p style={{ margin: 0, fontSize: 11, color: 'var(--text-4)' }}>
+        This name appears in the node inspector credential picker.
+      </p>
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+        <button onClick={() => setStep('sender')} style={ghostSmStyle}>← Back</button>
+        <button onClick={handleSave} disabled={!credName.trim()} style={primarySmStyle}>Save credential</button>
+      </div>
+    </div>
+  )
+}
+
 // ── Shared style helpers ────────────────────────────────────────────────────
 
-function SettingsField({ label, children }: { label: string; children: React.ReactNode }) {
+function SettingsField({ label, children, required }: { label: string; children: React.ReactNode; required?: boolean }) {
   return (
     <div>
-      <div style={{ fontFamily: 'var(--font-display)', fontSize: 11, fontWeight: 600, letterSpacing: '.04em', textTransform: 'uppercase', color: 'var(--text-3)', marginBottom: 5 }}>{label}</div>
+      <div style={{ fontFamily: 'var(--font-display)', fontSize: 11, fontWeight: 600, letterSpacing: '.04em', textTransform: 'uppercase', color: 'var(--text-3)', marginBottom: 5 }}>
+        {label}{required && <span style={{ color: 'var(--danger)', marginLeft: 3 }}>*</span>}
+      </div>
       {children}
     </div>
   )

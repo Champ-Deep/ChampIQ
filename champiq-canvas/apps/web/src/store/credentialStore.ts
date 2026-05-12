@@ -2,12 +2,24 @@ import { create } from 'zustand'
 
 export type CredentialType = 'champmail' | 'champgraph' | 'champvoice' | 'lakeb2b' | 'http' | 'generic'
 
+// Credential types that are configured via environment variables, not the UI add form.
+export const ENV_ONLY_CREDENTIAL_TYPES: CredentialType[] = ['champgraph']
+
 export interface Credential {
   id: string
   name: string
   type: CredentialType
   fields: Record<string, string>
   createdAt: string
+}
+
+// Fields that must be non-empty before a credential can be saved.
+// Matches the exact field keys the backend driver reads at execution time.
+export const CREDENTIAL_REQUIRED_FIELDS: Partial<Record<CredentialType, string[]>> = {
+  champmail:  ['api_key'],
+  champvoice: ['elevenlabs_api_key', 'agent_id', 'phone_number_id'],
+  http:       ['token'],
+  generic:    ['value'],
 }
 
 // Field definitions for each credential type shown in the add form.
@@ -42,6 +54,12 @@ export const CREDENTIAL_TYPE_FIELDS: Record<CredentialType, { key: string; label
     { key: 'value', label: 'Secret value', secret: true },
   ],
 }
+
+// Credential types shown in the add-form dropdown.
+// 'champgraph' is excluded — it uses env vars only (see ENV_ONLY_CREDENTIAL_TYPES).
+export const CREDENTIAL_TYPES: CredentialType[] = [
+  'champmail', 'champvoice', 'lakeb2b', 'http', 'generic',
+]
 
 // Tool kind → credential type mapping (for filtering the picker in RightPanel)
 export const TOOL_CREDENTIAL_TYPE: Record<string, CredentialType> = {
