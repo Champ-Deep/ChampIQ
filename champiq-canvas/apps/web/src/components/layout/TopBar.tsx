@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useCanvasStore } from '@/store/canvasStore'
+import { useExecutionStore } from '@/store/executionStore'
 import { api } from '@/lib/api'
 import { saveCurrentCanvas } from '@/hooks/usePersistence'
 import { Save, Play, Check, CalendarClock, Power, ChevronLeft, ChevronRight, Search, Trash2 } from 'lucide-react'
@@ -20,7 +21,8 @@ interface TopBarProps {
 }
 
 export function TopBar({ onHub, onCmdOpen }: TopBarProps = {}) {
-  const { canvasName, nodes, edges, setCanvasName, setNodeRuntime, addLog, clearCanvas } = useCanvasStore()
+  const { canvasName, nodes, edges, setCanvasName, clearCanvas } = useCanvasStore()
+  const { setNodeRuntime, addLog } = useExecutionStore()
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [running, setRunning] = useState(false)

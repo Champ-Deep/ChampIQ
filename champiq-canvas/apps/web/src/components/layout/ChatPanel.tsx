@@ -3,6 +3,7 @@ import { Send, Loader2, Paperclip, X, ChevronDown, ChevronUp } from '@/lib/icons
 import { api } from '@/lib/api'
 import { applyWorkflowPatch } from '@/lib/applyPatch'
 import { useCanvasStore } from '@/store/canvasStore'
+import { useExecutionStore } from '@/store/executionStore'
 import { saveCurrentCanvas } from '@/hooks/usePersistence'
 import { Pixie, PixieOnlinePill } from '@/components/pixie/Pixie'
 import type { ChatMessage } from '@/types'
@@ -321,7 +322,7 @@ export function ChatPanel({ pixieCloak = '#1E5FCB', voice = 'Friendly' }: ChatPa
       // Save immediately — don't wait for debounce so Run All gets correct configs
       saveCurrentCanvas()
 
-      useCanvasStore.getState().addLog({
+      useExecutionStore.getState().addLog({
         nodeId: 'upload',
         nodeName: 'File Upload',
         status: 'success',
@@ -363,7 +364,7 @@ export function ChatPanel({ pixieCloak = '#1E5FCB', voice = 'Friendly' }: ChatPa
         if (applied.addedIds.length > 0) {
           useCanvasStore.getState().setSelectedNode(applied.addedIds[applied.addedIds.length - 1])
         }
-        useCanvasStore.getState().addLog({
+        useExecutionStore.getState().addLog({
           nodeId: 'chat',
           nodeName: 'Assistant',
           status: 'success',

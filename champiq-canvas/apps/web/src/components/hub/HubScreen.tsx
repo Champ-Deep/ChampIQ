@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Search, Settings, Plus, Mail, Network, Mic, Sparkles, Layers, Archive, Home, Users } from 'lucide-react'
 import { useCanvasStore } from '@/store/canvasStore'
+import { useExecutionStore } from '@/store/executionStore'
 import { useUIStore } from '@/store/uiStore'
 import { Pixie } from '@/components/pixie/Pixie'
 import { CanvasCard } from './CanvasCard'
@@ -78,7 +79,8 @@ interface HubScreenProps {
 type NavKey = 'home' | 'canvases' | 'templates' | 'archive' | 'stages' | 'bullpen'
 
 export function HubScreen({ onOpenCanvas, onNewCanvas, onNewCanvasFromTemplate }: HubScreenProps) {
-  const { canvasList, logs } = useCanvasStore()
+  const { canvasList } = useCanvasStore()
+  const { logs } = useExecutionStore()
   const { cloak, voice, accent, density, hubView, setHubView, setCmdOpen, setSettingsOpen } = useUIStore()
   const [navActive, setNavActive] = useState<NavKey>(
     hubView === 'stages' ? 'stages' : hubView === 'bullpen' ? 'bullpen' : 'home'

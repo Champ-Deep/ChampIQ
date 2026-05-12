@@ -13,6 +13,7 @@ import {
 import '@xyflow/react/dist/style.css'
 import { Lock, Unlock } from 'lucide-react'
 import { useCanvasStore } from '@/store/canvasStore'
+import { useExecutionStore } from '@/store/executionStore'
 import { useUIStore } from '@/store/uiStore'
 import { ToolNode } from './ToolNode'
 import { CustomEdge } from './CustomEdge'
@@ -47,8 +48,9 @@ export function CanvasArea({ onNodeOpen }: CanvasAreaProps) {
   const {
     nodes, edges, manifests,
     onNodesChange, onEdgesChange, setEdges, setNodes,
-    setSelectedNode, addLog,
+    setSelectedNode,
   } = useCanvasStore()
+  const { addLog } = useExecutionStore()
   const { canvasLocked, setCanvasLocked } = useUIStore()
 
   const reactFlowWrapper = useRef<HTMLDivElement>(null)

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useCredentialStore } from '@/store/credentialStore'
 import { useCanvasStore } from '@/store/canvasStore'
+import { useExecutionStore } from '@/store/executionStore'
 import { api } from '@/lib/api'
 
 const B2B_PULSE_WS_URL = 'wss://b2b-pulse.up.railway.app/api/ws/events'
@@ -82,30 +83,29 @@ export function useB2BPulseEvents() {
 }
 
 async function pollJobUntilDone(jobId: string, nodeId: string) {
-  const store = useCanvasStore.getState()
   const maxAttempts = 60 // 5 min at 5s intervals
   let attempts = 0
 
   const poll = async () => {
     if (attempts++ >= maxAttempts) {
-      useCanvasStore.getState().setNodeRuntime(nodeId, { status: 'error', error: 'Job timed out' })
+      useExecutionStore.getState().setNodeRuntime(nodeId, { status: 'error', error: 'Job timed out' })
       return
     }
     try {
       const job = await api.getJob(jobId)
       if (job.status === 'done') {
-        useCanvasStore.getState().setNodeRuntime(nodeId, {
+        useExecutionStore.getState().setNodeRuntime(nodeId, {
           status: 'success',
           output: job.result ?? undefined,
         })
-        useCanvasStore.getState().addLog({
+        useExecutionStore.getState().addLog({
           nodeId,
           nodeName: 'LakeB2B Pulse',
           status: 'success',
           message: 'Posts refreshed from B2B Pulse poll.',
         })
       } else if (job.status === 'error') {
-        useCanvasStore.getState().setNodeRuntime(nodeId, { status: 'error', error: 'Job failed' })
+        useExecutionStore.getState().setNodeRuntime(nodeId, { status: 'error', error: 'Job failed' })
       } else {
         setTimeout(poll, 5000)
       }
@@ -114,8 +114,6 @@ async function pollJobUntilDone(jobId: string, nodeId: string) {
     }
   }
 
-  // Keep TS happy — store is used transitively via getState() calls above
-  void store
   await poll()
 }
 
@@ -127,10 +125,8 @@ function handlePollEvent(msg: Record<string, unknown>) {
   const status = payload.status as string | undefined
   if (status !== 'ok' && status !== 'done' && status !== 'success') return
 
-  const store = useCanvasStore.getState()
-
   // Find lakeb2b_pulse nodes configured for list_posts
-  const listPostsNodes = store.nodes.filter((n) => {
+  const listPostsNodes = useCanvasStore.getState().nodes.filter((n) => {
     if ((n.data.kind as string | undefined) !== 'lakeb2b_pulse') return false
     const config = (n.data.config as Record<string, unknown>) ?? {}
     return config.action === 'list_posts'
@@ -139,8 +135,8 @@ function handlePollEvent(msg: Record<string, unknown>) {
   for (const node of listPostsNodes) {
     const config = (node.data.config as Record<string, unknown>) ?? {}
 
-    store.setNodeRuntime(node.id, { status: 'running' })
-    store.addLog({
+    useExecutionStore.getState().setNodeRuntime(node.id, { status: 'running' })
+    useExecutionStore.getState().addLog({
       nodeId: node.id,
       nodeName: 'LakeB2B Pulse',
       status: 'running',
@@ -153,12 +149,12 @@ function handlePollEvent(msg: Record<string, unknown>) {
         if (result.async && result.job_id) {
           pollJobUntilDone(result.job_id, nodeId)
         } else {
-          useCanvasStore.getState().setNodeRuntime(nodeId, { status: 'success' })
+          useExecutionStore.getState().setNodeRuntime(nodeId, { status: 'success' })
         }
       })
       .catch((err) => {
-        useCanvasStore.getState().setNodeRuntime(nodeId, { status: 'error', error: String(err) })
-        useCanvasStore.getState().addLog({
+        useExecutionStore.getState().setNodeRuntime(nodeId, { status: 'error', error: String(err) })
+        useExecutionStore.getState().addLog({
           nodeId,
           nodeName: 'LakeB2B Pulse',
           status: 'error',
