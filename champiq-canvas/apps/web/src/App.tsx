@@ -261,7 +261,7 @@ function AppInner() {
   if (appView === 'hub') {
     return (
       <>
-        <HubScreen onOpenCanvas={openCanvas} onNewCanvas={newCanvas} onNewCanvasFromTemplate={newCanvasFromTemplate} />
+        <HubScreen onOpenCanvas={openCanvas} onNewCanvas={newCanvas} onNewCanvasFromTemplate={newCanvasFromTemplate} onOpenSettings={() => setSettingsOpen(true)} />
         {/* Command palette available from hub too */}
         {cmdOpen && (
           <CommandPalette
