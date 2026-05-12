@@ -52,4 +52,18 @@ describe('canvasStore', () => {
     useCanvasStore.getState().setToolHealth('champgraph', 'ok')
     expect(useCanvasStore.getState().toolHealthStatus['champgraph']).toBe('ok')
   })
+
+  it('clearCanvas resets execution state', () => {
+    // Put something in both stores
+    useExecutionStore.getState().setNodeRuntime('n1', { status: 'success' } as any)
+    useExecutionStore.getState().addLog({ level: 'info', message: 'test' } as any)
+    useCanvasStore.setState({ nodes: [{ id: 'n1' }] as any })
+
+    // clearCanvas should clear both
+    useCanvasStore.getState().clearCanvas()
+
+    expect(useCanvasStore.getState().nodes).toHaveLength(0)
+    expect(useExecutionStore.getState().nodeRuntimeStates).toEqual({})
+    expect(useExecutionStore.getState().logs).toHaveLength(0)
+  })
 })

@@ -2,6 +2,8 @@
 import { create } from 'zustand'
 import type { NodeRuntimeState, LogEntry } from '@/types'
 
+const MAX_LOG_ENTRIES = 10
+
 interface ExecutionStore {
   nodeRuntimeStates: Record<string, NodeRuntimeState>
   logs: LogEntry[]
@@ -22,7 +24,7 @@ export const useExecutionStore = create<ExecutionStore>()((set) => ({
     set((prev) => ({
       nodeRuntimeStates: {
         ...prev.nodeRuntimeStates,
-        [nodeId]: { ...prev.nodeRuntimeStates[nodeId], ...state },
+        [nodeId]: { ...(prev.nodeRuntimeStates[nodeId] ?? {}), ...state },
       },
     })),
 
@@ -30,7 +32,7 @@ export const useExecutionStore = create<ExecutionStore>()((set) => ({
     set((s) => ({
       logs: [
         { ...entry, id: crypto.randomUUID(), timestamp: new Date().toISOString() },
-        ...s.logs.slice(0, 9),
+        ...s.logs.slice(0, MAX_LOG_ENTRIES - 1),
       ],
     })),
 
