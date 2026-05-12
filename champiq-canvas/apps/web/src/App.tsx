@@ -9,6 +9,7 @@ import { LeftPanel } from '@/components/layout/LeftPanel'
 import { Rail } from '@/components/champiq/Rail'
 import { ChampMailRailPanel } from '@/components/panels/ChampMailRailPanel'
 import { ChampGraphRailPanel } from '@/components/panels/ChampGraphRailPanel'
+import { BullpenPanel } from '@/components/hub/BullpenPanel'
 import { SettingsModal } from '@/components/settings/SettingsModal'
 import { TweaksPanel } from '@/components/champiq/TweaksPanel'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
@@ -96,6 +97,13 @@ function CockpitView({ onGoHub }: { onGoHub: () => void }) {
             <ChampGraphRailPanel pixieCloak={cloak} />
           </div>
         )}
+
+        {/* Bullpen full-panel — no canvas */}
+        {activeRail === 'bullpen' && (
+          <div style={{ flex: 1, minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
+            <BullpenPanel />
+          </div>
+        )}
       </div>
 
       <LogsStrip expanded={logsOpen} onToggle={() => setLogsOpen(!logsOpen)} />
@@ -107,7 +115,7 @@ function CockpitView({ onGoHub }: { onGoHub: () => void }) {
         voice={voice}
       />
 
-      {/* TweaksPanel only on canvas view — not on ChampMail/ChampGraph full panels */}
+      {/* TweaksPanel only on canvas view — not on ChampMail/ChampGraph/Bullpen full panels */}
       {activeRail === 'chat' && <TweaksPanel />}
 
       {/* Command palette overlay */}
@@ -168,6 +176,7 @@ function AppInner() {
       if (e.key === '1') { e.preventDefault(); setActiveRail('chat'); if (appView !== 'cockpit') setAppView('cockpit') }
       if (e.key === '2') { e.preventDefault(); setActiveRail('mail'); if (appView !== 'cockpit') setAppView('cockpit') }
       if (e.key === '3') { e.preventDefault(); setActiveRail('graph'); if (appView !== 'cockpit') setAppView('cockpit') }
+      if (e.key === '4') { e.preventDefault(); setActiveRail('bullpen'); if (appView !== 'cockpit') setAppView('cockpit') }
       if (e.key === ',') { e.preventDefault(); setSettingsOpen(true) }
       if (e.key === '\\') { e.preventDefault(); setLeftPanelVisible(!leftPanelVisible) }
     }

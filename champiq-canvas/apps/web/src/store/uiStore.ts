@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-export type RailTab = 'chat' | 'mail' | 'graph'
+export type RailTab = 'chat' | 'mail' | 'graph' | 'bullpen'
 export type AccentPreset = 'violet' | 'mint' | 'coral' | 'sun' | 'sky'
 export type DensityPreset = 'compact' | 'cozy' | 'comfortable'
 export type VoicePreset = 'Friendly' | 'Crisp' | 'Quirky' | 'Pro'

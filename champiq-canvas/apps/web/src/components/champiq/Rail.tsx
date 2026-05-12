@@ -1,6 +1,6 @@
 import type { RailTab, RailStyle } from '@/store/uiStore'
 import {
-  MessageSquare, Mail, Network, Settings, ChevronLeft, ChevronRight,
+  MessageSquare, Mail, Network, Users, Settings, ChevronLeft, ChevronRight,
 } from 'lucide-react'
 
 interface RailItem {
@@ -11,9 +11,10 @@ interface RailItem {
 }
 
 const RAIL_ITEMS: RailItem[] = [
-  { id: 'chat',  icon: <MessageSquare size={18} />, label: 'Pixie',     hotkey: '⌘1' },
-  { id: 'mail',  icon: <Mail size={18} />,          label: 'ChampMail', hotkey: '⌘2' },
-  { id: 'graph', icon: <Network size={18} />,       label: 'ChampGraph', hotkey: '⌘3' },
+  { id: 'chat',    icon: <MessageSquare size={18} />, label: 'Pixie',      hotkey: '⌘1' },
+  { id: 'mail',    icon: <Mail size={18} />,          label: 'ChampMail',  hotkey: '⌘2' },
+  { id: 'graph',   icon: <Network size={18} />,       label: 'ChampGraph', hotkey: '⌘3' },
+  { id: 'bullpen', icon: <Users size={18} />,         label: 'Bullpen',    hotkey: '⌘4' },
 ]
 
 interface RailProps {

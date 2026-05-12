@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { useCanvasStore } from '@/store/canvasStore'
 import { useExecutionStore } from '@/store/executionStore'
+import { useUIStore } from '@/store/uiStore'
 import { api } from '@/lib/api'
 import { saveCurrentCanvas } from '@/hooks/usePersistence'
-import { Save, Play, Check, CalendarClock, Power, ChevronLeft, ChevronRight, Search, Trash2 } from 'lucide-react'
+import { Icon, Btn, Hotkey, Tag } from '@/components/atoms'
+import { Trash2 } from 'lucide-react'
 import type { Node } from '@xyflow/react'
 
 function extractCronTriggers(nodes: Node[]): Record<string, unknown>[] {
@@ -22,10 +24,10 @@ interface TopBarProps {
 
 export function TopBar({ onHub, onCmdOpen }: TopBarProps = {}) {
   const { canvasName, nodes, edges, setCanvasName, clearCanvas } = useCanvasStore()
-  const { setNodeRuntime, addLog } = useExecutionStore()
+  const { setNodeRuntime, addLog, isRunningAll, setIsRunningAll } = useExecutionStore()
+  const { setCmdOpen } = useUIStore()
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
-  const [running, setRunning] = useState(false)
   const [activating, setActivating] = useState(false)
   const [activeWorkflowId, setActiveWorkflowId] = useState<number | null>(null)
 
@@ -45,8 +47,8 @@ export function TopBar({ onHub, onCmdOpen }: TopBarProps = {}) {
   }
 
   async function handleRunAll() {
-    if (running || nodes.length === 0) return
-    setRunning(true)
+    if (isRunningAll || nodes.length === 0) return
+    setIsRunningAll(true)
     for (const n of nodes) setNodeRuntime(n.id, { status: 'running', error: undefined })
     addLog({ nodeId: 'run', nodeName: 'Run All', status: 'running', message: `Starting execution of ${nodes.length} nodes…` })
     try {
@@ -71,13 +73,13 @@ export function TopBar({ onHub, onCmdOpen }: TopBarProps = {}) {
             ? `Execution complete — ${nodeRuns.length} nodes ran`
             : `Execution failed: ${(exec.error as string) ?? 'unknown error'}`,
         })
-        setRunning(false)
+        setIsRunningAll(false)
       }
       setTimeout(poll, 800)
     } catch (e) {
       for (const n of nodes) setNodeRuntime(n.id, { status: 'idle' })
       addLog({ nodeId: 'run', nodeName: 'Run All', status: 'error', message: String(e) })
-      setRunning(false)
+      useExecutionStore.setState({ isRunningAll: false })
     }
   }
 
@@ -115,6 +117,12 @@ export function TopBar({ onHub, onCmdOpen }: TopBarProps = {}) {
     saveCurrentCanvas()
   }
 
+  function handleSearchClick() {
+    // Prefer prop callback for backward compat; fall back to store action
+    if (onCmdOpen) { onCmdOpen(); return }
+    setCmdOpen(true)
+  }
+
   return (
     <div style={{
       height: 48,
@@ -123,29 +131,33 @@ export function TopBar({ onHub, onCmdOpen }: TopBarProps = {}) {
       borderBottom: '1px solid var(--border-1)',
       display: 'flex',
       alignItems: 'center',
-      padding: '0 12px',
-      gap: 8,
+      padding: '0 14px',
+      gap: 14,
     }}>
       {/* Left: breadcrumb + canvas name + clear */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-3)', flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-3)', minWidth: 0 }}>
         {onHub && (
-          <>
-            <button
-              onClick={onHub}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 4, background: 'transparent', border: 'none',
-                color: 'var(--text-3)', fontFamily: 'var(--font-body)', fontSize: 12, cursor: 'pointer',
-                padding: '2px 4px', borderRadius: 4, transition: 'color .15s',
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-1)' }}
-              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-3)' }}
-            >
-              <ChevronLeft size={12} />
-              Stages
-            </button>
-            <ChevronRight size={11} />
-          </>
+          <button
+            onClick={onHub}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 4, background: 'transparent', border: 'none',
+              color: 'var(--text-3)', fontFamily: 'var(--font-body)', fontSize: 12, cursor: 'pointer',
+              padding: '2px 4px', borderRadius: 4, transition: 'color .15s', flexShrink: 0,
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-1)' }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-3)' }}
+          >
+            <Icon name="folder" size={13} />
+            <span style={{ marginLeft: 4 }}>Canvases</span>
+          </button>
         )}
+        {!onHub && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <Icon name="folder" size={13} />
+            <span style={{ fontSize: 12 }}>Canvases</span>
+          </div>
+        )}
+        <Icon name="chevRight" size={11} />
         <input
           value={canvasName}
           onChange={(e) => setCanvasName(e.target.value)}
@@ -154,7 +166,7 @@ export function TopBar({ onHub, onCmdOpen }: TopBarProps = {}) {
           style={{
             background: 'transparent', border: 'none', outline: 'none',
             fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 600,
-            color: 'var(--text-1)', width: 180, minWidth: 0,
+            color: 'var(--text-1)', width: 160, minWidth: 0,
             borderBottom: '1px solid transparent',
             transition: 'border-color .15s',
             paddingBottom: 1,
@@ -162,6 +174,7 @@ export function TopBar({ onHub, onCmdOpen }: TopBarProps = {}) {
           onFocus={(e) => { e.currentTarget.style.borderBottomColor = 'rgba(var(--accent-2-rgb),.45)' }}
           onBlurCapture={(e) => { e.currentTarget.style.borderBottomColor = 'transparent' }}
         />
+        <Tag color={saved ? 'var(--success)' : 'var(--text-4)'}>{saved ? 'Saved' : 'Auto-save'}</Tag>
 
         {/* Clear canvas */}
         <button
@@ -169,11 +182,11 @@ export function TopBar({ onHub, onCmdOpen }: TopBarProps = {}) {
           title="Clear canvas"
           disabled={nodes.length === 0}
           style={{
-            display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 9px',
+            display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 8px',
             background: 'transparent', border: '1px solid transparent', borderRadius: 6,
             color: 'var(--text-4)', cursor: nodes.length === 0 ? 'not-allowed' : 'pointer',
             opacity: nodes.length === 0 ? 0.35 : 1, transition: 'all .14s',
-            fontFamily: 'var(--font-display)', fontSize: 12, fontWeight: 500,
+            fontFamily: 'var(--font-display)', fontSize: 12, fontWeight: 500, flexShrink: 0,
           }}
           onMouseEnter={(e) => {
             if (nodes.length > 0) {
@@ -188,111 +201,54 @@ export function TopBar({ onHub, onCmdOpen }: TopBarProps = {}) {
             e.currentTarget.style.background = 'transparent'
           }}
         >
-          <Trash2 size={12} /> Clear canvas
+          <Trash2 size={12} /> Clear
         </button>
       </div>
 
       {/* Center: search — truly centered */}
       <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
-        {onCmdOpen && (
-          <button
-            onClick={onCmdOpen}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px 5px 10px',
-              background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 8,
-              color: 'var(--text-3)', fontFamily: 'var(--font-body)', fontSize: 12, cursor: 'pointer',
-              width: 260, textAlign: 'left',
-              transition: 'border-color .15s',
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--border-2)' }}
-            onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-1)' }}
-          >
-            <Search size={12} />
-            <span style={{ flex: 1 }}>Search Stages, Bullpen…</span>
-            <kbd style={{ fontFamily: 'var(--font-mono)', fontSize: 9, padding: '1px 4px', borderRadius: 3, background: 'var(--bg-3)', border: '1px solid var(--border-1)', color: 'var(--text-4)' }}>⌘K</kbd>
-          </button>
-        )}
-      </div>
-
-      {/* Right: actions */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-        <TopBtn
-          onClick={handleRunAll}
-          disabled={running || nodes.length === 0}
-          variant={running ? 'accent' : 'ghost'}
-          title="Run all nodes"
-        >
-          {running ? <><Loader size /> Running…</> : <><Play size={13} /> Run All</>}
-        </TopBtn>
-
-        <TopBtn
-          onClick={handleActivate}
-          disabled={activating || nodes.length === 0}
-          variant={activeWorkflowId ? 'success' : 'ghost'}
-          title={activeWorkflowId ? `Re-sync #${activeWorkflowId}` : 'Register cron + activate'}
-        >
-          {activating
-            ? <><Loader size /> Activating…</>
-            : activeWorkflowId
-              ? <><Power size={13} /> Active</>
-              : <><CalendarClock size={13} /> Activate</>
-          }
-        </TopBtn>
-
         <button
-          onClick={handleSave}
-          disabled={saving}
+          onClick={handleSearchClick}
           style={{
-            display: 'inline-flex', alignItems: 'center', gap: 6,
-            padding: '5px 12px', borderRadius: 7, fontSize: 13,
-            fontFamily: 'var(--font-display)', fontWeight: 600, cursor: 'pointer',
-            background: saved ? 'rgba(74,222,128,.12)' : 'var(--bg-2)',
-            color: saved ? 'var(--success)' : 'var(--text-1)',
-            border: `1px solid ${saved ? 'rgba(74,222,128,.3)' : 'var(--border-1)'}`,
-            transition: 'all .15s',
+            display: 'flex', alignItems: 'center', gap: 8, padding: '5px 12px 5px 10px',
+            background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 8,
+            color: 'var(--text-3)', fontFamily: 'var(--font-body)', fontSize: 12, cursor: 'pointer',
+            width: 300, textAlign: 'left',
+            transition: 'border-color .15s',
           }}
+          onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--border-2)' }}
+          onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-1)' }}
         >
-          {saved ? <><Check size={13} /> Saved</> : <><Save size={13} /> Save</>}
+          <Icon name="search" size={13} />
+          <span style={{ flex: 1 }}>Search Canvases…</span>
+          <Hotkey>⌘K</Hotkey>
         </button>
       </div>
+
+      {/* Right: actions — keep all existing handlers */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+        <Btn variant="ghost" size="md" icon="save" onClick={handleSave} disabled={saving}>
+          Save
+        </Btn>
+        <Btn
+          variant="secondary"
+          size="md"
+          onClick={handleActivate}
+          disabled={activating || nodes.length === 0}
+          title={activeWorkflowId ? `Re-sync #${activeWorkflowId}` : 'Register cron + activate'}
+        >
+          {activating ? 'Activating…' : activeWorkflowId ? 'Active' : 'Activate'}
+        </Btn>
+        <Btn
+          variant="primary"
+          size="md"
+          icon="play"
+          onClick={handleRunAll}
+          disabled={isRunningAll || nodes.length === 0}
+        >
+          {isRunningAll ? 'Running…' : 'Run All'}
+        </Btn>
+      </div>
     </div>
-  )
-}
-
-function Loader({ size: _ }: { size?: boolean }) {
-  return <div style={{ width: 13, height: 13, border: '1.5px solid currentColor', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-}
-
-function TopBtn({
-  children, onClick, disabled, variant = 'ghost', title,
-}: {
-  children: React.ReactNode
-  onClick?: () => void
-  disabled?: boolean
-  variant?: 'ghost' | 'accent' | 'success'
-  title?: string
-}) {
-  const styles: Record<string, React.CSSProperties> = {
-    ghost:   { background: 'transparent', color: 'var(--text-2)', border: '1px solid transparent' },
-    accent:  { background: 'rgba(var(--accent-2-rgb),.14)', color: 'var(--accent-1)', border: '1px solid rgba(var(--accent-2-rgb),.25)' },
-    success: { background: 'rgba(74,222,128,.1)', color: 'var(--success)', border: '1px solid rgba(74,222,128,.25)' },
-  }
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      title={title}
-      style={{
-        display: 'inline-flex', alignItems: 'center', gap: 5,
-        padding: '5px 12px', borderRadius: 7, fontSize: 13,
-        fontFamily: 'var(--font-display)', fontWeight: 600,
-        cursor: disabled ? 'not-allowed' : 'pointer',
-        opacity: disabled ? 0.5 : 1,
-        transition: 'all .15s',
-        ...styles[variant],
-      }}
-    >
-      {children}
-    </button>
   )
 }
