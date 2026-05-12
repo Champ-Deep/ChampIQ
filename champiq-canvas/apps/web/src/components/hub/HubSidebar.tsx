@@ -12,19 +12,20 @@ interface NavItemProps {
 
 function NavItem({ icon, label, active, badge, onClick }: NavItemProps) {
   return (
-    <div
+    <button
       onClick={onClick}
       style={{
         display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
-        borderRadius: 7, marginBottom: 1, cursor: 'pointer',
+        borderRadius: 7, marginBottom: 1, cursor: 'pointer', width: '100%',
         background: active ? 'var(--bg-3)' : 'transparent',
         color: active ? 'var(--text-1)' : 'var(--text-3)',
         fontFamily: active ? 'var(--font-display)' : 'var(--font-body)',
         fontWeight: active ? 600 : 400, fontSize: 13,
+        border: 'none', textAlign: 'left',
         transition: 'background .14s, color .14s',
       }}
-      onMouseEnter={e => { if (!active) (e.currentTarget as HTMLDivElement).style.background = 'var(--bg-2)' }}
-      onMouseLeave={e => { if (!active) (e.currentTarget as HTMLDivElement).style.background = 'transparent' }}
+      onMouseEnter={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-2)' }}
+      onMouseLeave={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
     >
       <Icon name={icon} size={15} />
       <span style={{ flex: 1 }}>{label}</span>
@@ -36,7 +37,7 @@ function NavItem({ icon, label, active, badge, onClick }: NavItemProps) {
           {badge}
         </span>
       )}
-    </div>
+    </button>
   )
 }
 

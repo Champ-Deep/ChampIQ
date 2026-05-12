@@ -31,8 +31,8 @@ export function ActivityFeed() {
         </div>
       </div>
       <div className="scroll" style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
-        {PLACEHOLDER.map((a, i) => (
-          <div key={i} style={{
+        {PLACEHOLDER.map((a) => (
+          <div key={`${a.t}-${a.c}`} style={{
             padding: '10px 8px', borderRadius: 6, display: 'flex', gap: 10,
             alignItems: 'flex-start', borderBottom: '1px solid var(--border-1)',
           }}>
