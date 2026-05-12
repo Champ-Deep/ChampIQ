@@ -154,11 +154,11 @@ html, body {
 /* ─── Pixie ──────────────────────────────────────────────────────────────── */
 .pixie-sprite { image-rendering: pixelated; image-rendering: crisp-edges; }
 
-/* Glow utilities */
+/* Glow utilities — Frame token names; replaces .champiq-glow-* after migration */
 .glow-accent { box-shadow: 0 0 24px -4px rgba(var(--accent-2-rgb), .55); }
 .glow-mint   { box-shadow: 0 0 24px -4px rgba(var(--mint-2-rgb), .45); }
 
-/* Canvas dot grid */
+/* Canvas dot grid — Frame design spec uses .08; supersedes legacy .champiq-bg-grid (.06) */
 .bg-grid {
   background-image: radial-gradient(circle at 1px 1px, rgba(124,92,255,.08) 1px, transparent 0);
   background-size: 24px 24px;
