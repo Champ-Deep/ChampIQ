@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Send, Loader2, Paperclip, X, ChevronDown, ChevronUp } from '@/lib/icons'
 import { api } from '@/lib/api'
+import type { Credential } from '@/lib/api/types'
 import { applyWorkflowPatch } from '@/lib/applyPatch'
 import { useCanvasStore } from '@/store/canvasStore'
 import { useExecutionStore } from '@/store/executionStore'
@@ -43,20 +44,13 @@ export function parseAssistant(raw: string): { explanation: string; patch?: unkn
 
 // ── Credential manager modal ────────────────────────────────────────────────
 
-interface CredentialRow {
-  id: number
-  name: string
-  type: string
-  created_at: string
-}
-
-const CRED_TYPES: Record<string, { label: string; defaultName: string; fields: { key: string; label: string; type: string; placeholder: string }[] }> = {
+const CRED_TYPES: Record<string, { label: string; defaultName: string; fields: { key: string; label: string; type: string; placeholder: string; optional?: boolean }[] }> = {
   champmail: {
-    label: 'ChampMail / ChampGraph',
-    defaultName: 'champmail-admin',
+    label: 'ChampMail (Emelia)',
+    defaultName: 'emelia-prod',
     fields: [
-      { key: 'email', label: 'Admin Email', type: 'email', placeholder: 'admin@yourcompany.com' },
-      { key: 'password', label: 'Admin Password', type: 'password', placeholder: '••••••••' },
+      { key: 'api_key', label: 'Emelia API Key', type: 'password', placeholder: 'ey…' },
+      { key: 'default_sender_id', label: 'Default Sender ID (optional)', type: 'text', placeholder: '', optional: true },
     ],
   },
   champvoice: {
@@ -86,7 +80,7 @@ const CRED_TYPES: Record<string, { label: string; defaultName: string; fields: {
 }
 
 function CredentialManager({ onClose }: { onClose: () => void }) {
-  const [creds, setCreds] = useState<CredentialRow[]>([])
+  const [creds, setCreds] = useState<Credential[]>([])
   const [adding, setAdding] = useState(false)
   const [credType, setCredType] = useState('champmail')
   const [name, setName] = useState('champmail-admin')
@@ -95,7 +89,7 @@ function CredentialManager({ onClose }: { onClose: () => void }) {
   const [err, setErr] = useState<string | null>(null)
 
   useEffect(() => {
-    api.listCredentials().then((rows) => setCreds(rows as unknown as CredentialRow[])).catch(() => {})
+    api.listCredentials().then((rows) => setCreds(rows)).catch(() => {})
   }, [])
 
   function handleTypeChange(t: string) {
@@ -107,16 +101,16 @@ function CredentialManager({ onClose }: { onClose: () => void }) {
 
   async function save() {
     const schema = CRED_TYPES[credType]
-    const missing = schema?.fields.filter((f) => !fieldValues[f.key]).map((f) => f.label)
+    const missing = schema?.fields.filter((f) => !f.optional && !fieldValues[f.key]).map((f) => f.label)
     if (missing?.length) { setErr(`Required: ${missing.join(', ')}`); return }
     setSaving(true); setErr(null)
     try {
       await api.createCredential(name, credType, fieldValues)
       const rows = await api.listCredentials()
-      setCreds(rows as unknown as CredentialRow[])
+      setCreds(rows)
       setAdding(false)
       setCredType('champmail')
-      setName('champmail-admin')
+      setName('emelia-prod')
       setFieldValues({})
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Save failed')

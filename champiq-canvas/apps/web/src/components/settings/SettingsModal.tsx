@@ -4,8 +4,9 @@ import { Pixie, PixieOnlinePill } from '@/components/pixie/Pixie'
 import { X, Key, Palette, User, Plus, Moon, Sun, Trash2 } from 'lucide-react'
 import { api } from '@/lib/api'
 import type { AccentPreset, VoicePreset, CloakColor } from '@/store/uiStore'
-import { CREDENTIAL_TYPES, CREDENTIAL_TYPE_FIELDS, CREDENTIAL_REQUIRED_FIELDS } from '@/store/credentialStore'
+import { useCredentialStore, CREDENTIAL_TYPES, CREDENTIAL_TYPE_FIELDS, CREDENTIAL_REQUIRED_FIELDS } from '@/store/credentialStore'
 import type { CredentialType } from '@/store/credentialStore'
+import type { Credential as ApiCredential } from '@/lib/api/types'
 
 interface Props {
   open: boolean
@@ -98,14 +99,6 @@ export function SettingsModal({ open, onClose, pixieCloak, voice }: Props) {
 
 // ── Credentials tab ────────────────────────────────────────────────────────
 
-interface ApiCredential {
-  id: number
-  name: string
-  type: string
-  active: boolean
-  updated_at?: string
-}
-
 const CREDENTIAL_TYPE_LABELS: Record<CredentialType, string> = {
   champmail:  'ChampMail (Emelia)',
   champgraph: 'ChampGraph',
@@ -127,7 +120,7 @@ function CredentialsTab() {
 
   useEffect(() => {
     api.listCredentials().then((list) => {
-      setCreds(list as unknown as ApiCredential[])
+      setCreds(list)
     }).catch(() => {}).finally(() => setLoading(false))
   }, [])
 
@@ -151,7 +144,8 @@ function CredentialsTab() {
     setAddError('')
     try {
       const created = await api.createCredential(newName.trim(), newType, newFields)
-      setCreds((prev) => [...prev, created as unknown as ApiCredential])
+      setCreds((prev) => [...prev, created])
+      useCredentialStore.getState().addCredential(newName.trim(), newType, newFields)
       setNewName(''); setNewType('champmail'); setNewFields({}); setShowAdd(false)
     } catch (e) {
       setAddError(e instanceof Error ? e.message : 'Failed to save')
@@ -163,8 +157,13 @@ function CredentialsTab() {
   async function handleDelete(id: number) {
     if (!confirm('Remove this credential?')) return
     try {
+      const target = creds.find((c) => c.id === id)
       await api.deleteCredential(id)
       setCreds((prev) => prev.filter((c) => c.id !== id))
+      if (target) {
+        const localCred = useCredentialStore.getState().getByName(target.name)
+        if (localCred) useCredentialStore.getState().deleteCredential(localCred.id)
+      }
     } catch { /* noop */ }
   }
 
@@ -179,7 +178,7 @@ function CredentialsTab() {
             Credentials
           </h3>
           <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-3)' }}>
-            API tokens and service keys bound to your stages.
+            API tokens and service keys bound to your canvases.
           </p>
         </div>
         <button
@@ -216,13 +215,17 @@ function CredentialsTab() {
               <EmeliaWizard
                 onSave={(name, fields) => {
                   api.createCredential(name, 'champmail', fields)
-                    .then((c) => { setCreds((p) => [...p, c as unknown as ApiCredential]); setShowAdd(false) })
+                    .then((c) => {
+                      setCreds((p) => [...p, c])
+                      useCredentialStore.getState().addCredential(name, 'champmail', fields)
+                      setShowAdd(false)
+                    })
                     .catch((e) => setAddError(e instanceof Error ? e.message : 'Failed to save'))
                 }}
               />
             ) : isLakeB2BWizard ? (
               <p style={{ margin: 0, fontSize: 12, color: 'var(--text-3)', padding: '8px 10px', background: 'var(--bg-0)', borderRadius: 7, border: '1px solid var(--border-1)' }}>
-                LakeB2B Pulse requires a LinkedIn OAuth flow. Use the Credentials panel (Settings → gear icon) for the guided setup.
+                LakeB2B Pulse uses a LinkedIn OAuth flow. Install the LakeB2B browser extension and connect from the ChampGraph panel (⌘3) to complete setup.
               </p>
             ) : (
               fieldDefs.map((f) => {
@@ -261,7 +264,7 @@ function CredentialsTab() {
         )}
         {!loading && creds.length === 0 && !showAdd && (
           <div style={{ padding: '28px 20px', textAlign: 'center', color: 'var(--text-4)', fontSize: 13 }}>
-            No credentials yet. Add one to connect your stages.
+            No credentials yet. Add one to connect your canvases.
           </div>
         )}
         {creds.map((c, i) => (

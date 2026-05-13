@@ -64,7 +64,7 @@ export function CommandPalette({ onClose, onOpenCanvas, onNewCanvas }: CommandPa
     {
       group: 'Actions',
       icon: <Play size={13} />,
-      label: 'Run All: current stage',
+      label: 'Run All: current canvas',
       meta: '⌘⏎',
       color: 'var(--accent-2)',
       action: undefined,
@@ -148,7 +148,7 @@ export function CommandPalette({ onClose, onOpenCanvas, onNewCanvas }: CommandPa
             ref={inputRef}
             value={query}
             onChange={(e) => { setQuery(e.target.value); setActiveIdx(0) }}
-            placeholder="Search stages, prospects, actions…"
+            placeholder="Search canvases, prospects, actions…"
             style={{
               flex: 1, background: 'transparent', border: 'none', outline: 'none',
               color: 'var(--text-1)', fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 500,

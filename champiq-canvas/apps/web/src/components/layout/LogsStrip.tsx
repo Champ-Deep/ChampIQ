@@ -101,7 +101,7 @@ export function LogsStrip({ expanded, onToggle }: LogsStripProps) {
         }}>
           {logs.length === 0 && (
             <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-4)', marginTop: 8 }}>
-              No events yet. Run a stage to see logs.
+              No events yet. Run a canvas to see logs.
             </p>
           )}
           {[...logs].reverse().map((log) => (

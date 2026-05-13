@@ -1,9 +1,10 @@
 // champiq-canvas/apps/web/src/lib/api/tools.ts
 import { req } from './req'
 import type { ToolJob } from './types'
+import type { ChampIQManifest } from '@/types'
 export type { ToolJob }
 
-export const getManifests    = () => req<Record<string, unknown>[]>('/api/registry/manifests')
+export const getManifests    = () => req<ChampIQManifest[]>('/api/registry/manifests')
 export const getToolStatus   = (tool: string) =>
   req<{ status: string; tool: string }>(`/api/tools/${tool}/status`)
 export const getPopulateData = (tool: string, resource: string) =>

@@ -93,7 +93,7 @@ async function pollJobUntilDone(jobId: string, nodeId: string) {
     }
     try {
       const job = await api.getJob(jobId)
-      if (job.status === 'done') {
+      if (job.status === 'success') {
         useExecutionStore.getState().setNodeRuntime(nodeId, {
           status: 'success',
           output: job.result ?? undefined,

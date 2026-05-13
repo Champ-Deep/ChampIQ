@@ -2,26 +2,11 @@ import { useState, useEffect } from 'react'
 import { Pixie } from '@/components/pixie/Pixie'
 import { Mail, Send, Plus, Loader2, RefreshCw, Trash2, FileText, Eye, X } from 'lucide-react'
 import { api } from '@/lib/api'
+import type { Sequence, Template } from '@/lib/api/types'
 
 interface Props {
   pixieCloak: string
   sidebar?: boolean
-}
-
-interface Sequence {
-  id: number
-  name: string
-  steps: { id: number; step_index: number; template_id: number }[]
-}
-
-interface Template {
-  id: number
-  name: string
-  subject: string
-  body_html: string
-  body_text?: string
-  variables?: string[]
-  updated_at?: string
 }
 
 const STATUS_PILL: Record<string, { bg: string; color: string; label: string }> = {
@@ -195,7 +180,7 @@ export function ChampMailRailPanel({ pixieCloak, sidebar: _sidebar }: Props) {
     setSeqLoading(true)
     setSeqError(null)
     api.cmListSequences()
-      .then((res) => setSequences(res as unknown as Sequence[]))
+      .then((res) => setSequences(res))
       .catch((e) => setSeqError(e instanceof Error ? e.message : 'Failed to load'))
       .finally(() => setSeqLoading(false))
   }
@@ -204,7 +189,7 @@ export function ChampMailRailPanel({ pixieCloak, sidebar: _sidebar }: Props) {
     setTplLoading(true)
     setTplError(null)
     api.cmListTemplates()
-      .then((res) => setTemplates(res as unknown as Template[]))
+      .then((res) => setTemplates(res))
       .catch((e) => setTplError(e instanceof Error ? e.message : 'Failed to load'))
       .finally(() => setTplLoading(false))
   }
@@ -249,9 +234,9 @@ export function ChampMailRailPanel({ pixieCloak, sidebar: _sidebar }: Props) {
   const pixieTip = seqLoading ? '…'
     : sequences.length === 0
       ? "No sequences yet. Tell me what you want to send and I'll wire it up."
-      : `${sequences.length} sequence${sequences.length !== 1 ? 's' : ''} · ${sequences.reduce((n, s) => n + s.steps.length, 0)} total steps ready.`
+      : `${sequences.length} sequence${sequences.length !== 1 ? 's' : ''} · ${sequences.reduce((n, s) => n + (s.steps?.length ?? 0), 0)} total steps ready.`
 
-  const totalSteps = sequences.reduce((n, s) => n + s.steps.length, 0)
+  const totalSteps = sequences.reduce((n, s) => n + (s.steps?.length ?? 0), 0)
 
   return (
     <div style={{
@@ -412,7 +397,7 @@ export function ChampMailRailPanel({ pixieCloak, sidebar: _sidebar }: Props) {
                       </div>
                       <div style={{ fontSize: 12, color: 'var(--text-3)', display: 'flex', alignItems: 'center', gap: 6 }}>
                         <Send size={10} />
-                        {seq.steps.length} step{seq.steps.length !== 1 ? 's' : ''}
+                        {seq.steps?.length ?? 0} step{(seq.steps?.length ?? 0) !== 1 ? 's' : ''}
                       </div>
                     </div>
                     <Pill {...STATUS_PILL.draft} />

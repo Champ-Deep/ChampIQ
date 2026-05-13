@@ -52,11 +52,10 @@ export function StageLibrary({ onOpenCanvas, onNewCanvas }: StageLibraryProps) {
           <div style={{ width: 28, height: 28, borderRadius: 8, background: 'color-mix(in oklch, var(--accent-2) 18%, var(--bg-0))', color: 'var(--accent-2)', display: 'grid', placeItems: 'center' }}>
             <Layers size={14} />
           </div>
-          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 15 }}>Stages</span>
+          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 15 }}>Canvases</span>
         </div>
         <div style={{ display: 'flex', gap: 2, marginLeft: 8 }}>
-          {[['recent', 'My Stages'], ['templates', 'Templates']] as const}
-          {([['recent', 'My Stages'], ['templates', 'Templates']] as const).map(([k, l]) => (
+          {([['recent', 'My Canvases'], ['templates', 'Templates']] as const).map(([k, l]) => (
             <button key={k} onClick={() => setView(k)} style={{
               padding: '5px 12px', borderRadius: 7, border: 'none', cursor: 'pointer',
               background: view === k ? 'var(--bg-3)' : 'transparent',
@@ -71,7 +70,7 @@ export function StageLibrary({ onOpenCanvas, onNewCanvas }: StageLibraryProps) {
           background: 'var(--accent-2)', border: 'none', borderRadius: 7,
           color: '#fff', fontFamily: 'var(--font-display)', fontSize: 12, fontWeight: 600, cursor: 'pointer',
         }}>
-          <Plus size={13} /> New Stage
+          <Plus size={13} /> New Canvas
         </button>
       </div>
 
@@ -89,7 +88,7 @@ export function StageLibrary({ onOpenCanvas, onNewCanvas }: StageLibraryProps) {
 
         {view === 'recent' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600, color: 'var(--text-1)' }}>Active stages</div>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600, color: 'var(--text-1)' }}>Active canvases</div>
             {canvasList.length === 0 && (
               <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-4)', fontSize: 13, border: '1px dashed var(--border-1)', borderRadius: 10 }}>
                 No canvases yet. Create one or start from a template.

@@ -73,7 +73,7 @@ export function BullpenPage({ onBack }: { onBack?: () => void }) {
                 >
                   <td style={{ padding: '10px 16px' }}>
                     <div style={{ fontSize: 13, color: 'var(--text-1)', fontWeight: 500 }}>
-                      {p.full_name ?? [p.first_name, p.last_name].filter(Boolean).join(' ') || '—'}
+                      {p.full_name ?? ([p.first_name, p.last_name].filter(Boolean).join(' ') || '—')}
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--text-3)' }}>{p.email}</div>
                   </td>

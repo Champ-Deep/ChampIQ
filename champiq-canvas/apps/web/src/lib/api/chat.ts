@@ -6,7 +6,12 @@ export type { ChatMessage, WorkflowPatch }
 
 export const chatHistory = (sessionId = 'default') =>
   req<ChatMessage[]>(`/api/chat/history?session_id=${encodeURIComponent(sessionId)}`)
-export const chatMessage = (sessionId: string, content: string, currentWorkflow?: Record<string, unknown>) =>
+interface WorkflowSnapshot {
+  nodes: unknown[]
+  edges: unknown[]
+}
+
+export const chatMessage = (sessionId: string, content: string, currentWorkflow?: WorkflowSnapshot) =>
   req<ChatMessage>('/api/chat/message', {
     method: 'POST', body: JSON.stringify({ session_id: sessionId, content, current_workflow: currentWorkflow })
   })

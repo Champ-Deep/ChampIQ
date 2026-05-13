@@ -1,6 +1,62 @@
 import { useEffect } from 'react'
 import { useExecutionStore } from '@/store/executionStore'
 
+// ── Domain event union — the seam between the WS wire format and the store ──
+
+type CanvasEvent =
+  | { topic: 'node.started';       node_id: string }
+  | { topic: 'node.completed';     node_id: string; output: Record<string, unknown> }
+  | { topic: 'node.failed';        node_id: string; error: string }
+  | { topic: 'execution.finished'; execution_id: string; status: 'success' | 'error' }
+
+function parseEvent(raw: unknown): CanvasEvent | null {
+  if (typeof raw !== 'object' || raw === null) return null
+  const msg = raw as Record<string, unknown>
+  const topic = msg.topic
+  const node_id = msg.node_id
+
+  if (topic === 'node.started' && typeof node_id === 'string') {
+    return { topic: 'node.started', node_id }
+  }
+  if (topic === 'node.completed' && typeof node_id === 'string') {
+    return { topic: 'node.completed', node_id, output: (msg.output as Record<string, unknown>) ?? {} }
+  }
+  if (topic === 'node.failed' && typeof node_id === 'string') {
+    return { topic: 'node.failed', node_id, error: String(msg.error ?? 'failed') }
+  }
+  if (topic === 'execution.finished' && typeof msg.execution_id === 'string') {
+    const status = msg.status === 'success' ? 'success' : 'error'
+    return { topic: 'execution.finished', execution_id: msg.execution_id, status }
+  }
+  return null
+}
+
+function dispatch(event: CanvasEvent) {
+  const store = useExecutionStore.getState()
+  switch (event.topic) {
+    case 'node.started':
+      store.setNodeRuntime(event.node_id, { status: 'running' })
+      break
+    case 'node.completed':
+      store.setNodeRuntime(event.node_id, { status: 'success', output: event.output })
+      store.addLog({ nodeId: event.node_id, nodeName: event.node_id, status: 'success', message: 'Node completed' })
+      break
+    case 'node.failed':
+      store.setNodeRuntime(event.node_id, { status: 'error', error: event.error })
+      store.addLog({ nodeId: event.node_id, nodeName: event.node_id, status: 'error', message: event.error })
+      break
+    case 'execution.finished':
+      store.setIsRunningAll(false)
+      store.addLog({
+        nodeId: 'exec',
+        nodeName: 'Execution',
+        status: event.status,
+        message: `Execution ${event.execution_id} ${event.status}`,
+      })
+      break
+  }
+}
+
 export function useExecutionStream() {
   useEffect(() => {
     const url = new URL('/ws/events', window.location.origin)
@@ -12,8 +68,8 @@ export function useExecutionStream() {
       ws = new WebSocket(url.toString())
       ws.onmessage = (ev) => {
         try {
-          const msg = JSON.parse(ev.data) as Record<string, unknown>
-          handle(msg)
+          const event = parseEvent(JSON.parse(ev.data))
+          if (event) dispatch(event)
         } catch {
           /* ignore malformed */
         }
@@ -30,38 +86,4 @@ export function useExecutionStream() {
       ws?.close()
     }
   }, [])
-}
-
-function handle(msg: Record<string, unknown>) {
-  const topic = msg.topic as string | undefined
-  if (!topic) return
-  const nodeId = msg.node_id as string | undefined
-  const store = useExecutionStore.getState()
-
-  if (topic === 'node.started' && nodeId) {
-    store.setNodeRuntime(nodeId, { status: 'running' })
-    return
-  }
-  if (topic === 'node.completed' && nodeId) {
-    store.setNodeRuntime(nodeId, {
-      status: 'success',
-      output: (msg.output as Record<string, unknown>) ?? undefined,
-    })
-    store.addLog({ nodeId, nodeName: nodeId, status: 'success', message: 'Node completed' })
-    return
-  }
-  if (topic === 'node.failed' && nodeId) {
-    store.setNodeRuntime(nodeId, { status: 'error', error: (msg.error as string) ?? 'failed' })
-    store.addLog({ nodeId, nodeName: nodeId, status: 'error', message: String(msg.error ?? 'failed') })
-    return
-  }
-  if (topic === 'execution.finished') {
-    store.setIsRunningAll(false)
-    store.addLog({
-      nodeId: 'exec',
-      nodeName: 'Execution',
-      status: (msg.status as string) === 'success' ? 'success' : 'error',
-      message: `Execution ${msg.execution_id} ${msg.status}`,
-    })
-  }
 }

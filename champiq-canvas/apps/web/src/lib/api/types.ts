@@ -22,10 +22,18 @@ export interface ProspectListResponse {
   offset: number
 }
 
+export interface SequenceStep {
+  id: number
+  step_index: number
+  template_id: number
+}
+
 export interface Sequence {
   id: number
   name: string
+  steps?: SequenceStep[]
   created_at: string
+  updated_at?: string
 }
 
 export interface Template {
@@ -33,8 +41,10 @@ export interface Template {
   name: string
   subject: string
   body_html: string
-  body_text: string | null
+  body_text?: string | null
+  variables?: string[]
   created_at: string
+  updated_at?: string
 }
 
 export interface Sender {
@@ -62,6 +72,7 @@ export interface Execution {
   workflow_id: number
   trigger_kind: string
   status: 'running' | 'success' | 'error' | 'cancelled'
+  error?: string | null
   started_at: string
   finished_at: string | null
 }
@@ -82,6 +93,8 @@ export interface Credential {
   id: number
   name: string
   type: string
+  active?: boolean
+  updated_at?: string
   created_at: string
 }
 

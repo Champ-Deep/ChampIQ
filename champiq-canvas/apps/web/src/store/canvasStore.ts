@@ -33,11 +33,13 @@ interface CanvasStore {
   setCurrentCanvasId: (id: string) => void
   updateNodeConfig: (nodeId: string, config: Record<string, unknown>) => void
   clearCanvas: () => void
+  /** Returns trigger descriptors for all cron nodes — used by Activate. */
+  getCronTriggers: () => Array<{ id: string; kind: 'cron'; cron: string; timezone: string }>
 }
 
 export const useCanvasStore = create<CanvasStore>()(
   subscribeWithSelector(
-  (set) => ({
+  (set, get) => ({
     nodes: [],
     edges: [],
     selectedNodeId: null,
@@ -91,6 +93,20 @@ export const useCanvasStore = create<CanvasStore>()(
     clearCanvas: () => {
       useExecutionStore.getState().clearExecution()
       set({ nodes: [], edges: [] })
+    },
+
+    getCronTriggers: () => {
+      return get().nodes
+        .filter((n) => (n.data as { kind?: string }).kind === 'trigger.cron')
+        .map((n) => {
+          const cfg = (n.data as { config?: Record<string, unknown> }).config ?? {}
+          return {
+            id: n.id,
+            kind: 'cron' as const,
+            cron: (cfg.cron as string) ?? '0 9 * * 1-5',
+            timezone: (cfg.timezone as string) ?? 'UTC',
+          }
+        })
     },
   }))
 )

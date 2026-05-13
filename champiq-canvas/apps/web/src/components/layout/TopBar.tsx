@@ -4,18 +4,9 @@ import { useExecutionStore } from '@/store/executionStore'
 import { useUIStore } from '@/store/uiStore'
 import { api } from '@/lib/api'
 import { saveCurrentCanvas } from '@/hooks/usePersistence'
+import { useRunAll } from '@/hooks/useRunAll'
 import { Icon, Btn, Hotkey, Tag } from '@/components/atoms'
 import { Trash2 } from 'lucide-react'
-import type { Node } from '@xyflow/react'
-
-function extractCronTriggers(nodes: Node[]): Record<string, unknown>[] {
-  return nodes
-    .filter((n) => (n.data as Record<string, unknown>).kind === 'trigger.cron')
-    .map((n) => {
-      const cfg = ((n.data as Record<string, unknown>).config as Record<string, unknown>) ?? {}
-      return { id: n.id, kind: 'cron', cron: cfg.cron ?? '0 9 * * 1-5', timezone: cfg.timezone ?? 'UTC' }
-    })
-}
 
 interface TopBarProps {
   onHub?: () => void
@@ -23,9 +14,10 @@ interface TopBarProps {
 }
 
 export function TopBar({ onHub, onCmdOpen }: TopBarProps = {}) {
-  const { canvasName, nodes, edges, setCanvasName, clearCanvas } = useCanvasStore()
-  const { setNodeRuntime, addLog, isRunningAll, setIsRunningAll } = useExecutionStore()
+  const { canvasName, nodes, edges, setCanvasName, clearCanvas, getCronTriggers } = useCanvasStore()
+  const { addLog } = useExecutionStore()
   const { setCmdOpen } = useUIStore()
+  const { runAll, isRunningAll } = useRunAll()
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [activating, setActivating] = useState(false)
@@ -46,62 +38,25 @@ export function TopBar({ onHub, onCmdOpen }: TopBarProps = {}) {
     }
   }
 
-  async function handleRunAll() {
-    if (isRunningAll || nodes.length === 0) return
-    setIsRunningAll(true)
-    for (const n of nodes) setNodeRuntime(n.id, { status: 'running', error: undefined })
-    addLog({ nodeId: 'run', nodeName: 'Run All', status: 'running', message: `Starting execution of ${nodes.length} nodes…` })
-    try {
-      const { execution_id } = await api.runAdHoc(nodes, edges)
-      const poll = async () => {
-        const exec = await api.getExecution(execution_id) as unknown as Record<string, unknown>
-        if (exec.status === 'running') { setTimeout(poll, 1000); return }
-        const nodeRuns = await api.getNodeRuns(execution_id) as unknown as Array<Record<string, unknown>>
-        for (const run of nodeRuns) {
-          setNodeRuntime(run.node_id as string, {
-            status: run.status === 'success' ? 'success' : 'error',
-            output: run.output as Record<string, unknown>,
-            error: run.error as string | undefined,
-          })
-        }
-        const ranIds = new Set(nodeRuns.map((r) => r.node_id as string))
-        for (const n of nodes) if (!ranIds.has(n.id)) setNodeRuntime(n.id, { status: 'idle' })
-        addLog({
-          nodeId: 'run', nodeName: 'Run All',
-          status: exec.status === 'success' ? 'success' : 'error',
-          message: exec.status === 'success'
-            ? `Execution complete — ${nodeRuns.length} nodes ran`
-            : `Execution failed: ${(exec.error as string) ?? 'unknown error'}`,
-        })
-        setIsRunningAll(false)
-      }
-      setTimeout(poll, 800)
-    } catch (e) {
-      for (const n of nodes) setNodeRuntime(n.id, { status: 'idle' })
-      addLog({ nodeId: 'run', nodeName: 'Run All', status: 'error', message: String(e) })
-      setIsRunningAll(false)
-    }
-  }
-
   async function handleActivate() {
     if (activating || nodes.length === 0) return
     setActivating(true)
     addLog({ nodeId: 'activate', nodeName: 'Activate', status: 'running', message: 'Registering workflow…' })
     try {
-      const triggers = extractCronTriggers(nodes)
+      const triggers = getCronTriggers()
       const body = { name: canvasName, description: `From canvas: ${canvasName}`, active: true, nodes, edges, triggers }
-      let wf: Record<string, unknown>
+      let wf: Awaited<ReturnType<typeof api.createWorkflow>>
       if (activeWorkflowId) {
-        wf = await api.updateWorkflow(activeWorkflowId, body) as unknown as Record<string, unknown>
+        wf = await api.updateWorkflow(activeWorkflowId, body)
       } else {
-        wf = await api.createWorkflow(body) as unknown as Record<string, unknown>
-        setActiveWorkflowId(wf.id as number)
+        wf = await api.createWorkflow(body)
+        setActiveWorkflowId(wf.id)
       }
       addLog({
         nodeId: 'activate', nodeName: 'Activate', status: 'success',
         message: triggers.length > 0
-          ? `Workflow #${wf.id as number} active — ${triggers.length} cron schedule(s) registered`
-          : `Workflow #${wf.id as number} active`,
+          ? `Workflow #${wf.id} active — ${triggers.length} cron schedule(s) registered`
+          : `Workflow #${wf.id} active`,
       })
     } catch (e) {
       addLog({ nodeId: 'activate', nodeName: 'Activate', status: 'error', message: String(e) })
@@ -243,7 +198,7 @@ export function TopBar({ onHub, onCmdOpen }: TopBarProps = {}) {
           variant="primary"
           size="md"
           icon="play"
-          onClick={handleRunAll}
+          onClick={runAll}
           disabled={isRunningAll || nodes.length === 0}
         >
           {isRunningAll ? 'Running…' : 'Run All'}

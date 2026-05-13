@@ -14,7 +14,7 @@ export function useJobPolling(jobId: string | undefined, nodeId: string, toolId:
       try {
         const job = await api.getJob(jobId)
 
-        if (job.status === 'done') {
+        if (job.status === 'success') {
           setNodeRuntime(nodeId, { status: 'success', output: job.result ?? undefined })
           addLog({ nodeId, nodeName: toolId, status: 'success', message: `Job ${jobId} completed.` })
 

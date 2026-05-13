@@ -3,12 +3,13 @@ import { Upload, ChevronRight, ChevronLeft, Play, Check } from 'lucide-react'
 import { Pixie } from '@/components/pixie/Pixie'
 import { useUIStore } from '@/store/uiStore'
 import { api } from '@/lib/api'
+import { useCredentialStore } from '@/store/credentialStore'
 
 const STEPS = [
   { id: 'welcome',    title: 'Welcome to ChampIQ', icon: '✦' },
   { id: 'credential', title: 'Connect ChampMail',  icon: '🔑' },
   { id: 'bullpen',    title: 'Import your Bullpen', icon: '👥' },
-  { id: 'stage',      title: 'Build your first Stage', icon: '⬡' },
+  { id: 'stage',      title: 'Build your first Canvas', icon: '⬡' },
   { id: 'done',       title: "You're ready",        icon: '✓' },
 ]
 
@@ -34,7 +35,7 @@ const STEP_CONTENT: StepContent[] = [
   },
   {
     heading: 'Connect ChampMail.',
-    sub: "Paste your ChampMail API key. I'll test the connection and bind it to all future stages automatically.",
+    sub: "Paste your ChampMail API key. I'll test the connection and bind it to all future canvases automatically.",
     pose: 'read',
     cta: 'Connect & test',
     fields: [
@@ -49,7 +50,7 @@ const STEP_CONTENT: StepContent[] = [
     upload: true,
   },
   {
-    heading: 'Build your first Stage.',
+    heading: 'Build your first Canvas.',
     sub: "Pick a template — I'll wire it to your credentials and Bullpen automatically. Customize everything after.",
     pose: 'point',
     cta: 'Use Cold Outbound template',
@@ -57,9 +58,9 @@ const STEP_CONTENT: StepContent[] = [
   },
   {
     heading: "You're ready.",
-    sub: "ChampMail connected, Bullpen imported, first stage built. Hit Run All and watch it go.",
+    sub: "ChampMail connected, Bullpen imported, first canvas built. Hit Run All and watch it go.",
     pose: 'cheer',
-    cta: 'Open Stage',
+    cta: 'Open Canvas',
     done: true,
   },
 ]
@@ -87,6 +88,7 @@ export function Onboarding({ onComplete, onSkip }: OnboardingProps) {
       setConnecting(true)
       try {
         await api.createCredential('ChampMail · prod', 'champmail', { api_key: apiKey })
+        useCredentialStore.getState().addCredential('ChampMail · prod', 'champmail', { api_key: apiKey })
       } catch {
         // continue anyway — user can fix in settings
       }
@@ -222,7 +224,7 @@ export function Onboarding({ onComplete, onSkip }: OnboardingProps) {
             {[
               'ChampMail connected',
               'Onboarding complete',
-              'Ready to build stages',
+              'Ready to build canvases',
             ].map((label, i) => (
               <div key={i} style={{
                 display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',

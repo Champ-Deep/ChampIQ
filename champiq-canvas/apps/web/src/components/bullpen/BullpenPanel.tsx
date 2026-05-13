@@ -61,7 +61,7 @@ export function BullpenPanel() {
           >
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {p.full_name ?? [p.first_name, p.last_name].filter(Boolean).join(' ') || p.email}
+                {p.full_name ?? ([p.first_name, p.last_name].filter(Boolean).join(' ') || p.email)}
               </div>
               <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {[p.role, p.company].filter(Boolean).join(' · ')}

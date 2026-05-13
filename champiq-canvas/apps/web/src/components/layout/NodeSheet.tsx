@@ -301,7 +301,7 @@ function NodeOutput({ runtime }: { runtime?: { output?: Record<string, unknown> 
     return (
       <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-4)' }}>
         <div style={{ fontFamily: 'var(--font-display)', fontSize: 14, marginBottom: 8 }}>No output yet</div>
-        <div style={{ fontSize: 12 }}>Run the stage to see node output here.</div>
+        <div style={{ fontSize: 12 }}>Run the canvas to see node output here.</div>
       </div>
     )
   }

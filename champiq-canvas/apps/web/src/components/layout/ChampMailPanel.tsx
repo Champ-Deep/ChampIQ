@@ -8,21 +8,12 @@
  *  - Prospects: table + bulk CSV import (re-uses /api/uploads/prospects to parse)
  *  - Templates: list + open editor modal (subject + body_html with variable picker)
  */
-import { useRef, useState } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import { api } from '@/lib/api'
 import type { Prospect } from '@/lib/api/champmail'
+import type { Template } from '@/lib/api/types'
 import { useProspects } from '@/hooks/useProspects'
 import { ChevronDown, ChevronUp, Plus, Trash2, Mail, X, Eye } from '@/lib/icons'
-
-interface Template {
-  id: number
-  name: string
-  subject: string
-  body_html: string
-  body_text?: string
-  variables: string[]
-  updated_at?: string
-}
 
 // ── Prospects sub-panel ──────────────────────────────────────────────────────
 
@@ -266,7 +257,7 @@ function TemplatesSection() {
 
   async function refresh() {
     try {
-      const r = await api.cmListTemplates() as unknown as Template[]
+      const r = await api.cmListTemplates()
       setTemplates(r)
     } catch (e) {
       console.error('cmListTemplates', e)

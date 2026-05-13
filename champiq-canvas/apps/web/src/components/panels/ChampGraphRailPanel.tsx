@@ -185,7 +185,7 @@ export function ChampGraphRailPanel({ pixieCloak, sidebar: _sidebar }: Props) {
                       </div>
                       <div style={{ minWidth: 0 }}>
                         {p.company && <div style={{ fontSize: 12.5, color: 'var(--text-1)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.company}</div>}
-                        {p.title && <div style={{ fontSize: 11, color: 'var(--text-4)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.title}</div>}
+                        {p.role && <div style={{ fontSize: 11, color: 'var(--text-4)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.role}</div>}
                       </div>
                       <span style={{
                         display: 'inline-flex', alignItems: 'center', gap: 4,
