@@ -276,7 +276,7 @@ function CredentialsTab() {
             <div style={{
               width: 32, height: 32, borderRadius: 8, background: 'var(--bg-3)',
               display: 'grid', placeItems: 'center',
-              color: c.active ? 'var(--accent-1)' : 'var(--danger)',
+              color: c.active !== false ? 'var(--accent-1)' : 'var(--danger)',
             }}>
               <Key size={14}/>
             </div>
@@ -284,7 +284,7 @@ function CredentialsTab() {
               <div style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 14, color: 'var(--text-1)' }}>{c.name}</div>
               <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-4)', marginTop: 1 }}>{c.type}</div>
             </div>
-            <CredPill status={c.active ? 'connected' : 'expired'} />
+            <CredPill status={c.active !== false ? 'connected' : 'expired'} />
             <button
               onClick={() => handleDelete(c.id)}
               style={{ width: 28, height: 28, display: 'grid', placeItems: 'center', background: 'transparent', border: 'none', color: 'var(--text-4)', cursor: 'pointer', borderRadius: 5, transition: 'all .15s' }}
@@ -521,6 +521,7 @@ function EmeliaWizard({ onSave }: { onSave: (name: string, fields: Record<string
       })
       if (!res.ok) { setTestError(`Emelia rejected the key (${res.status})`); return }
       const data = await res.json()
+      if (!data.valid) { setTestError(data.error ?? 'Emelia rejected the key — check it and try again'); return }
       setAccountEmail(data.account_email ?? '')
       setProviders(data.providers ?? [])
       setStep('sender')
