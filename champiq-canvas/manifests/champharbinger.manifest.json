@@ -1,0 +1,89 @@
+{
+  "$schema": "https://champiq.dev/manifest/v2.json",
+  "manifest_version": 2,
+  "tool_id": "champharbinger",
+  "name": "ChampHarbinger",
+  "description": "Signal intelligence engine: discover companies, run buying-signal checks, enrich prospects, and pull qualified leads.",
+  "category": "research",
+  "color": "#e86c3a",
+  "icon": "signal",
+  "credentials_required": ["champharbinger"],
+  "actions": [
+    {
+      "id": "discover_companies",
+      "label": "Discover Companies",
+      "description": "Find companies matching an ICP description using semantic search.",
+      "input_schema": {
+        "type": "object",
+        "required": ["icp"],
+        "properties": {
+          "icp":      { "type": "string", "description": "Ideal customer profile description (e.g. 'SaaS companies with 50-200 employees hiring VPs of Sales')" },
+          "industry": { "type": "string", "description": "Industry filter (optional)" },
+          "location": { "type": "string", "description": "Geographic filter (optional)" },
+          "size":     { "type": "string", "description": "Headcount range filter (optional, e.g. '50-200')" }
+        }
+      }
+    },
+    {
+      "id": "run_signal",
+      "label": "Run Signal",
+      "description": "Check whether a buying signal has fired for a given company domain.",
+      "input_schema": {
+        "type": "object",
+        "required": ["signal_id", "domain"],
+        "properties": {
+          "signal_id": { "type": "string", "description": "UUID of the signal to run" },
+          "domain":    { "type": "string", "description": "Company domain to check (e.g. 'acme.com')" }
+        }
+      }
+    },
+    {
+      "id": "enrich_company",
+      "label": "Enrich Company",
+      "description": "Pull product, funding, and team data for a company domain.",
+      "input_schema": {
+        "type": "object",
+        "required": ["domain"],
+        "properties": {
+          "domain": { "type": "string", "description": "Company domain (e.g. 'acme.com')" }
+        }
+      }
+    },
+    {
+      "id": "enrich_contact",
+      "label": "Enrich Contact",
+      "description": "Enrich a person — infer email, find LinkedIn URL, score by seniority.",
+      "input_schema": {
+        "type": "object",
+        "required": ["name", "domain"],
+        "properties": {
+          "name":   { "type": "string", "description": "Full name of the contact" },
+          "domain": { "type": "string", "description": "Company domain" },
+          "title":  { "type": "string", "description": "Job title (optional, improves results)" }
+        }
+      }
+    },
+    {
+      "id": "get_qualified_prospects",
+      "label": "Get Qualified Prospects",
+      "description": "Pull prospects that have cleared the handoff threshold in ChampHarbinger.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "since":  { "type": "string", "format": "date-time", "description": "ISO-8601 timestamp — only return prospects qualified after this time" },
+          "limit":  { "type": "integer", "default": 50, "description": "Max results (1–200)" }
+        }
+      }
+    },
+    {
+      "id": "list_signals",
+      "label": "List Signals",
+      "description": "Return all signals available in the connected ChampHarbinger workspace.",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  ],
+  "triggers": []
+}

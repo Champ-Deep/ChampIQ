@@ -100,6 +100,12 @@ async def health():
     return {"status": "ok"}
 
 
+@app.get("/api/harbinger/health")
+async def harbinger_health():
+    """Health probe for ChampHarbinger's connection check. Returns 200 when ChampIQ is up."""
+    return {"status": "ok", "service": "champiq"}
+
+
 # ---------------------------------------------------------------------------
 # SPA static-file serving with gzip + aggressive caching
 # ---------------------------------------------------------------------------

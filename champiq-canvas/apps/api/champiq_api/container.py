@@ -22,7 +22,7 @@ from .champmail.transport import (
 )
 from .credentials import CredentialService, FernetCrypto, SqlCredentialResolver
 from .database import get_session_factory, get_settings
-from .drivers import ChampVoiceDriver, LakebPulseDriver, ToolNodeExecutor
+from .drivers import ChampHarbingerDriver, ChampVoiceDriver, LakebPulseDriver, ToolNodeExecutor
 from .expressions import SimpleExpressionEvaluator
 from .llm import LLMProvider, OpenRouterProvider
 from .nodes import (
@@ -95,8 +95,9 @@ def get_container() -> Container:
     # they're inline modules dispatched via ChampmailLocalExecutor / the
     # ChampGraphService respectively (registered below).
     drivers = {
-        "champvoice":   ChampVoiceDriver(""),  # calls ElevenLabs directly; no gateway needed
-        "lakeb2b_pulse": LakebPulseDriver("https://b2b-pulse.up.railway.app"),
+        "champvoice":     ChampVoiceDriver(""),  # calls ElevenLabs directly; no gateway needed
+        "lakeb2b_pulse":  LakebPulseDriver(settings.lakeb2b_base_url or "https://b2b-pulse.up.railway.app"),
+        "champharbinger": ChampHarbingerDriver(settings.champharbinger_url),
     }
     for driver in drivers.values():
         registry.register(ToolNodeExecutor(driver))

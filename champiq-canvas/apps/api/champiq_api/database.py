@@ -50,6 +50,11 @@ class Settings(BaseSettings):
     openrouter_referrer: str = "https://champiq.local"
     openrouter_app_title: str = "ChampIQ Canvas"
 
+    # ChampHarbinger signal-intelligence engine
+    # Set CHAMPHARBINGER_URL to the base URL of the ChampHarbinger instance.
+    # Set up the API key via the credentials UI (type=champharbinger, field=api_key).
+    champharbinger_url: str = ""
+
     class Config:
         env_file = ".env"
         extra = "ignore"
