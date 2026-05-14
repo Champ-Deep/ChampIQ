@@ -3,6 +3,7 @@
   "manifest_version": 2,
   "tool_id": "champharbinger",
   "name": "ChampHarbinger",
+  "hidden": true,
   "description": "Signal intelligence engine: discover companies, run buying-signal checks, enrich prospects, and pull qualified leads.",
   "category": "research",
   "color": "#e86c3a",

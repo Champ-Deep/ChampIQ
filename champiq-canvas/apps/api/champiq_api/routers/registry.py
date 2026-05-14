@@ -27,7 +27,9 @@ async def list_manifests() -> list[dict]:
     manifests = []
     for path in sorted(manifests_dir.glob("*.manifest.json")):
         try:
-            manifests.append(json.loads(path.read_text()))
+            data = json.loads(path.read_text())
         except Exception as exc:
             raise HTTPException(status_code=500, detail=f"Failed to load {path.name}: {exc}")
+        if not data.get("hidden"):
+            manifests.append(data)
     return manifests
