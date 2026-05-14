@@ -36,7 +36,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..container import get_container
 from ..credentials import CredentialService
-from ..database import get_db
+from ..database import get_db, get_settings
 from ..models import CredentialTable
 
 router = APIRouter(prefix="/auth/lakeb2b", tags=["lakeb2b-auth"])
@@ -79,10 +79,25 @@ class LinkedInLoginVerifyRequest(BaseModel):
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 @router.get("/oauth-url")
-async def get_oauth_url(name: str = Query(default="lakeb2b-pulse")):
-    """Fetch LinkedIn OAuth URL from B2B Pulse and return it to the frontend."""
+async def get_oauth_url(
+    name: str = Query(default="lakeb2b-pulse"),
+    base_url: str = Query(default=""),
+):
+    """Fetch LinkedIn OAuth URL from B2B Pulse and return it to the frontend.
+
+    ``base_url`` is the ChampIQ origin (e.g. https://champiq-testing.up.railway.app).
+    Falls back to the ``PUBLIC_BASE_URL`` env var, then localhost:8000.
+    It is passed to B2B Pulse so the OAuth callback redirects to the correct host.
+    """
+    settings = get_settings()
+    effective_base = base_url or settings.public_base_url or "http://localhost:8000"
+    callback_url = f"{effective_base}/api/auth/lakeb2b/callback"
+
     async with httpx.AsyncClient(timeout=10.0) as client:
-        resp = await client.get(f"{B2B_PULSE}/api/auth/linkedin")
+        resp = await client.get(
+            f"{B2B_PULSE}/api/auth/linkedin",
+            params={"redirect_uri": callback_url},
+        )
 
     if resp.status_code >= 400:
         raise HTTPException(502, f"B2B Pulse error {resp.status_code}: {resp.text[:200]}")
