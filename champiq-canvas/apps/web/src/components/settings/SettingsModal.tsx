@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useUIStore } from '@/store/uiStore'
 import { Pixie, PixieOnlinePill } from '@/components/pixie/Pixie'
 import { X, Key, Palette, User, Plus, Moon, Sun, Trash2 } from 'lucide-react'
@@ -224,9 +224,13 @@ function CredentialsTab() {
                 }}
               />
             ) : isLakeB2BWizard ? (
-              <p style={{ margin: 0, fontSize: 12, color: 'var(--text-3)', padding: '8px 10px', background: 'var(--bg-0)', borderRadius: 7, border: '1px solid var(--border-1)' }}>
-                LakeB2B Pulse uses a LinkedIn OAuth flow. Install the LakeB2B browser extension and connect from the ChampGraph panel (⌘3) to complete setup.
-              </p>
+              <LakeB2BWizard
+                onDone={(credId, name) => {
+                  api.listCredentials().then(setCreds).catch(() => {})
+                  useCredentialStore.getState().addCredential(name, 'lakeb2b', { credential_id: String(credId) })
+                  setShowAdd(false)
+                }}
+              />
             ) : (
               fieldDefs.map((f) => {
                 const isRequired = (CREDENTIAL_REQUIRED_FIELDS[newType] ?? []).includes(f.key)
@@ -492,6 +496,357 @@ function AccountTab({ pixieCloak, voice }: { pixieCloak: string; voice: VoicePre
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+// ── LakeB2B inline wizard ──────────────────────────────────────────────────
+
+function LakeB2BWizard({ onDone }: { onDone: (credId: number, name: string) => void }) {
+  const [step, setStep] = useState<'oauth' | 'linkedin' | 'done'>('oauth')
+  const [credName, setCredName] = useState('lakeb2b-pulse')
+  const [credentialId, setCredentialId] = useState<number | null>(null)
+  const [resolvedName, setResolvedName] = useState('lakeb2b-pulse')
+  const [oauthLoading, setOauthLoading] = useState(false)
+  const [oauthError, setOauthError] = useState('')
+
+  const [linkedinTab, setLinkedinTab] = useState<'server' | 'extension'>('server')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [sessionId, setSessionId] = useState('')
+  const [twoFaCode, setTwoFaCode] = useState('')
+  const [needsTwoFa, setNeedsTwoFa] = useState(false)
+  const [loginLoading, setLoginLoading] = useState(false)
+  const [loginError, setLoginError] = useState('')
+
+  const linkedinConnectedRef = useRef(false)
+  const credentialIdRef = useRef<number | null>(null)
+  const resolvedNameRef = useRef('lakeb2b-pulse')
+
+  // Listen for messages from the OAuth popup and the browser extension
+  useEffect(() => {
+    let authTokenTimer: ReturnType<typeof setTimeout> | null = null
+
+    async function handleMsg(e: MessageEvent) {
+      if (!e.data?.type) return
+
+      if (e.data.type === 'LAKEB2B_AUTH_SUCCESS') {
+        if (authTokenTimer) { clearTimeout(authTokenTimer); authTokenTimer = null }
+        const id = e.data.credential_id as number
+        const name = (e.data.name as string) || resolvedNameRef.current
+        credentialIdRef.current = id
+        resolvedNameRef.current = name
+        setCredentialId(id)
+        setResolvedName(name)
+        setOauthLoading(false)
+        if (linkedinConnectedRef.current) {
+          setStep('done')
+          onDone(id, name)
+        } else {
+          setStep('linkedin')
+        }
+      } else if (e.data.type === 'LAKEB2B_AUTH_ERROR') {
+        setOauthError(e.data.error || 'LinkedIn OAuth failed')
+        setOauthLoading(false)
+      } else if (e.data.type === 'LAKEB2B_AUTH_TOKEN') {
+        // Extension intercepted the popup and already captured li_at
+        linkedinConnectedRef.current = true
+        // If AUTH_SUCCESS doesn't arrive in 2s (popup closed by extension before HTML ran),
+        // refresh the credentials list to find the newly created record
+        authTokenTimer = setTimeout(async () => {
+          if (credentialIdRef.current !== null) return
+          try {
+            const list = await api.listCredentials()
+            const found = list.filter((c) => c.type === 'lakeb2b').at(-1)
+            if (found) {
+              credentialIdRef.current = found.id
+              setCredentialId(found.id)
+              setResolvedName(found.name)
+              setOauthLoading(false)
+              setStep('done')
+              onDone(found.id, found.name)
+            }
+          } catch { /* noop */ }
+        }, 2000)
+      } else if (e.data.type === 'LAKEB2B_PAIR_RESULT') {
+        setLoginLoading(false)
+        if (e.data.success) {
+          linkedinConnectedRef.current = true
+          if (credentialIdRef.current !== null) {
+            setStep('done')
+            onDone(credentialIdRef.current, resolvedNameRef.current)
+          }
+        } else {
+          setLoginError(e.data.error || 'Extension pairing failed — make sure you are logged into LinkedIn in Chrome')
+        }
+      }
+    }
+
+    window.addEventListener('message', handleMsg)
+    return () => {
+      window.removeEventListener('message', handleMsg)
+      if (authTokenTimer) clearTimeout(authTokenTimer)
+    }
+  }, [onDone])
+
+  async function handleOAuth() {
+    if (!credName.trim()) { setOauthError('Name is required'); return }
+    resolvedNameRef.current = credName.trim()
+    setOauthLoading(true)
+    setOauthError('')
+    try {
+      const res = await fetch(`/api/auth/lakeb2b/oauth-url?name=${encodeURIComponent(credName.trim())}`)
+      if (!res.ok) throw new Error(`Server error ${res.status}`)
+      const data = await res.json() as { auth_url: string }
+      const popup = window.open(data.auth_url, 'lakeb2b-oauth', 'width=600,height=700,left=200,top=100')
+      if (!popup) { setOauthError('Popup blocked — allow popups for this site and try again'); setOauthLoading(false); return }
+      // Detect if user closed popup without completing
+      const poll = setInterval(() => {
+        if (popup.closed) {
+          clearInterval(poll)
+          setOauthLoading((cur) => {
+            if (cur) setOauthError('LinkedIn login was cancelled — try again')
+            return false
+          })
+        }
+      }, 800)
+    } catch (e) {
+      setOauthError(e instanceof Error ? e.message : 'Failed to start OAuth')
+      setOauthLoading(false)
+    }
+  }
+
+  async function handleServerLogin() {
+    const id = credentialIdRef.current
+    if (!id) return
+    if (!email.trim() || !password) { setLoginError('Email and password are required'); return }
+    setLoginLoading(true)
+    setLoginError('')
+    try {
+      const res = await fetch('/api/auth/lakeb2b/linkedin-login-start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential_id: id, email: email.trim(), password }),
+      })
+      const data = await res.json() as { status?: string; session_id?: string; message?: string; detail?: string }
+      if (!res.ok) throw new Error(data.detail || `Error ${res.status}`)
+      if (data.status === 'success') {
+        linkedinConnectedRef.current = true
+        setStep('done')
+        onDone(id, resolvedNameRef.current)
+      } else if (data.status === 'needs_2fa') {
+        setSessionId(data.session_id ?? '')
+        setNeedsTwoFa(true)
+      } else {
+        setLoginError(data.message || 'Login failed — check your LinkedIn credentials')
+      }
+    } catch (e) {
+      setLoginError(e instanceof Error ? e.message : 'Login failed')
+    } finally {
+      setLoginLoading(false)
+    }
+  }
+
+  async function handleVerify2FA() {
+    const id = credentialIdRef.current
+    if (!id || !sessionId) return
+    if (!twoFaCode.trim()) { setLoginError('Enter the verification code'); return }
+    setLoginLoading(true)
+    setLoginError('')
+    try {
+      const res = await fetch('/api/auth/lakeb2b/linkedin-login-verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential_id: id, session_id: sessionId, code: twoFaCode.trim() }),
+      })
+      const data = await res.json() as { status?: string; message?: string; detail?: string }
+      if (!res.ok) throw new Error(data.detail || `Error ${res.status}`)
+      if (data.status === 'success') {
+        linkedinConnectedRef.current = true
+        setStep('done')
+        onDone(id, resolvedNameRef.current)
+      } else {
+        setLoginError(data.message || 'Invalid code — try again')
+      }
+    } catch (e) {
+      setLoginError(e instanceof Error ? e.message : 'Verification failed')
+    } finally {
+      setLoginLoading(false)
+    }
+  }
+
+  async function handleExtensionPair() {
+    const id = credentialIdRef.current
+    if (!id) return
+    setLoginLoading(true)
+    setLoginError('')
+    try {
+      const res = await fetch(`/api/auth/lakeb2b/pair?credential_id=${id}`, { method: 'POST' })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({})) as { detail?: string }
+        throw new Error(d.detail || `Error ${res.status}`)
+      }
+      const { pairing_token, api_base } = await res.json() as { pairing_token: string; api_base: string }
+      // Content script bridges this to the background service worker
+      window.postMessage({ type: 'LAKEB2B_PAIR', pairing_token, api_base }, '*')
+      // Result arrives via LAKEB2B_PAIR_RESULT in handleMsg above
+    } catch (e) {
+      setLoginError(e instanceof Error ? e.message : 'Extension pairing failed')
+      setLoginLoading(false)
+    }
+  }
+
+  function handleSkip() {
+    const id = credentialIdRef.current
+    if (id !== null) onDone(id, resolvedNameRef.current)
+  }
+
+  const tabBtnStyle = (active: boolean): React.CSSProperties => ({
+    padding: '6px 14px', background: 'none', border: 'none',
+    borderBottom: active ? '2px solid var(--accent-2)' : '2px solid transparent',
+    color: active ? 'var(--accent-1)' : 'var(--text-3)',
+    fontFamily: 'var(--font-display)', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+    transition: 'color .15s',
+  })
+
+  if (step === 'oauth') return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ fontSize: 12, color: 'var(--text-3)', padding: '10px 12px', background: 'var(--bg-0)', borderRadius: 7, border: '1px solid var(--border-1)', lineHeight: 1.55 }}>
+        <strong style={{ color: 'var(--text-2)' }}>LakeB2B Pulse</strong> monitors LinkedIn on your behalf.
+        First, authorize ChampIQ via LinkedIn OAuth. Then connect your LinkedIn session (no extension required).
+      </div>
+      <SettingsField label="Credential name" required>
+        <input
+          value={credName}
+          onChange={(e) => { setCredName(e.target.value); setOauthError('') }}
+          placeholder="lakeb2b-pulse"
+          style={fieldInputStyle}
+        />
+      </SettingsField>
+      {oauthError && <p style={{ margin: 0, fontSize: 12, color: 'var(--danger)' }}>{oauthError}</p>}
+      <button
+        onClick={handleOAuth}
+        disabled={oauthLoading || !credName.trim()}
+        style={{ ...primarySmStyle, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}
+      >
+        <span style={{
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          width: 14, height: 14, borderRadius: 2,
+          background: '#0A66C2', color: '#fff',
+          fontWeight: 700, fontSize: 9, letterSpacing: 0, fontFamily: 'serif',
+          flexShrink: 0,
+        }}>in</span>
+        {oauthLoading ? 'Waiting for LinkedIn…' : 'Connect with LinkedIn'}
+      </button>
+      {oauthLoading && (
+        <p style={{ margin: 0, fontSize: 11, color: 'var(--text-4)', textAlign: 'center' }}>
+          Complete the LinkedIn login in the popup window.
+        </p>
+      )}
+    </div>
+  )
+
+  if (step === 'linkedin') return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ padding: '8px 12px', background: 'rgba(74,222,128,.08)', border: '1px solid rgba(74,222,128,.2)', borderRadius: 7, fontSize: 12, color: 'var(--text-2)' }}>
+        ✓ B2B Pulse authorized. Now connect your LinkedIn session to enable scraping.
+      </div>
+
+      <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--border-1)', marginBottom: 2 }}>
+        <button style={tabBtnStyle(linkedinTab === 'server')} onClick={() => setLinkedinTab('server')}>Server Login</button>
+        <button style={tabBtnStyle(linkedinTab === 'extension')} onClick={() => setLinkedinTab('extension')}>Browser Extension</button>
+      </div>
+
+      {linkedinTab === 'server' ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <p style={{ margin: 0, fontSize: 12, color: 'var(--text-4)', lineHeight: 1.5 }}>
+            B2B Pulse logs into LinkedIn from their servers — no extension needed.
+            Your password goes directly to B2B Pulse, not stored in ChampIQ.
+          </p>
+          {!needsTwoFa ? (
+            <>
+              <SettingsField label="LinkedIn email" required>
+                <input type="email" value={email} onChange={(e) => { setEmail(e.target.value); setLoginError('') }} placeholder="you@example.com" style={fieldInputStyle} />
+              </SettingsField>
+              <SettingsField label="LinkedIn password" required>
+                <input type="password" value={password} onChange={(e) => { setPassword(e.target.value); setLoginError('') }} placeholder="••••••••" style={{ ...fieldInputStyle, fontFamily: 'var(--font-mono)' }} />
+              </SettingsField>
+              {loginError && <p style={{ margin: 0, fontSize: 12, color: 'var(--danger)' }}>{loginError}</p>}
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                <button onClick={handleSkip} style={ghostSmStyle}>Skip for now</button>
+                <button onClick={handleServerLogin} disabled={loginLoading || !email.trim() || !password} style={primarySmStyle}>
+                  {loginLoading ? 'Connecting…' : 'Connect LinkedIn →'}
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p style={{ margin: 0, fontSize: 12, color: 'var(--text-2)' }}>
+                LinkedIn sent a verification code to your phone or email.
+              </p>
+              <SettingsField label="Verification code" required>
+                <input
+                  value={twoFaCode}
+                  onChange={(e) => { setTwoFaCode(e.target.value); setLoginError('') }}
+                  placeholder="123456"
+                  maxLength={8}
+                  style={{ ...fieldInputStyle, fontFamily: 'var(--font-mono)', letterSpacing: '0.15em' }}
+                  onKeyDown={(e) => e.key === 'Enter' && handleVerify2FA()}
+                  autoFocus
+                />
+              </SettingsField>
+              {loginError && <p style={{ margin: 0, fontSize: 12, color: 'var(--danger)' }}>{loginError}</p>}
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                <button onClick={() => { setNeedsTwoFa(false); setTwoFaCode('') }} style={ghostSmStyle}>← Back</button>
+                <button onClick={handleVerify2FA} disabled={loginLoading || !twoFaCode.trim()} style={primarySmStyle}>
+                  {loginLoading ? 'Verifying…' : 'Verify →'}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <p style={{ margin: 0, fontSize: 12, color: 'var(--text-4)', lineHeight: 1.5 }}>
+            The ChampIQ browser extension reads your LinkedIn session cookie and shares it with B2B Pulse automatically.
+          </p>
+          <ol style={{ margin: 0, paddingLeft: 20, fontSize: 12, color: 'var(--text-3)', lineHeight: 2 }}>
+            <li>Download the extension zip below</li>
+            <li>Open Chrome → <code style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>chrome://extensions</code></li>
+            <li>Enable <strong>Developer Mode</strong> (toggle top-right)</li>
+            <li>Drag the zip file onto the page and confirm</li>
+            <li>Make sure you are <strong>logged into LinkedIn</strong> in Chrome</li>
+            <li>Click <strong>Connect via Extension</strong> below</li>
+          </ol>
+          <a
+            href="/extension.zip"
+            download="champiq-extension.zip"
+            style={{ ...primarySmStyle, textDecoration: 'none', textAlign: 'center', display: 'block' }}
+          >
+            Download Extension (.zip)
+          </a>
+          {loginError && <p style={{ margin: 0, fontSize: 12, color: 'var(--danger)' }}>{loginError}</p>}
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button onClick={handleSkip} style={ghostSmStyle}>Skip for now</button>
+            <button onClick={handleExtensionPair} disabled={loginLoading} style={primarySmStyle}>
+              {loginLoading ? 'Connecting…' : 'Connect via Extension →'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+
+  // step === 'done'
+  return (
+    <div style={{ padding: '14px 16px', background: 'rgba(74,222,128,.08)', border: '1px solid rgba(74,222,128,.2)', borderRadius: 8, textAlign: 'center' }}>
+      <div style={{ fontSize: 22, marginBottom: 6 }}>✓</div>
+      <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 14, color: 'var(--text-1)', marginBottom: 4 }}>
+        B2B Pulse connected
+      </div>
+      <p style={{ margin: 0, fontSize: 12, color: 'var(--text-3)' }}>
+        Drag a <strong>B2B Pulse</strong> node onto the canvas to start monitoring LinkedIn.
+      </p>
     </div>
   )
 }
