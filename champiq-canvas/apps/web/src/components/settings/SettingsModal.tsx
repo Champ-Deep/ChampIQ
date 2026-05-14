@@ -7,6 +7,7 @@ import type { AccentPreset, VoicePreset, CloakColor } from '@/store/uiStore'
 import { useCredentialStore, CREDENTIAL_TYPES, CREDENTIAL_TYPE_FIELDS, CREDENTIAL_REQUIRED_FIELDS } from '@/store/credentialStore'
 import type { CredentialType } from '@/store/credentialStore'
 import type { Credential as ApiCredential } from '@/lib/api/types'
+import { useWorkspaceStore } from '@/store/workspaceStore'
 
 interface Props {
   open: boolean
@@ -382,6 +383,10 @@ function ThemeTab() {
 
 function AccountTab({ pixieCloak, voice }: { pixieCloak: string; voice: VoicePreset }) {
   const { setCloak, setVoice } = useUIStore()
+  const { getCurrentWorkspace, renameWorkspace, deleteWorkspace, workspaces } = useWorkspaceStore()
+  const currentWorkspace = getCurrentWorkspace()
+  const [managingWorkspace, setManagingWorkspace] = useState(false)
+  const [wsEditName, setWsEditName] = useState(currentWorkspace.name)
   const VOICES: { id: VoicePreset; desc: string }[] = [
     { id: 'Friendly', desc: 'Short. Honest. No filler.' },
     { id: 'Crisp',    desc: 'One-line answers only.' },
@@ -412,17 +417,9 @@ function AccountTab({ pixieCloak, voice }: { pixieCloak: string; voice: VoicePre
           <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 15, color: 'var(--text-1)' }}>Deep</div>
           <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-3)', marginTop: 2 }}>deep@championsmail.com</div>
         </div>
-        <button
-          onClick={() => {
-            if (!confirm('Sign out? Your canvases and settings will remain saved locally.')) return
-            localStorage.clear()
-            sessionStorage.clear()
-            window.location.reload()
-          }}
-          style={{ padding: '5px 12px', background: 'var(--bg-3)', border: '1px solid var(--border-1)', borderRadius: 7, color: 'var(--text-2)', fontSize: 12, fontFamily: 'var(--font-display)', fontWeight: 500, cursor: 'pointer' }}
-        >
-          Sign out
-        </button>
+        <span style={{ padding: '5px 12px', background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 7, color: 'var(--text-4)', fontSize: 11, fontFamily: 'var(--font-mono)' }}>
+          Auth coming soon
+        </span>
       </div>
 
       {/* Workspace */}
@@ -430,15 +427,50 @@ function AccountTab({ pixieCloak, voice }: { pixieCloak: string; voice: VoicePre
         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--text-4)', marginBottom: 10 }}>
           Workspace
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 14, color: 'var(--text-1)' }}>Champions Lab</div>
-            <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 2 }}>Pro plan · 4 seats · renews Jul 14</div>
+        {!managingWorkspace ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 14, color: 'var(--text-1)' }}>{currentWorkspace.name}</div>
+              <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 2 }}>{workspaces.length} workspace{workspaces.length !== 1 ? 's' : ''} total</div>
+            </div>
+            <button
+              onClick={() => { setManagingWorkspace(true); setWsEditName(currentWorkspace.name) }}
+              style={{ padding: '5px 12px', background: 'var(--bg-3)', border: '1px solid var(--border-1)', borderRadius: 7, color: 'var(--text-2)', fontSize: 12, fontFamily: 'var(--font-display)', fontWeight: 500, cursor: 'pointer' }}
+            >
+              Manage
+            </button>
           </div>
-          <button style={{ padding: '5px 12px', background: 'var(--bg-3)', border: '1px solid var(--border-1)', borderRadius: 7, color: 'var(--text-2)', fontSize: 12, fontFamily: 'var(--font-display)', fontWeight: 500, cursor: 'pointer' }}>
-            Manage
-          </button>
-        </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ fontSize: 12, color: 'var(--text-3)', fontFamily: 'var(--font-display)', fontWeight: 600 }}>
+              Rename workspace
+            </div>
+            <input
+              value={wsEditName}
+              onChange={e => setWsEditName(e.target.value)}
+              autoFocus
+              style={{ ...fieldInputStyle }}
+              onKeyDown={e => {
+                if (e.key === 'Enter') { renameWorkspace(currentWorkspace.id, wsEditName); setManagingWorkspace(false) }
+                if (e.key === 'Escape') setManagingWorkspace(false)
+              }}
+            />
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between' }}>
+              {currentWorkspace.id !== 'default' && (
+                <button
+                  onClick={() => { if (confirm(`Delete workspace "${currentWorkspace.name}"? Canvases in this workspace will be hidden but not deleted.`)) { deleteWorkspace(currentWorkspace.id); setManagingWorkspace(false) } }}
+                  style={{ padding: '5px 12px', background: 'rgba(255,77,109,.08)', border: '1px solid rgba(255,77,109,.2)', borderRadius: 7, color: 'var(--danger)', fontSize: 12, fontFamily: 'var(--font-display)', fontWeight: 500, cursor: 'pointer' }}
+                >
+                  Delete workspace
+                </button>
+              )}
+              <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
+                <button onClick={() => setManagingWorkspace(false)} style={ghostSmStyle}>Cancel</button>
+                <button onClick={() => { renameWorkspace(currentWorkspace.id, wsEditName); setManagingWorkspace(false) }} style={primarySmStyle}>Save</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Pixie section */}

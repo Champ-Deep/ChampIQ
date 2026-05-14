@@ -2,24 +2,27 @@ import { useEffect, useRef } from 'react'
 import type { Node, Edge } from '@xyflow/react'
 import { api } from '@/lib/api'
 import { useCanvasStore } from '@/store/canvasStore'
+import { useWorkspaceStore } from '@/store/workspaceStore'
 import type { CanvasMeta } from '@/types'
 
 // ── localStorage key scheme ───────────────────────────────────────────────────
-//   champiq:canvas:list      → CanvasMeta[]       (index of all canvases)
-//   champiq:canvas:{id}      → { nodes, edges }   (per-canvas state)
+//   champiq:canvas:list               → CanvasMeta[]  (default workspace)
+//   champiq:canvas:list:{workspaceId} → CanvasMeta[]  (non-default workspace)
+//   champiq:canvas:{id}               → { nodes, edges }
 
 /** Saves the current canvas to localStorage and best-effort syncs to the API. */
 export function saveCurrentCanvas() {
   const { nodes, edges, currentCanvasId, canvasName, canvasList } = useCanvasStore.getState()
+  const listKey = useWorkspaceStore.getState().canvasListKey()
 
   localStorage.setItem(`champiq:canvas:${currentCanvasId}`, JSON.stringify({ nodes, edges }))
 
   const meta: CanvasMeta = { id: currentCanvasId, name: canvasName, updatedAt: new Date().toISOString() }
   const updated = canvasList.some((c) => c.id === currentCanvasId)
-    ? canvasList.map((c) => (c.id === currentCanvasId ? meta : c))
+    ? canvasList.map((c) => (c.id === currentCanvasId ? { ...c, name: meta.name, updatedAt: meta.updatedAt } : c))
     : [...canvasList, meta]
   useCanvasStore.setState({ canvasList: updated })
-  localStorage.setItem('champiq:canvas:list', JSON.stringify(updated))
+  localStorage.setItem(listKey, JSON.stringify(updated))
 
   api.saveCanvasState(nodes, edges).catch(() => {})
 }
@@ -65,13 +68,14 @@ export function loadCanvasFromStorage(id: string): { nodes: Node[]; edges: Edge[
 }
 
 export function usePersistence() {
-  const { setNodes, setEdges } = useCanvasStore()
+  const { setNodes, setEdges, setIsLoadingCanvases } = useCanvasStore()
   const currentCanvasId = useCanvasStore((s) => s.currentCanvasId)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // 1. Initialise canvas list from localStorage (runs once on mount).
   useEffect(() => {
-    const raw = localStorage.getItem('champiq:canvas:list')
+    const listKey = useWorkspaceStore.getState().canvasListKey()
+    const raw = localStorage.getItem(listKey)
     let list: CanvasMeta[] = raw ? (JSON.parse(raw) as CanvasMeta[]) : []
 
     // Deduplicate by ID
@@ -83,14 +87,14 @@ export function usePersistence() {
     if (list.length > 0) {
       const first = list[0]
       useCanvasStore.setState({ canvasList: list, currentCanvasId: first.id, canvasName: first.name })
-      // Persist deduplicated list
-      localStorage.setItem('champiq:canvas:list', JSON.stringify(list))
+      localStorage.setItem(listKey, JSON.stringify(list))
     } else {
       const id = crypto.randomUUID()
       const meta: CanvasMeta = { id, name: 'My Canvas', updatedAt: new Date().toISOString() }
       useCanvasStore.setState({ canvasList: [meta], currentCanvasId: id })
-      localStorage.setItem('champiq:canvas:list', JSON.stringify([meta]))
+      localStorage.setItem(listKey, JSON.stringify([meta]))
     }
+    setIsLoadingCanvases(false)
   }, [])
 
   // 2. Load canvas state when active canvas ID changes.

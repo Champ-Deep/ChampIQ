@@ -1,7 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
-import { Layers, MoreHorizontal, ExternalLink, Copy, Trash2, Pin, Pencil } from 'lucide-react'
+import { Layers, MoreHorizontal, ExternalLink, Copy, Trash2, Archive, ArchiveRestore, Pencil, BookmarkPlus } from 'lucide-react'
 import type { CanvasMeta } from '@/types'
 import { useCanvasStore } from '@/store/canvasStore'
+import { useWorkspaceStore } from '@/store/workspaceStore'
+import { useTemplateStore } from '@/store/templateStore'
+import type { Node, Edge } from '@xyflow/react'
 
 function canvasAccent(id: string): string {
   const palette = ['#7C5CFF', '#00E5C7', '#FF7A59', '#5BC0FF', '#FFC23F', '#E63A87', '#10b981', '#06b6d4']
@@ -11,7 +14,6 @@ function canvasAccent(id: string): string {
 }
 
 function statusUI(canvas: CanvasMeta) {
-  // Derive status from metadata if available
   const s = (canvas as unknown as Record<string, unknown>).status as string | undefined
   if (s === 'running') return { color: 'var(--warn)', label: 'Running' }
   if (s === 'error')   return { color: 'var(--danger)', label: 'Errors' }
@@ -24,9 +26,10 @@ interface CanvasCardProps {
   canvas: CanvasMeta
   delay?: number
   onClick: () => void
+  showRestore?: boolean
 }
 
-export function CanvasCard({ canvas, delay = 0, onClick }: CanvasCardProps) {
+export function CanvasCard({ canvas, delay = 0, onClick, showRestore = false }: CanvasCardProps) {
   const [hovered, setHovered] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [renaming, setRenaming] = useState(false)
@@ -39,17 +42,17 @@ export function CanvasCard({ canvas, delay = 0, onClick }: CanvasCardProps) {
   useEffect(() => {
     if (!menuOpen) return
     const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpen(false)
-      }
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [menuOpen])
 
-  useEffect(() => {
-    if (renaming) renameRef.current?.select()
-  }, [renaming])
+  useEffect(() => { if (renaming) renameRef.current?.select() }, [renaming])
+
+  function getListKey() {
+    return useWorkspaceStore.getState().canvasListKey()
+  }
 
   function commitRename() {
     const trimmed = draftName.trim() || canvas.name
@@ -59,7 +62,7 @@ export function CanvasCard({ canvas, delay = 0, onClick }: CanvasCardProps) {
     const { canvasList } = useCanvasStore.getState()
     const updated = canvasList.map((c) => c.id === canvas.id ? { ...c, name: trimmed } : c)
     useCanvasStore.setState({ canvasList: updated })
-    localStorage.setItem('champiq:canvas:list', JSON.stringify(updated))
+    localStorage.setItem(getListKey(), JSON.stringify(updated))
     if (useCanvasStore.getState().currentCanvasId === canvas.id) {
       useCanvasStore.setState({ canvasName: trimmed })
     }
@@ -72,7 +75,7 @@ export function CanvasCard({ canvas, delay = 0, onClick }: CanvasCardProps) {
     const { canvasList, currentCanvasId, setCurrentCanvasId } = useCanvasStore.getState()
     const updated = canvasList.filter((c) => c.id !== canvas.id)
     useCanvasStore.setState({ canvasList: updated })
-    localStorage.setItem('champiq:canvas:list', JSON.stringify(updated))
+    localStorage.setItem(getListKey(), JSON.stringify(updated))
     localStorage.removeItem(`champiq:canvas:${canvas.id}`)
     if (currentCanvasId === canvas.id && updated.length > 0) {
       setCurrentCanvasId(updated[0].id)
@@ -90,7 +93,32 @@ export function CanvasCard({ canvas, delay = 0, onClick }: CanvasCardProps) {
     const { canvasList } = useCanvasStore.getState()
     const updated = [...canvasList, newMeta]
     useCanvasStore.setState({ canvasList: updated })
-    localStorage.setItem('champiq:canvas:list', JSON.stringify(updated))
+    localStorage.setItem(getListKey(), JSON.stringify(updated))
+  }
+
+  function handleArchive(e: React.MouseEvent) {
+    e.stopPropagation()
+    setMenuOpen(false)
+    useCanvasStore.getState().archiveCanvas(canvas.id)
+  }
+
+  function handleRestore(e: React.MouseEvent) {
+    e.stopPropagation()
+    setMenuOpen(false)
+    useCanvasStore.getState().restoreCanvas(canvas.id)
+  }
+
+  function handleSaveAsTemplate(e: React.MouseEvent) {
+    e.stopPropagation()
+    setMenuOpen(false)
+    const raw = localStorage.getItem(`champiq:canvas:${canvas.id}`)
+    if (!raw) { alert('Canvas has no content to save as template.'); return }
+    try {
+      const { nodes, edges } = JSON.parse(raw) as { nodes: Node[]; edges: Edge[] }
+      const name = prompt('Template name:', canvas.name)
+      if (name === null) return
+      useTemplateStore.getState().saveTemplate(name || canvas.name, nodes, edges)
+    } catch { /* noop */ }
   }
 
   const nodeCount = (() => {
@@ -123,10 +151,10 @@ export function CanvasCard({ canvas, delay = 0, onClick }: CanvasCardProps) {
         borderColor: hovered ? accent : undefined,
         boxShadow: hovered ? `0 8px 28px -10px ${accent}55` : undefined,
         zIndex: menuOpen ? 100 : 1,
+        opacity: canvas.archived ? 0.7 : 1,
       }}
     >
-      {/* Accent top bar */}
-      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: accent, borderRadius: '12px 12px 0 0' }} />
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: canvas.archived ? 'var(--text-4)' : accent, borderRadius: '12px 12px 0 0' }} />
 
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
         <div style={{
@@ -157,6 +185,7 @@ export function CanvasCard({ canvas, delay = 0, onClick }: CanvasCardProps) {
           ) : (
             <div style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600, color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {canvas.name}
+              {canvas.archived && <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--text-4)', fontFamily: 'var(--font-mono)', fontWeight: 400 }}>archived</span>}
             </div>
           )}
           <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9.5, letterSpacing: '.06em', color: 'var(--text-3)', marginTop: 2 }}>
@@ -164,7 +193,6 @@ export function CanvasCard({ canvas, delay = 0, onClick }: CanvasCardProps) {
           </div>
         </div>
 
-        {/* Status tag */}
         <span style={{
           display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 20, flexShrink: 0,
           background: `color-mix(in oklch, ${status.color} 14%, transparent)`,
@@ -175,7 +203,6 @@ export function CanvasCard({ canvas, delay = 0, onClick }: CanvasCardProps) {
           {status.label}
         </span>
 
-        {/* 3-dot menu */}
         <div ref={menuRef} style={{ position: 'relative', flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
           <button
             onClick={(e) => { e.stopPropagation(); setMenuOpen((o) => !o) }}
@@ -195,7 +222,7 @@ export function CanvasCard({ canvas, delay = 0, onClick }: CanvasCardProps) {
             <div style={{
               position: 'absolute', top: 'calc(100% + 4px)', right: 0, zIndex: 200,
               background: 'var(--bg-2)', border: '1px solid var(--border-2)',
-              borderRadius: 9, overflow: 'hidden', minWidth: 150,
+              borderRadius: 9, overflow: 'hidden', minWidth: 170,
               boxShadow: '0 8px 32px rgba(0,0,0,.5)',
               animation: 'bubble-in 150ms var(--ease-spring)',
             }}>
@@ -203,7 +230,10 @@ export function CanvasCard({ canvas, delay = 0, onClick }: CanvasCardProps) {
                 { icon: <ExternalLink size={13} />, label: 'Open', action: () => { setMenuOpen(false); onClick() } },
                 { icon: <Pencil size={13} />, label: 'Rename', action: (e: React.MouseEvent) => { e.stopPropagation(); setMenuOpen(false); setRenaming(true) } },
                 { icon: <Copy size={13} />, label: 'Duplicate', action: handleDuplicate },
-                { icon: <Pin size={13} />, label: 'Pin', action: (e: React.MouseEvent) => { e.stopPropagation(); setMenuOpen(false) } },
+                { icon: <BookmarkPlus size={13} />, label: 'Save as template', action: handleSaveAsTemplate },
+                showRestore
+                  ? { icon: <ArchiveRestore size={13} />, label: 'Restore', action: handleRestore }
+                  : { icon: <Archive size={13} />, label: 'Archive', action: handleArchive },
               ].map((item, i) => (
                 <button
                   key={i}

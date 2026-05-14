@@ -4,7 +4,7 @@ import { useUIStore } from '@/store/uiStore'
 interface HubTopBarProps { onOpenSettings: () => void }
 
 export function HubTopBar({ onOpenSettings }: HubTopBarProps) {
-  const setPaletteOpen = useUIStore(s => s.setPaletteOpen)
+  const { setCmdOpen } = useUIStore()
 
   return (
     <div style={{
@@ -15,7 +15,7 @@ export function HubTopBar({ onOpenSettings }: HubTopBarProps) {
       <Wordmark size={20} />
       <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
         <button
-          onClick={() => setPaletteOpen(true)}
+          onClick={() => setCmdOpen(true)}
           style={{
             display: 'flex', alignItems: 'center', gap: 8, padding: '6px 14px 6px 12px',
             background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 8,

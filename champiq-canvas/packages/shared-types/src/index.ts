@@ -129,6 +129,7 @@ export interface CanvasMeta {
   id: string;
   name: string;
   updatedAt: string;
+  archived?: boolean;
 }
 
 export interface LogEntry {

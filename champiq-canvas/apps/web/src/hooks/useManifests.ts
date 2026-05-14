@@ -15,13 +15,15 @@ export function useManifests() {
     api.getManifests()
       .then((manifests) => {
         setManifests(manifests)
-        for (const m of manifests) {
-          const toolId = getToolId(m)
-          if (!toolId) continue
-          api.getToolStatus(toolId)
-            .then((res) => setToolHealth(toolId, res.status === 'ok' ? 'ok' : 'error'))
-            .catch(() => setToolHealth(toolId, 'error'))
-        }
+        Promise.all(
+          manifests.map((m) => {
+            const toolId = getToolId(m)
+            if (!toolId) return Promise.resolve()
+            return api.getToolStatus(toolId)
+              .then((res) => setToolHealth(toolId, res.status === 'ok' ? 'ok' : 'error'))
+              .catch(() => setToolHealth(toolId, 'error'))
+          })
+        )
       })
       .catch(() => {
         setManifests([])

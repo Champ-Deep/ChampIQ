@@ -187,6 +187,7 @@ html, body {
 @keyframes fade-in       { 0% { opacity: 0; } 100% { opacity: 1; } }
 @keyframes ribbon-shimmer{ 0% { background-position: 0% 0; } 100% { background-position: 200% 0; } }
 @keyframes spin          { to { transform: rotate(360deg); } }
+@keyframes skeleton-pulse { 0%, 100% { opacity: .45; } 50% { opacity: .9; } }
 
 /* ─── Extra keyframes (from ChampIQ design reference) ───────────────────── */
 @keyframes hub-card-in    { 0% { opacity: 0; transform: translateY(8px); } 100% { opacity: 1; transform: translateY(0); } }

@@ -3,6 +3,7 @@ import { subscribeWithSelector } from 'zustand/middleware'
 import { type Node, type Edge, applyNodeChanges, applyEdgeChanges } from '@xyflow/react'
 import type { ChampIQManifest, CanvasMeta } from '@/types'
 import { useExecutionStore } from './executionStore'
+import { useWorkspaceStore } from './workspaceStore'
 
 interface CanvasStore {
   // ── Canvas content ────────────────────────────────────────────────────────
@@ -14,6 +15,7 @@ interface CanvasStore {
   canvasList: CanvasMeta[]
   currentCanvasId: string
   canvasName: string
+  isLoadingCanvases: boolean
 
   // ── Manifests / health ────────────────────────────────────────────────────
   manifests: ChampIQManifest[]
@@ -31,8 +33,11 @@ interface CanvasStore {
   setCanvasName: (name: string) => void
   setCanvasList: (list: CanvasMeta[]) => void
   setCurrentCanvasId: (id: string) => void
+  setIsLoadingCanvases: (loading: boolean) => void
   updateNodeConfig: (nodeId: string, config: Record<string, unknown>) => void
   clearCanvas: () => void
+  archiveCanvas: (id: string) => void
+  restoreCanvas: (id: string) => void
   /** Returns trigger descriptors for all cron nodes — used by Activate. */
   getCronTriggers: () => Array<{ id: string; kind: 'cron'; cron: string; timezone: string }>
 }
@@ -47,6 +52,7 @@ export const useCanvasStore = create<CanvasStore>()(
     canvasList: [],
     currentCanvasId: 'default',
     canvasName: 'My Canvas',
+    isLoadingCanvases: true,
 
     manifests: [],
     toolHealthStatus: {},
@@ -82,6 +88,25 @@ export const useCanvasStore = create<CanvasStore>()(
 
     setCanvasList: (list) => set({ canvasList: list }),
     setCurrentCanvasId: (id) => set({ currentCanvasId: id }),
+    setIsLoadingCanvases: (loading) => set({ isLoadingCanvases: loading }),
+
+    archiveCanvas: (id) => {
+      const canvasList = get().canvasList.map((c) =>
+        c.id === id ? { ...c, archived: true } : c
+      )
+      set({ canvasList })
+      const key = useWorkspaceStore.getState().canvasListKey()
+      try { localStorage.setItem(key, JSON.stringify(canvasList)) } catch { /* noop */ }
+    },
+
+    restoreCanvas: (id) => {
+      const canvasList = get().canvasList.map((c) =>
+        c.id === id ? { ...c, archived: false } : c
+      )
+      set({ canvasList })
+      const key = useWorkspaceStore.getState().canvasListKey()
+      try { localStorage.setItem(key, JSON.stringify(canvasList)) } catch { /* noop */ }
+    },
 
     updateNodeConfig: (nodeId, config) =>
       set((s) => ({
