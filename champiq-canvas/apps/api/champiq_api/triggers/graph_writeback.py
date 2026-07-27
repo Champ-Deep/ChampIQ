@@ -88,7 +88,7 @@ def _email_hook_payload(topic: str, payload: dict[str, Any]) -> dict[str, Any]:
     direction = _field(payload, "direction")
     if not direction:
         direction = "inbound" if topic in ("email.replied",) else "outbound"
-    return {
+    result = {
         "account_name": _field(payload, "account_name", "account", "client") or "default",
         "from_address": _field(payload, "from_address", "from_email", "sender") or "",
         "to_address": _field(payload, "to_address", "to_email", "recipient") or "",
@@ -98,6 +98,13 @@ def _email_hook_payload(topic: str, payload: dict[str, Any]) -> dict[str, Any]:
         "occurred_at": _field(payload, "occurred_at", "sent_at")
         or datetime.now(timezone.utc).isoformat(),
     }
+    classification = _field(payload, "classification")
+    if classification is not None:
+        result["classification"] = classification
+        confidence = _field(payload, "classification_confidence")
+        if confidence is not None:
+            result["classification_confidence"] = confidence
+    return result
 
 
 def _call_hook_payload(payload: dict[str, Any]) -> dict[str, Any]:
