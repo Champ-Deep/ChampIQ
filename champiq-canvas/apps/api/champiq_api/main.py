@@ -32,6 +32,9 @@ async def lifespan(app: FastAPI):
     # Janitor pins onto cron's APScheduler — must register after start().
     container.janitor.register()
     await container.event_listener.start()
+    await container.graph_writeback.start()
+    await container.ledger.start()
+    await container.job_queue.start()
     container.cadence_job.start()
     try:
         yield
@@ -39,6 +42,9 @@ async def lifespan(app: FastAPI):
         container.cadence_job.stop()
         await container.cron.shutdown()
         await container.event_listener.shutdown()
+        await container.graph_writeback.shutdown()
+        await container.ledger.shutdown()
+        await container.job_queue.shutdown()
 
 
 app = FastAPI(title="ChampIQ Canvas API", version="0.2.0", lifespan=lifespan)

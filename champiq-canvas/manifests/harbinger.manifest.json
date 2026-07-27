@@ -1,0 +1,80 @@
+{
+  "$schema": "https://champiq.dev/manifest/v2.json",
+  "manifest_version": 2,
+  "tool_id": "harbinger",
+  "name": "ChampHarbinger",
+  "description": "Signals + enrichment (canonical per the Jul-20 consolidation decision). Pull the qualified feed, acknowledge prospects, fire signal runs, import companies. Webhook ingress: emits prospect.qualified / signal.matched onto the event bus (SUGGESTIONS 2.2).",
+  "category": "data",
+  "color": "#F59E0B",
+  "icon": "radar",
+  "credentials_required": ["harbinger"],
+  "actions": [
+    {
+      "id": "get_qualified_prospects",
+      "label": "Get Qualified Prospects",
+      "description": "The 'who to contact today' feed: score + talking points + signal reasoning.",
+      "input_schema": {"type": "object", "properties": {}}
+    },
+    {
+      "id": "get_signals",
+      "label": "Get Signals",
+      "description": "SENSE-step read-back: detected signals for a prospect/domain, feeding the prospect_lifecycle state machine (e.g. a new signal on a Researched prospect justifies InCadence). Filters the qualified-prospects feed client-side by domain — Harbinger's API has no per-prospect signal endpoint.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "domain": {"type": "string", "description": "Company domain to filter to (optional)"},
+          "since": {"type": "string"},
+          "limit": {"type": "integer"}
+        }
+      }
+    },
+    {
+      "id": "acknowledge",
+      "label": "Acknowledge Prospect",
+      "description": "Mark a queued prospect ingested (default) or failed. Empty body is valid.",
+      "input_schema": {
+        "type": "object",
+        "required": ["id"],
+        "properties": {
+          "id": {"type": "string", "description": "champiqQueue id"},
+          "status": {"type": "string", "enum": ["ingested", "failed"]},
+          "iq_prospect_id": {"type": "string"}
+        }
+      }
+    },
+    {
+      "id": "run_signal",
+      "label": "Run Signal",
+      "description": "Fire a signal recipe against a domain. pricing-changes is coded end-to-end; detector tools (rss, jobs, github, wayback, searxng) are registered on main.",
+      "input_schema": {
+        "type": "object",
+        "required": ["domain", "signal_name"],
+        "properties": {
+          "domain": {"type": "string"},
+          "signal_name": {"type": "string"},
+          "mode": {"type": "string", "enum": ["manual", "auto"], "default": "manual"}
+        }
+      }
+    },
+    {
+      "id": "import_companies",
+      "label": "Import Companies",
+      "description": "1-click push of {name, domain} rows into a new campaign.",
+      "input_schema": {
+        "type": "object",
+        "required": ["campaignName", "companies"],
+        "properties": {
+          "campaignName": {"type": "string"},
+          "companies": {
+            "type": "array",
+            "items": {"type": "object", "required": ["name", "domain"]}
+          }
+        }
+      }
+    }
+  ],
+  "triggers": [
+    {"kind": "event", "event": "prospect.qualified"},
+    {"kind": "event", "event": "signal.matched"}
+  ]
+}

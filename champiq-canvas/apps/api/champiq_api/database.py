@@ -20,7 +20,13 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     fernet_key: str = ""
 
-    champmail_base_url: str = "http://10.10.21.19:8000"
+    # * relic default repointed: ChampMail's real local port. Used by the
+    # * write-back consumer's suppression side-call (4.6) and the future thin
+    # * champmail driver (2.5).
+    champmail_base_url: str = "http://localhost:8010"
+    # * bearer for ChampMail's require_auth routes (same JWT as the e2e uses).
+    # * Empty = suppression side-call disabled (logs and skips, never blocks).
+    champmail_bearer_token: str = ""
     # Legacy VPS ChampGraph (port 8081, JWT) — unused in this build, kept here
     # only so old workflows that read settings.champgraph_base_url don't blow up.
     champgraph_base_url: str = "http://10.10.21.19:8081"
@@ -30,7 +36,16 @@ class Settings(BaseSettings):
     # X-API-Key header. URL empty = champgraph graph/campaign actions return
     # {"available": false} instead of crashing the canvas.
     champgraph_url: str = ""
+    # * ChampHarbinger base URL for the pull actions; webhooks parse regardless
+    harbinger_url: str = ""
     champgraph_api_key: str = ""
+
+    # * champiq-voice gateway (Node/Express, ProviderRegistry/IVoiceProvider) —
+    # * the ONE place that calls ElevenLabs' Twilio-outbound endpoint after the
+    # * 2026-07-27 consolidation. ChampVoiceDriver proxies here instead of
+    # * calling ElevenLabs directly. Empty = initiate_call/get_call_status/
+    # * list_calls fail loud rather than silently duplicating the call path.
+    champvoice_gateway_url: str = ""
 
     champserver_email: str = ""
     champserver_password: str = ""

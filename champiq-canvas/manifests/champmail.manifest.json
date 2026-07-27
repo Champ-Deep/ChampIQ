@@ -10,62 +10,53 @@
   "credentials_required": ["champmail"],
   "actions": [
     {
-      "id": "add_prospect",
-      "label": "Add Prospect",
+      "id": "send",
+      "label": "Send Email",
+      "description": "Send one email through ChampMail's real auth+suppression-checked send API (2026-07-27 consolidation — replaces the removed inline ChampmailLocalExecutor/Emelia path).",
       "input_schema": {
         "type": "object",
-        "required": ["email"],
-        "properties": {
-          "email": {"type": "string", "format": "email"},
-          "first_name": {"type": "string"},
-          "last_name": {"type": "string"},
-          "company": {"type": "string"},
-          "title": {"type": "string"}
-        }
-      }
-    },
-    {
-      "id": "start_sequence",
-      "label": "Start Sequence",
-      "input_schema": {
-        "type": "object",
-        "required": ["prospect_email", "sequence_id"],
-        "properties": {
-          "prospect_email": {"type": "string", "format": "email"},
-          "sequence_id": {"type": "string"},
-          "variables": {"type": "object"}
-        }
-      }
-    },
-    {
-      "id": "pause_sequence",
-      "label": "Pause Sequence",
-      "input_schema": {
-        "type": "object",
-        "required": ["sequence_id"],
-        "properties": {"sequence_id": {"type": "string"}}
-      }
-    },
-    {
-      "id": "send_single_email",
-      "label": "Send One-Off Email",
-      "input_schema": {
-        "type": "object",
-        "required": ["to", "subject", "body"],
+        "required": ["to", "subject", "html_body"],
         "properties": {
           "to": {"type": "string", "format": "email"},
+          "from_name": {"type": "string"},
+          "from_address": {"type": "string"},
           "subject": {"type": "string"},
-          "body": {"type": "string"}
+          "html_body": {"type": "string"},
+          "text_body": {"type": "string"},
+          "reply_to": {"type": "string"},
+          "domain_id": {"type": "string"},
+          "track_opens": {"type": "boolean"},
+          "track_clicks": {"type": "boolean"}
         }
       }
     },
     {
-      "id": "get_analytics",
-      "label": "Get Sequence Analytics",
+      "id": "send_batch",
+      "label": "Send Batch",
       "input_schema": {
         "type": "object",
-        "required": ["sequence_id"],
-        "properties": {"sequence_id": {"type": "string"}}
+        "required": ["emails"],
+        "properties": {
+          "emails": {"type": "array"},
+          "domain_id": {"type": "string"}
+        }
+      }
+    },
+    {
+      "id": "get_status",
+      "label": "Get Send Status",
+      "input_schema": {
+        "type": "object",
+        "required": ["message_id"],
+        "properties": {"message_id": {"type": "string"}}
+      }
+    },
+    {
+      "id": "get_stats",
+      "label": "Get Send Stats",
+      "input_schema": {
+        "type": "object",
+        "properties": {"domain_id": {"type": "string"}}
       }
     }
   ],

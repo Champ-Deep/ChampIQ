@@ -244,3 +244,48 @@ class ChatMessageOut(BaseModel):
     workflow_patch: Optional[dict[str, Any]] = None
     created_at: datetime
     model_config = {"from_attributes": True}
+
+
+class RunLedgerTable(Base):
+    """One row per event seen on the bus (SUGGESTIONS 4.1, Champ Ops phase 1).
+
+    Written only by LedgerConsumer. Answers "did every client tick today" and
+    "which events failed write-back" as plain SQL.
+    """
+
+    __tablename__ = "run_ledger"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    topic: Mapped[str] = mapped_column(Text, index=True)
+    client: Mapped[Optional[str]] = mapped_column(Text, nullable=True, index=True)
+    digest: Mapped[str] = mapped_column(Text)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    emitted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True
+    )
+
+
+class JobTable(Base):
+    """Durable job queue (runtime.queue.PostgresJobQueue, replaces the old
+    in-memory asyncio queue that lost every pending job on restart).
+
+    Claimed via `SELECT ... FOR UPDATE SKIP LOCKED` on (status='pending',
+    run_at<=now) so a restart or a second worker process never double-runs
+    the same row.
+    """
+
+    __tablename__ = "jobs"
+
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    kind: Mapped[str] = mapped_column(String(100), index=True)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    run_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+    locked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    locked_by: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )

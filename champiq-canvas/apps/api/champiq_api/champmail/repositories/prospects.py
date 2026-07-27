@@ -22,6 +22,16 @@ class ProspectRepository:
         )
         return result.scalar_one_or_none()
 
+    async def list_by_email_domain(self, domain: str) -> list[CMProspect]:
+        """Best-effort join key for signal sources (e.g. Harbinger) that are
+        company/domain-scoped rather than email-scoped — there's no
+        authoritative domain->prospect table, so this matches on the email's
+        own domain."""
+        result = await self._session.execute(
+            select(CMProspect).where(func.lower(CMProspect.email).like(f"%@{domain.lower()}"))
+        )
+        return list(result.scalars().all())
+
     async def list(
         self,
         *,

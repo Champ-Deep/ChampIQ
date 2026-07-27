@@ -10,7 +10,7 @@ from ..jobs import job_store
 
 router = APIRouter()
 
-VALID_TOOLS = {"champgraph", "champmail", "champvoice", "lakeb2b_pulse"}
+VALID_TOOLS = {"champgraph", "champmail", "champvoice", "lakeb2b_pulse", "harbinger"}
 
 STUB_POPULATE: dict[str, dict] = {
     "champgraph": {

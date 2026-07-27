@@ -36,6 +36,11 @@ services:
       # ChampGraph (Graphiti) — empty URL = graph/campaign actions degrade
       CHAMPGRAPH_URL: ${CHAMPGRAPH_URL:-}
       CHAMPGRAPH_API_KEY: ${CHAMPGRAPH_API_KEY:-}
+      # ChampHarbinger — empty URL = HarbingerDriver actions fail (SUGGESTIONS 2.2)
+      HARBINGER_URL: ${HARBINGER_URL:-}
+      # champiq-voice gateway — the one place that calls ElevenLabs' Twilio-outbound
+      # endpoint (2026-07-27 voice consolidation). Empty = ChampVoiceDriver fails loud.
+      CHAMPVOICE_GATEWAY_URL: ${CHAMPVOICE_GATEWAY_URL:-}
     ports:
       - "8000:8000"
     extra_hosts:
