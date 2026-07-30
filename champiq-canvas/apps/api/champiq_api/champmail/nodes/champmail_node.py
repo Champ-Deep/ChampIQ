@@ -1,8 +1,28 @@
 """Canvas executor for `kind: champmail` — calls local services, no HTTP.
 
-This replaces the old HTTP-based ChampmailDriver/ToolNodeExecutor pair.
-The node config schema stays IDENTICAL so existing canvas workflows and the
-chat.py system prompt don't need to change:
+!! DO NOT REGISTER THIS EXECUTOR. It is retained for reference only. !!
+------------------------------------------------------------------------
+Registering it overrides `ToolNodeExecutor(ChampMailDriver)` for canvas nodes
+of kind "champmail" and fires sends straight at **Emelia** — a different vendor
+from ChampMail — bypassing ChampMail's `/api/v1/send` entirely and with it:
+
+  - mailbox rotation across a domain's mailboxes
+  - the per-mailbox daily cap and sent_today accounting
+  - suppression checks enforced on the send routes
+  - Message-ID generation, so replies and bounces stay correlatable
+  - the InboxKit send path, BYOD domains and the deliverability health gate
+
+That override existed as orphaned migration debris and was removed in the
+2026-07-27 consolidation (see the note in container.py). The file is kept
+because its per-action input handling documents the canvas contract, but the
+class must stay unregistered. `tests/test_champmail_send_path.py` asserts that.
+
+Note that CadenceService's scheduled sequence sends still use the local
+transport. That is a second send path and a separate open question — see the
+test module for the argument.
+
+The node config schema is IDENTICAL to the driver's so existing canvas
+workflows and the chat.py system prompt don't need to change:
 
     { "action": "<action_id>",
       "credential": "<unused — kept for backwards compat>",

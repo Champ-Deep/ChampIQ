@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     # * write-back consumer's suppression side-call (4.6) and the future thin
     # * champmail driver (2.5).
     champmail_base_url: str = "http://localhost:8010"
+    # * LakeStream scraping/enrichment service. Empty-safe: an unset URL
+    # * makes lakestream actions fail loudly rather than silently no-op.
+    lakestream_base_url: str = "http://localhost:3001"
     # * bearer for ChampMail's require_auth routes (same JWT as the e2e uses).
     # * Empty = suppression side-call disabled (logs and skips, never blocks).
     champmail_bearer_token: str = ""

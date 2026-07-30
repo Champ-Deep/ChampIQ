@@ -1,0 +1,230 @@
+{
+  "$schema": "https://champiq.dev/manifest/v2.json",
+  "manifest_version": 2,
+  "tool_id": "lakestream",
+  "name": "LakeStream",
+  "description": "Scraping, enrichment and ATS job-board ingestion. Turns the front of the funnel into DAG nodes \u2014 previously reachable only by running the e2e bridge scripts by hand.",
+  "category": "sourcing",
+  "color": "#14B8A6",
+  "icon": "search",
+  "credentials_required": [
+    "lakestream"
+  ],
+  "actions": [
+    {
+      "id": "fetch_jobs_batch",
+      "label": "Fetch Job Postings (Batch)",
+      "description": "Live Greenhouse / Lever / Ashby postings for many companies at once (max 50). A new posting is a hiring signal, and signal-triggered outreach is the largest single lever on reply rate in the 2026 benchmarks \u2014 several times larger than anything infrastructure spend buys. Pair with champmail.enroll_sequence to act on it.",
+      "input_schema": {
+        "type": "object",
+        "required": [
+          "domains"
+        ],
+        "properties": {
+          "domains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "description": "Company domains, e.g. ['stripe.com', 'figma.com']"
+          },
+          "concurrency": {
+            "type": "integer",
+            "default": 5
+          }
+        }
+      }
+    },
+    {
+      "id": "fetch_jobs",
+      "label": "Fetch Job Postings (One Company)",
+      "description": "Postings for a single company, with a hiring summary. Board-token discovery is deliberately conservative: guessing is disabled because a loose guess matched a DIFFERENT company's board. A company whose careers page is JS-rendered returns nothing rather than someone else's roles.",
+      "input_schema": {
+        "type": "object",
+        "required": [
+          "domain"
+        ],
+        "properties": {
+          "domain": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "id": "extract",
+      "label": "Extract Page (Schema-Guided)",
+      "description": "Structured extraction from one URL. Escalates PLAYWRIGHT \u2192 PLAYWRIGHT_PROXY on a block or captcha and returns tier_used and cost_usd, so a DAG can see what a page actually cost instead of assuming the cheapest tier.",
+      "input_schema": {
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "tier": {
+            "type": "string",
+            "enum": [
+              "lightpanda",
+              "playwright",
+              "playwright_proxy"
+            ],
+            "description": "Omit to let it escalate automatically"
+          },
+          "schema": {
+            "type": "object",
+            "description": "Target extraction shape"
+          }
+        }
+      }
+    },
+    {
+      "id": "scrape",
+      "label": "Scrape Site",
+      "description": "Queue a crawl for a domain. Returns a job id; poll with domain_stats or pull results with export_csv / export_json.",
+      "input_schema": {
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "tier": {
+            "type": "string",
+            "enum": [
+              "lightpanda",
+              "playwright",
+              "playwright_proxy"
+            ]
+          },
+          "max_pages": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    {
+      "id": "discover_search",
+      "label": "Discover Companies",
+      "description": "Search for companies matching a query. Entry point for building a target list without a CSV.",
+      "input_schema": {
+        "type": "object",
+        "required": [
+          "query"
+        ],
+        "properties": {
+          "query": {
+            "type": "string"
+          },
+          "limit": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    {
+      "id": "discover_status",
+      "label": "Discovery Status",
+      "description": "Progress and results for a discovery run.",
+      "input_schema": {
+        "type": "object",
+        "required": [
+          "discovery_id"
+        ],
+        "properties": {
+          "discovery_id": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "id": "export_csv",
+      "label": "Export Results (CSV)",
+      "description": "Scraped records for a job as CSV \u2014 the handoff into champmail.bulk_import_prospects or Harbinger import.",
+      "input_schema": {
+        "type": "object",
+        "required": [
+          "job_id"
+        ],
+        "properties": {
+          "job_id": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "id": "export_json",
+      "label": "Export Results (JSON)",
+      "description": "Scraped records for a job as JSON.",
+      "input_schema": {
+        "type": "object",
+        "required": [
+          "job_id"
+        ],
+        "properties": {
+          "job_id": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "id": "track_domain",
+      "label": "Track Domain",
+      "description": "Watch a domain for changes so re-scrapes are incremental rather than full.",
+      "input_schema": {
+        "type": "object",
+        "required": [
+          "domain"
+        ],
+        "properties": {
+          "domain": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "id": "list_tracked",
+      "label": "List Tracked Domains",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "description": "Domains currently being watched for changes."
+    },
+    {
+      "id": "domain_stats",
+      "label": "Domain Stats",
+      "description": "Pages scraped, records extracted and last-run time for one domain.",
+      "input_schema": {
+        "type": "object",
+        "required": [
+          "domain"
+        ],
+        "properties": {
+          "domain": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "id": "proxy_health",
+      "label": "Proxy Health",
+      "description": "Residential proxy pool status. Worth checking before a large PLAYWRIGHT_PROXY run, since that tier is roughly 4x the cost of the default.",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  ],
+  "triggers": []
+}

@@ -21,7 +21,14 @@ from .champmail.transport import (
 )
 from .credentials import CredentialService, FernetCrypto, SqlCredentialResolver
 from .database import get_session_factory, get_settings
-from .drivers import ChampMailDriver, ChampVoiceDriver, HarbingerDriver, LakebPulseDriver, ToolNodeExecutor
+from .drivers import (
+    ChampMailDriver,
+    ChampVoiceDriver,
+    HarbingerDriver,
+    LakebPulseDriver,
+    LakeStreamDriver,
+    ToolNodeExecutor,
+)
 from .expressions import SimpleExpressionEvaluator
 from .llm import LLMProvider, OpenRouterProvider
 from .nodes import (
@@ -110,6 +117,10 @@ def get_container() -> Container:
         # * real-ChampMail webhook ingress for email.sent/bounced/opened/clicked
         # * (SUGGESTIONS 2.2 pattern; 2026-07-23 finding #7 fix).
         "champmail":    ChampMailDriver(settings.champmail_base_url),
+        # * Scraping/enrichment + ATS job-board ingestion. Without this the
+        # * front of the funnel was not orchestratable at all — companies
+        # * only entered the system via the e2e bridge scripts, run by hand.
+        "lakestream":   LakeStreamDriver(settings.lakestream_base_url),
     }
     for driver in drivers.values():
         registry.register(ToolNodeExecutor(driver))
