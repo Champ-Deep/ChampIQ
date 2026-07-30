@@ -7,77 +7,152 @@
   "category": "engagement",
   "color": "#0EA5E9",
   "icon": "pulse",
-  "credentials_required": ["lakeb2b_pulse"],
+  "credentials_required": [
+    "lakeb2b_pulse"
+  ],
   "actions": [
     {
       "id": "track_page",
       "label": "Track LinkedIn Page",
       "input_schema": {
         "type": "object",
-        "required": ["url"],
+        "required": [
+          "url"
+        ],
         "properties": {
-          "url":       {"type": "string", "description": "LinkedIn profile or company page URL"},
-          "name":      {"type": "string", "description": "Label for this page (optional)"},
-          "page_type": {"type": "string", "enum": ["personal", "company"], "default": "personal"}
+          "url": {
+            "type": "string",
+            "description": "LinkedIn profile or company page URL"
+          },
+          "name": {
+            "type": "string",
+            "description": "Label for this page (optional)"
+          },
+          "page_type": {
+            "type": "string",
+            "enum": [
+              "personal",
+              "company"
+            ],
+            "default": "personal"
+          }
         }
-      }
+      },
+      "description": "Start watching a LinkedIn company page for new posts."
     },
     {
       "id": "list_tracked_pages",
       "label": "List Tracked Pages",
-      "input_schema": {"type": "object", "properties": {}}
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "description": "Company pages currently being watched."
     },
     {
       "id": "poll_page",
       "label": "Poll Page for New Posts",
       "input_schema": {
         "type": "object",
-        "required": ["page_id"],
+        "required": [
+          "page_id"
+        ],
         "properties": {
-          "page_id": {"type": "string", "description": "UUID of the tracked page"}
+          "page_id": {
+            "type": "string",
+            "description": "UUID of the tracked page"
+          }
         }
-      }
+      },
+      "description": "Check a tracked page for new posts now, rather than waiting for the next scheduled poll."
     },
     {
       "id": "list_posts",
       "label": "List Recent Posts",
       "input_schema": {
         "type": "object",
-        "required": ["page_id"],
+        "required": [
+          "page_id"
+        ],
         "properties": {
-          "page_id": {"type": "string", "description": "UUID of the tracked page"},
-          "since":   {"type": "string", "format": "date-time"}
+          "page_id": {
+            "type": "string",
+            "description": "UUID of the tracked page"
+          },
+          "since": {
+            "type": "string",
+            "format": "date-time"
+          }
         }
-      }
+      },
+      "description": "Posts detected on a tracked page, newest first."
     },
     {
       "id": "schedule_engagement",
       "label": "Schedule Engagement (Like / Comment)",
       "input_schema": {
         "type": "object",
-        "required": ["post_id", "action"],
+        "required": [
+          "post_id",
+          "action"
+        ],
         "properties": {
-          "post_id":         {"type": "string"},
-          "action":          {"type": "string", "enum": ["like", "comment", "both"]},
-          "comment_text":    {"type": "string"},
-          "stagger_minutes": {"type": "integer", "default": 30}
+          "post_id": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "like",
+              "comment",
+              "both"
+            ]
+          },
+          "comment_text": {
+            "type": "string"
+          },
+          "stagger_minutes": {
+            "type": "integer",
+            "default": 30
+          }
         }
-      }
+      },
+      "description": "Queue likes and AI-generated comments across team members, with human-like stagger delays so engagement does not arrive as a synchronised burst."
     },
     {
       "id": "get_engagement_status",
       "label": "Get Engagement Audit Log",
-      "input_schema": {"type": "object", "properties": {}}
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "description": "Progress of a queued engagement run."
     },
     {
       "id": "get_integration_status",
       "label": "Get Integration Status",
-      "input_schema": {"type": "object", "properties": {}}
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "description": "Whether the LinkedIn integration is connected and authorised."
     }
   ],
   "triggers": [
-    {"kind": "event", "event": "pulse.post.detected",        "label": "On New Post Detected"},
-    {"kind": "event", "event": "pulse.engagement.completed", "label": "On Engagement Done"},
-    {"kind": "event", "event": "pulse.cap.hit",              "label": "On Daily Cap Hit"}
+    {
+      "kind": "event",
+      "event": "pulse.post.detected",
+      "label": "On New Post Detected"
+    },
+    {
+      "kind": "event",
+      "event": "pulse.engagement.completed",
+      "label": "On Engagement Done"
+    },
+    {
+      "kind": "event",
+      "event": "pulse.cap.hit",
+      "label": "On Daily Cap Hit"
+    }
   ]
 }

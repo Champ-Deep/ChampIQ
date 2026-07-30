@@ -1,0 +1,102 @@
+{
+  "$schema": "https://champiq.dev/manifest/v2.json",
+  "manifest_version": 2,
+  "tool_id": "champmail",
+  "name": "InboxKit",
+  "description": "Sending infrastructure: connect a domain you already own, provision mailboxes, run warmup, read deliverability health. Served by ChampMail's admin API — tool_id is deliberately 'champmail' so these dispatch through the existing ChampMailDriver rather than needing a second driver and a second credential.",
+  "category": "infrastructure",
+  "color": "#0EA5E9",
+  "icon": "server",
+  "credentials_required": ["champmail_admin"],
+  "actions": [
+    {
+      "id": "inboxkit_status",
+      "label": "InboxKit Status",
+      "description": "Whether the InboxKit integration is configured, and the live workspace state. Use this as a guard before any provisioning step — an unconfigured key fails every action below with a 400.",
+      "input_schema": { "type": "object", "properties": {} }
+    },
+    {
+      "id": "inboxkit_set_webhook",
+      "label": "Register Provisioning Webhook",
+      "description": "Point InboxKit at ChampMail's webhook ingress. Run this BEFORE buying anything: provisioning progress arrives only as domain.status_changed / mailbox.status_changed events, so registering afterwards means missing the whole lifecycle and reconciling by polling. The URL must be publicly reachable.",
+      "input_schema": {
+        "type": "object",
+        "required": ["url"],
+        "properties": {
+          "url": { "type": "string", "description": "https://<champmail>/api/v1/webhooks/inboxkit" }
+        }
+      }
+    },
+    {
+      "id": "inboxkit_connect_domain",
+      "label": "Connect Existing Domain",
+      "description": "Attach a domain you already own. Supply cloudflare_api_token for MANAGED mode (InboxKit writes MX/SPF/DKIM itself); omit it for MANUAL mode, which returns the records for you to create in any DNS provider. The token is forwarded and never stored by ChampMail — scope it to Zone → DNS → Edit on the single zone, with an expiry, and revoke it once the domain reaches active.",
+      "input_schema": {
+        "type": "object",
+        "required": ["domain"],
+        "properties": {
+          "domain": { "type": "string", "description": "A disposable sending domain, NOT your primary business domain" },
+          "cloudflare_api_token": { "type": "string", "description": "MANAGED mode only. Never logged or persisted." },
+          "cloudflare_account_id": { "type": "string" },
+          "cloudflare_zone_id": { "type": "string" }
+        }
+      }
+    },
+    {
+      "id": "inboxkit_domain_records",
+      "label": "Get Required DNS Records",
+      "description": "The MX/SPF/DKIM/verification records this domain needs before mailboxes can be provisioned. MANUAL mode only.",
+      "input_schema": {
+        "type": "object",
+        "required": ["domain"],
+        "properties": { "domain": { "type": "string" } }
+      }
+    },
+    {
+      "id": "inboxkit_verify_domain",
+      "label": "Verify Domain DNS",
+      "description": "Re-check DNS after creating records manually. Safe to poll — a read plus a validation pass, not a mutation. Propagation is usually minutes but is governed by the TTL of any pre-existing record.",
+      "input_schema": {
+        "type": "object",
+        "required": ["domain"],
+        "properties": { "domain": { "type": "string" } }
+      }
+    },
+    {
+      "id": "inboxkit_list_domains",
+      "label": "List Connected Domains",
+      "description": "Domains currently attached to the workspace, with their native status.",
+      "input_schema": { "type": "object", "properties": {} }
+    },
+    {
+      "id": "inboxkit_buy_mailboxes",
+      "label": "Buy Mailboxes",
+      "description": "Provision mailboxes on a connected domain. Three per domain is the safe ratio and the minimum that proves rotation actually rotates. Warmup is opt-in because it bills $3/mailbox/month and buys nothing while you are only mailing inboxes you own.",
+      "input_schema": {
+        "type": "object",
+        "required": ["domain", "usernames"],
+        "properties": {
+          "domain": { "type": "string" },
+          "usernames": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Local parts only — the domain is appended by InboxKit"
+          },
+          "first_name": { "type": "string" },
+          "last_name": { "type": "string" },
+          "platform": {
+            "type": "string",
+            "enum": ["google", "microsoft", "azure", "smtp"],
+            "default": "google"
+          },
+          "start_warmup": {
+            "type": "boolean",
+            "default": false,
+            "description": "$3/mailbox/month. Enable once you start mailing strangers."
+          }
+        }
+      }
+    }
+  ],
+  "triggers": []
+}

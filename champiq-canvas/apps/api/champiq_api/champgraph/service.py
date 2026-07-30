@@ -83,6 +83,13 @@ CAMPAIGN_ACTIONS: frozenset[str] = frozenset({
     "campaign_preview",
 })
 
+# * legacy manifest names that predate the 1.5 regeneration; kept working so old
+# * workflows don't break. Both resolve to the real "query" action.
+ACTION_ALIASES: dict[str, str] = {
+    "nl_query": "query",
+    "semantic_search": "query",
+}
+
 
 # Action → engagement_status normalizer (kept inline — same logic the legacy
 # ChampGraphDriver had, ported so canvas Switch nodes branching on
@@ -150,10 +157,21 @@ class GraphitiClient:
 
     name = "graphiti"
 
-    def __init__(self, base_url: str, api_key: str, timeout: float = 30.0) -> None:
+    def __init__(
+        self, base_url: str, api_key: str, timeout: float = 30.0, ingest_timeout: float = 600.0
+    ) -> None:
         self._base_url = (base_url or "").rstrip("/")
         self._api_key = api_key or ""
         self._timeout = timeout
+        # * ingest/hooks trigger local-LLM entity extraction (Graphiti ->
+        # * Ollama). Measured 2026-07-23: ~9.83 tok/s on CPU-only llama3.2:3b,
+        # * so a ~2,493-token episode needs 4-5+ min just for prompt eval.
+        # * The write-back consumer already treats this path as async/off the
+        # * hot path (graph_writeback.py) — 30s was failing every call, not
+        # * occasionally. Reads (query/account/intel) stay on the short
+        # * timeout; they don't invoke extraction and a hung read shouldn't
+        # * block a caller for 10 minutes.
+        self._ingest_timeout = ingest_timeout
         # Reachability cache: (last_check_ts, was_reachable)
         self._probe_cache: tuple[float, bool] = (0.0, False)
         self._probe_ttl = 60.0
@@ -303,8 +321,9 @@ class GraphitiClient:
             return {"raw": r.text}
 
     async def _post(self, path: str, body: dict[str, Any]) -> dict[str, Any]:
+        timeout = self._ingest_timeout if path.startswith(("/api/hooks", "/api/ingest")) else self._timeout
         try:
-            async with httpx.AsyncClient(timeout=self._timeout, headers=self._headers()) as client:
+            async with httpx.AsyncClient(timeout=timeout, headers=self._headers()) as client:
                 r = await client.post(f"{self._base_url}{path}", json=body)
         except httpx.HTTPError as e:
             self.invalidate_probe()  # see _get for rationale
@@ -336,6 +355,7 @@ class ChampGraphService:
         return self._graphiti
 
     async def invoke(self, action: str, inputs: dict[str, Any]) -> dict[str, Any]:
+        action = ACTION_ALIASES.get(action, action)
         if action in PROSPECT_ACTIONS:
             return await self._invoke_prospect(action, inputs)
         if action in GRAPH_ACTIONS or action in CAMPAIGN_ACTIONS:

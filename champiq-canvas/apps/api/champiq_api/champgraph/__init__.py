@@ -17,6 +17,12 @@ from .service import (
     CAMPAIGN_ACTIONS,
     PROSPECT_ACTIONS,
 )
+from .lifecycle import (
+    InvalidTransition,
+    ProspectLifecycleRepository,
+    ProspectLifecycleTable,
+    ProspectState,
+)
 
 __all__ = [
     "ChampGraphService",
@@ -25,4 +31,8 @@ __all__ = [
     "GRAPH_ACTIONS",
     "CAMPAIGN_ACTIONS",
     "PROSPECT_ACTIONS",
+    "InvalidTransition",
+    "ProspectLifecycleRepository",
+    "ProspectLifecycleTable",
+    "ProspectState",
 ]

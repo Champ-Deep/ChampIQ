@@ -36,6 +36,26 @@ class EventBus(Protocol):
 
     async def subscribe(self, topic: str) -> AsyncIterator[dict[str, Any]]: ...
 
+    def subscribe_durable(
+        self,
+        topic: str,
+        *,
+        group: str,
+        consumer: str = "default",
+        **kwargs: Any,
+    ) -> AsyncIterator[dict[str, Any]]:
+        """At-least-once subscription that survives consumer restarts.
+
+        `group` must be unique per consumer role — consumers sharing a group
+        split the stream between them instead of each receiving every event.
+        Names live in runtime/consumer_groups.py.
+
+        Declared as a plain method (not `async def`) because implementations are
+        async *generators*: calling one returns the iterator directly rather
+        than a coroutine that must be awaited first.
+        """
+        ...
+
 
 # --- Job queue -----------------------------------------------------------
 

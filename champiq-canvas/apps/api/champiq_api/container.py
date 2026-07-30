@@ -10,7 +10,6 @@ from functools import lru_cache
 from typing import Any
 
 from .champgraph import ChampGraphLocalExecutor, ChampGraphService, GraphitiClient
-from .champmail.nodes import ChampmailLocalExecutor
 from .champmail.rendering import TemplateRenderer, UnsubscribeTokens
 from .champmail.scheduling import CadenceJob
 from .champmail.services import CadenceService
@@ -22,7 +21,15 @@ from .champmail.transport import (
 )
 from .credentials import CredentialService, FernetCrypto, SqlCredentialResolver
 from .database import get_session_factory, get_settings
-from .drivers import ChampVoiceDriver, LakebPulseDriver, ToolNodeExecutor
+from .drivers import (
+    ChampMailDriver,
+    ChampOracleDriver,
+    ChampVoiceDriver,
+    HarbingerDriver,
+    LakebPulseDriver,
+    LakeStreamDriver,
+    ToolNodeExecutor,
+)
 from .expressions import SimpleExpressionEvaluator
 from .llm import LLMProvider, OpenRouterProvider
 from .nodes import (
@@ -44,7 +51,7 @@ from .nodes import (
     WebhookTriggerExecutor,
 )
 from .runtime import NodeRegistry, Orchestrator, build_event_bus, build_job_queue
-from .triggers import CronScheduler, EventTriggerListener
+from .triggers import CronScheduler, EventTriggerListener, GraphWritebackConsumer, LedgerConsumer
 from .triggers.janitor import Janitor
 
 
@@ -58,6 +65,9 @@ class Container:
     credential_resolver: SqlCredentialResolver
     cron: CronScheduler
     event_listener: EventTriggerListener
+    # Event consumers (SUGGESTIONS 2.1 + 4.1): async graph write-back + run ledger
+    graph_writeback: GraphWritebackConsumer
+    ledger: LedgerConsumer
     drivers: dict[str, Any]
     llm: LLMProvider
     # ChampMail inline
@@ -72,6 +82,8 @@ class Container:
     champgraph: ChampGraphService
     # Background persistence janitor — see triggers/janitor.py
     janitor: "Any"
+    # Durable Postgres-backed job queue (SUGGESTIONS 4.3)
+    job_queue: "Any"
 
     def credential_service(self) -> CredentialService:
         from .database import get_session_factory
@@ -91,12 +103,29 @@ def get_container() -> Container:
 
     registry = NodeRegistry()
 
-    # Tool drivers (HTTP-backed). Champmail and champgraph are no longer here —
-    # they're inline modules dispatched via ChampmailLocalExecutor / the
-    # ChampGraphService respectively (registered below).
+    # Tool drivers (HTTP-backed). champgraph stays inline via ChampGraphService
+    # (registered below). champmail's driver now owns the real send path too
+    # (2026-07-27 consolidation — see the removed ChampmailLocalExecutor
+    # registration below), and champvoice proxies to the champiq-voice gateway
+    # instead of calling ElevenLabs directly (same consolidation).
     drivers = {
-        "champvoice":   ChampVoiceDriver(""),  # calls ElevenLabs directly; no gateway needed
+        "champvoice":   ChampVoiceDriver(settings.champvoice_gateway_url),
         "lakeb2b_pulse": LakebPulseDriver("https://b2b-pulse.up.railway.app"),
+        # * SENSE stage front door + webhook ingress for prospect.qualified /
+        # * signal.matched (SUGGESTIONS 2.2). Empty URL = pull actions fail loud,
+        # * webhooks still parse (ingress is the important half locally).
+        "harbinger":    HarbingerDriver(settings.harbinger_url),
+        # * real-ChampMail webhook ingress for email.sent/bounced/opened/clicked
+        # * (SUGGESTIONS 2.2 pattern; 2026-07-23 finding #7 fix).
+        "champmail":    ChampMailDriver(settings.champmail_base_url),
+        # * Scraping/enrichment + ATS job-board ingestion. Without this the
+        # * front of the funnel was not orchestratable at all — companies
+        # * only entered the system via the e2e bridge scripts, run by hand.
+        "lakestream":   LakeStreamDriver(settings.lakestream_base_url),
+        # * Pre-send campaign simulation. ChampOracle's /api/v1 blueprint
+        # * is commented in its own source as "public API for ChampIQ" —
+        # * it was built for this and simply never got a driver.
+        "champoracle":  ChampOracleDriver(settings.champoracle_base_url),
     }
     for driver in drivers.values():
         registry.register(ToolNodeExecutor(driver))
@@ -160,12 +189,17 @@ def get_container() -> Container:
     )
     cadence_job = CadenceJob(cron.scheduler, cadence_service, interval_seconds=60)
 
-    # Register the inline ChampMail node executor — replaces the old HTTP-based
-    # ChampmailDriver. Same `kind: champmail`, identical config schema, but now
-    # runs against local services instead of the external VPS.
-    registry.register(ChampmailLocalExecutor(
-        mail_transport, mail_renderer, transport_factory=mail_transport_factory,
-    ))
+    # * ChampmailLocalExecutor used to be registered here for canvas nodes of
+    # * kind "champmail", overriding the ToolNodeExecutor(ChampMailDriver)
+    # * registered above in the drivers loop — it fired sends straight at
+    # * Emelia from canvas nodes, bypassing ChampMail's real auth+suppression-
+    # * checked /api/v1/send entirely (orphaned migration debris, not a
+    # * deliberate fallback). Removing the override restores the driver as the
+    # * canvas-node path for "champmail": every send now goes through
+    # * ChampMailDriver -> ChampMail's real send API (2026-07-27 consolidation).
+    # * mail_transport/mail_renderer/mail_transport_factory stay wired below —
+    # * CadenceService's scheduled sequence sends are a separate, legitimate
+    # * path, not a canvas-node bypass.
 
     # ChampGraph dispatcher — prospect actions hit local Postgres,
     # graph/intel/campaign actions hit Graphiti (BlueOcean VPS). Empty URL =
@@ -177,9 +211,28 @@ def get_container() -> Container:
     champgraph = ChampGraphService(session_factory, graphiti_client)
     registry.register(ChampGraphLocalExecutor(champgraph))
 
+    # Event consumers: every channel event lands in the graph (async, off the
+    # hot path) and in the run ledger. Siblings of EventTriggerListener.
+    # Bounced/unsubscribed also enforce suppression in ChampMail (4.6).
+    graph_writeback = GraphWritebackConsumer(
+        event_bus,
+        champgraph,
+        champmail_base_url=settings.champmail_base_url,
+        champmail_bearer_token=settings.champmail_bearer_token,
+        session_factory=session_factory,  # prospect_lifecycle transitions (item 1)
+    )
+    ledger = LedgerConsumer(event_bus, session_factory)
+
     # Persistence janitor — pins one job to the cron scheduler (we don't want
     # a second AsyncIOScheduler in the process).
     janitor = Janitor(session_factory, cron.scheduler)
+
+    # Durable job queue (SUGGESTIONS 4.3) — Postgres-backed, SELECT ... FOR
+    # UPDATE SKIP LOCKED. Replaces the in-memory asyncio queue that dropped
+    # every pending job on restart. No callers exist yet (build_job_queue was
+    # imported but never invoked before this change); wired here so it's ready
+    # to use with the same enqueue/register_handler interface.
+    job_queue = build_job_queue(session_factory)
 
     return Container(
         crypto=crypto,
@@ -190,6 +243,8 @@ def get_container() -> Container:
         credential_resolver=credential_resolver,
         cron=cron,
         event_listener=event_listener,
+        graph_writeback=graph_writeback,
+        ledger=ledger,
         drivers=drivers,
         llm=llm,
         champgraph=champgraph,
@@ -201,4 +256,5 @@ def get_container() -> Container:
         emelia_webhook_secret=settings.emelia_webhook_secret,
         cadence_job=cadence_job,
         janitor=janitor,
+        job_queue=job_queue,
     )

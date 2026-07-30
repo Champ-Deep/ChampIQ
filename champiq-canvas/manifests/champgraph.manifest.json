@@ -3,12 +3,46 @@
   "manifest_version": 2,
   "tool_id": "champgraph",
   "name": "ChampGraph",
-  "description": "Semantic knowledge graph — prospect/company relationships, NL queries.",
+  "description": "Semantic knowledge graph (Cham_Graph) plus local prospect store. Actions mirror ChampGraphService: PROSPECT_ACTIONS + GRAPH_ACTIONS + CAMPAIGN_ACTIONS. Regenerated 2026-07-21 (SUGGESTIONS 1.5) — keep in sync with champgraph/service.py (drift-guard test enforces).",
   "category": "data",
   "color": "#10B981",
   "icon": "graph",
   "credentials_required": ["champgraph"],
   "actions": [
+    {
+      "id": "create_prospect",
+      "label": "Create Prospect",
+      "description": "Upsert a prospect in the local store by email.",
+      "input_schema": {
+        "type": "object",
+        "required": ["email"],
+        "properties": {
+          "email": {"type": "string", "format": "email"},
+          "first_name": {"type": "string"},
+          "last_name": {"type": "string"},
+          "company": {"type": "string"},
+          "title": {"type": "string"},
+          "phone": {"type": "string"},
+          "linkedin_url": {"type": "string"},
+          "timezone": {"type": "string", "default": "UTC"},
+          "custom_fields": {"type": "object"}
+        }
+      }
+    },
+    {
+      "id": "list_prospects",
+      "label": "List Prospects",
+      "description": "List prospects with optional status filter and search.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {"type": "integer", "default": 50},
+          "offset": {"type": "integer", "default": 0},
+          "status": {"type": "string"},
+          "search": {"type": "string"}
+        }
+      }
+    },
     {
       "id": "get_prospect_status",
       "label": "Get Prospect Status",
@@ -34,66 +68,292 @@
       }
     },
     {
-      "id": "ingest_prospect",
-      "label": "Ingest Prospect",
+      "id": "bulk_import",
+      "label": "Bulk Import Prospects",
+      "description": "Upsert many prospects at once; each record needs an email.",
+      "input_schema": {
+        "type": "object",
+        "required": ["records"],
+        "properties": {
+          "records": {"type": "array", "items": {"type": "object", "required": ["email"]}}
+        }
+      }
+    },
+    {
+      "id": "enrich_prospect",
+      "label": "Enrich Prospect",
+      "description": "Local enrichment: merges stored fields and recent event signals. Chain research_prospects after this for LLM enrichment.",
       "input_schema": {
         "type": "object",
         "required": ["email"],
         "properties": {
-          "email": {"type": "string"},
-          "name": {"type": "string"},
-          "company": {"type": "string"},
-          "title": {"type": "string"},
-          "attributes": {"type": "object"}
+          "email": {"type": "string", "format": "email"}
         }
       }
     },
     {
-      "id": "ingest_company",
-      "label": "Ingest Company",
+      "id": "ingest_episode",
+      "label": "Ingest Episode",
+      "description": "Ingest one episode (email/call/note) into the graph for an account.",
       "input_schema": {
         "type": "object",
-        "required": ["domain"],
+        "required": ["account_name", "name", "content", "reference_time", "source_description"],
         "properties": {
-          "domain": {"type": "string"},
+          "account_name": {"type": "string"},
           "name": {"type": "string"},
-          "industry": {"type": "string"},
-          "size": {"type": "string"}
+          "content": {"type": "string"},
+          "reference_time": {"type": "string", "format": "date-time"},
+          "source_description": {"type": "string"}
         }
       }
     },
     {
-      "id": "semantic_search",
-      "label": "Semantic Search",
+      "id": "ingest_batch",
+      "label": "Ingest Batch",
+      "description": "Bulk-ingest episodes for an account (Graphiti bulk path).",
       "input_schema": {
         "type": "object",
-        "required": ["query"],
+        "required": ["account_name", "episodes"],
         "properties": {
+          "account_name": {"type": "string"},
+          "episodes": {"type": "array", "items": {"type": "object"}}
+        }
+      }
+    },
+    {
+      "id": "hook_email",
+      "label": "Hook: Email",
+      "description": "Log a single email interaction (simplified flat payload).",
+      "input_schema": {
+        "type": "object",
+        "required": ["account_name", "from_address", "to_address", "subject", "body", "direction"],
+        "properties": {
+          "account_name": {"type": "string"},
+          "from_address": {"type": "string"},
+          "to_address": {"type": "string"},
+          "subject": {"type": "string"},
+          "body": {"type": "string"},
+          "direction": {"type": "string", "enum": ["inbound", "outbound"]}
+        }
+      }
+    },
+    {
+      "id": "hook_email_batch",
+      "label": "Hook: Email Batch",
+      "description": "Log up to 100 email interactions in one call.",
+      "input_schema": {
+        "type": "object",
+        "required": ["emails"],
+        "properties": {
+          "account_name": {"type": "string"},
+          "emails": {"type": "array", "items": {"type": "object"}, "maxItems": 100}
+        }
+      }
+    },
+    {
+      "id": "hook_call",
+      "label": "Hook: Call",
+      "description": "Log a call with transcript and metadata.",
+      "input_schema": {
+        "type": "object",
+        "required": ["account_name"],
+        "properties": {
+          "account_name": {"type": "string"},
+          "from_number": {"type": "string"},
+          "to_number": {"type": "string"},
+          "transcript": {"type": "string"},
+          "duration_seconds": {"type": "integer"},
+          "occurred_at": {"type": "string", "format": "date-time"}
+        }
+      }
+    },
+    {
+      "id": "query",
+      "label": "Query Graph (NL)",
+      "description": "Natural-language hybrid search over an account's graph (nodes, edges, communities). This is functionality A's NL surface. Aliases nl_query and semantic_search resolve here.",
+      "input_schema": {
+        "type": "object",
+        "required": ["account_name", "query"],
+        "properties": {
+          "account_name": {"type": "string"},
           "query": {"type": "string"},
           "limit": {"type": "integer", "default": 20}
         }
       }
     },
     {
-      "id": "nl_query",
-      "label": "NL Query",
+      "id": "account_contacts",
+      "label": "Account: Contacts",
+      "description": "List contacts known for an account.",
+      "input_schema": {"type": "object", "required": ["account_name"], "properties": {"account_name": {"type": "string"}}}
+    },
+    {
+      "id": "account_topics",
+      "label": "Account: Topics",
+      "description": "Topics discussed with an account.",
+      "input_schema": {"type": "object", "required": ["account_name"], "properties": {"account_name": {"type": "string"}}}
+    },
+    {
+      "id": "account_communications",
+      "label": "Account: Communications",
+      "description": "Communication edges for an account.",
+      "input_schema": {"type": "object", "required": ["account_name"], "properties": {"account_name": {"type": "string"}}}
+    },
+    {
+      "id": "account_personal_details",
+      "label": "Account: Personal Details",
+      "description": "Personal details (family, hobbies) captured for account contacts.",
+      "input_schema": {"type": "object", "required": ["account_name"], "properties": {"account_name": {"type": "string"}}}
+    },
+    {
+      "id": "account_team_contacts",
+      "label": "Account: Team Contacts",
+      "description": "Internal team members connected to an account.",
+      "input_schema": {"type": "object", "required": ["account_name"], "properties": {"account_name": {"type": "string"}}}
+    },
+    {
+      "id": "account_graph",
+      "label": "Account: Subgraph",
+      "description": "Full subgraph export for an account.",
+      "input_schema": {"type": "object", "required": ["account_name"], "properties": {"account_name": {"type": "string"}}}
+    },
+    {
+      "id": "account_timeline",
+      "label": "Account: Timeline",
+      "description": "Cross-channel interaction timeline, chronological.",
+      "input_schema": {"type": "object", "required": ["account_name"], "properties": {"account_name": {"type": "string"}}}
+    },
+    {
+      "id": "account_relationships",
+      "label": "Account: Relationships",
+      "description": "Relationship edges for an account.",
+      "input_schema": {"type": "object", "required": ["account_name"], "properties": {"account_name": {"type": "string"}}}
+    },
+    {
+      "id": "account_email_context",
+      "label": "Account: Email Context",
+      "description": "Purpose-built context for email composition (history, personal details, topics).",
       "input_schema": {
         "type": "object",
-        "required": ["question"],
-        "properties": {"question": {"type": "string"}}
+        "required": ["account_name"],
+        "properties": {
+          "account_name": {"type": "string"},
+          "contact_name": {"type": "string"},
+          "contact_email": {"type": "string"},
+          "subject": {"type": "string"}
+        }
       }
     },
     {
-      "id": "add_relationship",
-      "label": "Add Relationship",
+      "id": "account_briefing",
+      "label": "Account: Briefing",
+      "description": "Comprehensive pre-interaction briefing for an account.",
+      "input_schema": {"type": "object", "required": ["account_name"], "properties": {"account_name": {"type": "string"}}}
+    },
+    {
+      "id": "intelligence_salesperson_overlap",
+      "label": "Intelligence: Salesperson Overlap",
+      "description": "Cross-salesperson discovery for an account.",
+      "input_schema": {"type": "object", "required": ["account_name"], "properties": {"account_name": {"type": "string"}}}
+    },
+    {
+      "id": "intelligence_stakeholder_map",
+      "label": "Intelligence: Stakeholder Map",
+      "description": "Champions, blockers, decision-makers for an account.",
+      "input_schema": {"type": "object", "required": ["account_name"], "properties": {"account_name": {"type": "string"}}}
+    },
+    {
+      "id": "intelligence_engagement_gaps",
+      "label": "Intelligence: Engagement Gaps",
+      "description": "Stale contacts / engagement gap detection.",
+      "input_schema": {"type": "object", "required": ["account_name"], "properties": {"account_name": {"type": "string"}}}
+    },
+    {
+      "id": "intelligence_cross_branch",
+      "label": "Intelligence: Cross-Branch",
+      "description": "Combined opportunities across branches/divisions.",
+      "input_schema": {"type": "object", "required": ["account_name"], "properties": {"account_name": {"type": "string"}}}
+    },
+    {
+      "id": "intelligence_opportunities",
+      "label": "Intelligence: Opportunities",
+      "description": "Opportunity detection with stakeholder roles.",
+      "input_schema": {"type": "object", "required": ["account_name"], "properties": {"account_name": {"type": "string"}}}
+    },
+    {
+      "id": "sync_account",
+      "label": "Sync: Account",
+      "description": "Trigger a sync for one account.",
+      "input_schema": {"type": "object", "required": ["account_name"], "properties": {"account_name": {"type": "string"}}}
+    },
+    {
+      "id": "sync_status",
+      "label": "Sync: Status",
+      "description": "Sync status across accounts.",
+      "input_schema": {"type": "object", "properties": {}}
+    },
+    {
+      "id": "research_prospects",
+      "label": "Campaign: Research Prospects",
+      "description": "AI campaign pipeline: research stage. Free-form inputs forwarded to the pipeline.",
+      "input_schema": {"type": "object", "properties": {"account_name": {"type": "string"}, "persist": {"type": "boolean", "default": true}}, "additionalProperties": true}
+    },
+    {
+      "id": "campaign_essence",
+      "label": "Campaign: Essence",
+      "description": "AI campaign pipeline: essence stage.",
+      "input_schema": {"type": "object", "properties": {"account_name": {"type": "string"}, "persist": {"type": "boolean", "default": true}}, "additionalProperties": true}
+    },
+    {
+      "id": "campaign_segment",
+      "label": "Campaign: Segment",
+      "description": "AI campaign pipeline: segmentation stage.",
+      "input_schema": {"type": "object", "properties": {"account_name": {"type": "string"}, "persist": {"type": "boolean", "default": true}}, "additionalProperties": true}
+    },
+    {
+      "id": "campaign_pitch",
+      "label": "Campaign: Pitch",
+      "description": "AI campaign pipeline: pitch stage.",
+      "input_schema": {"type": "object", "properties": {"account_name": {"type": "string"}, "persist": {"type": "boolean", "default": true}}, "additionalProperties": true}
+    },
+    {
+      "id": "campaign_personalize",
+      "label": "Campaign: Personalize",
+      "description": "AI campaign pipeline: personalization stage.",
+      "input_schema": {"type": "object", "properties": {"account_name": {"type": "string"}, "persist": {"type": "boolean", "default": true}}, "additionalProperties": true}
+    },
+    {
+      "id": "campaign_html",
+      "label": "Campaign: HTML",
+      "description": "AI campaign pipeline: HTML generation stage.",
+      "input_schema": {"type": "object", "properties": {"account_name": {"type": "string"}, "persist": {"type": "boolean", "default": true}}, "additionalProperties": true}
+    },
+    {
+      "id": "campaign_preview",
+      "label": "Campaign: Preview",
+      "description": "AI campaign pipeline: preview stage.",
+      "input_schema": {"type": "object", "properties": {"account_name": {"type": "string"}, "persist": {"type": "boolean", "default": true}}, "additionalProperties": true}
+    },
+    {
+      "id": "nl_query",
+      "label": "NL Query (deprecated alias)",
+      "description": "Deprecated alias of `query` kept for old workflows. Use query with account_name + query.",
+      "deprecated": true,
       "input_schema": {
         "type": "object",
-        "required": ["from_id", "to_id", "type"],
-        "properties": {
-          "from_id": {"type": "string"},
-          "to_id": {"type": "string"},
-          "type": {"type": "string"}
-        }
+        "required": ["account_name", "query"],
+        "properties": {"account_name": {"type": "string"}, "query": {"type": "string"}}
+      }
+    },
+    {
+      "id": "semantic_search",
+      "label": "Semantic Search (deprecated alias)",
+      "description": "Deprecated alias of `query` kept for old workflows.",
+      "deprecated": true,
+      "input_schema": {
+        "type": "object",
+        "required": ["account_name", "query"],
+        "properties": {"account_name": {"type": "string"}, "query": {"type": "string"}}
       }
     }
   ],
