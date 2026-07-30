@@ -16,6 +16,8 @@ from pathlib import Path
 import pytest
 
 from champiq_api.drivers.champmail import ChampMailDriver
+from champiq_api.drivers.champoracle import ChampOracleDriver
+from champiq_api.drivers.harbinger import HarbingerDriver
 from champiq_api.drivers.lakestream import LakeStreamDriver
 
 MANIFESTS = Path(__file__).resolve().parents[3] / "manifests"
@@ -29,6 +31,8 @@ DRIVER_FOR_MANIFEST = {
     "champmail.manifest.json": ChampMailDriver,
     "inboxkit.manifest.json": ChampMailDriver,
     "lakestream.manifest.json": LakeStreamDriver,
+    "harbinger.manifest.json": HarbingerDriver,
+    "champoracle.manifest.json": ChampOracleDriver,
 }
 
 
@@ -145,3 +149,19 @@ def test_no_module_regresses_to_zero_actions():
     """Guards against a manifest being emptied or a driver losing its actions."""
     for name in _tool_manifest_names():
         assert len(_load(name)["actions"]) > 0, f"{name} declares no actions"
+
+
+def test_harbinger_manifest_covers_enrichment_and_discovery():
+    """Without these the SENSE stage was read-only from the orchestrator: a DAG
+    could read qualified prospects but could not create any."""
+    ids = {a["id"] for a in _load("harbinger.manifest.json")["actions"]}
+    for required in ("discover", "enrich_waterfall", "enrich_batch", "enrich_contact"):
+        assert required in ids, f"harbinger manifest is missing {required}"
+
+
+def test_champoracle_manifest_covers_the_simulation_loop():
+    """Simulate, read the result, and interrogate it — a simulation you cannot
+    query is just a report nobody reads."""
+    ids = {a["id"] for a in _load("champoracle.manifest.json")["actions"]}
+    for required in ("simulate_campaign", "get_campaign", "get_report", "ask_campaign"):
+        assert required in ids, f"champoracle manifest is missing {required}"

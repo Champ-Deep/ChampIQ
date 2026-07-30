@@ -23,6 +23,7 @@ from .credentials import CredentialService, FernetCrypto, SqlCredentialResolver
 from .database import get_session_factory, get_settings
 from .drivers import (
     ChampMailDriver,
+    ChampOracleDriver,
     ChampVoiceDriver,
     HarbingerDriver,
     LakebPulseDriver,
@@ -121,6 +122,10 @@ def get_container() -> Container:
         # * front of the funnel was not orchestratable at all — companies
         # * only entered the system via the e2e bridge scripts, run by hand.
         "lakestream":   LakeStreamDriver(settings.lakestream_base_url),
+        # * Pre-send campaign simulation. ChampOracle's /api/v1 blueprint
+        # * is commented in its own source as "public API for ChampIQ" —
+        # * it was built for this and simply never got a driver.
+        "champoracle":  ChampOracleDriver(settings.champoracle_base_url),
     }
     for driver in drivers.values():
         registry.register(ToolNodeExecutor(driver))

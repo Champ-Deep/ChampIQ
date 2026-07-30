@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     # * LakeStream scraping/enrichment service. Empty-safe: an unset URL
     # * makes lakestream actions fail loudly rather than silently no-op.
     lakestream_base_url: str = "http://localhost:3001"
+    champoracle_base_url: str = "http://localhost:5001"
     # * bearer for ChampMail's require_auth routes (same JWT as the e2e uses).
     # * Empty = suppression side-call disabled (logs and skips, never blocks).
     champmail_bearer_token: str = ""

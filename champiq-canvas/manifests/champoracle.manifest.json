@@ -1,0 +1,121 @@
+{
+  "$schema": "https://champiq.dev/manifest/v2.json",
+  "manifest_version": 2,
+  "tool_id": "champoracle",
+  "name": "ChampOracle",
+  "description": "Simulate a campaign against synthetic personas before sending it to anyone real. The pre-flight check for outreach: getting a campaign wrong on 500 real prospects costs you those prospects and some domain reputation; getting it wrong in a simulation costs a few minutes of compute.",
+  "category": "validation",
+  "color": "#A855F7",
+  "icon": "flask",
+  "credentials_required": ["champoracle"],
+  "actions": [
+    {
+      "id": "simulate_campaign",
+      "label": "Simulate Campaign",
+      "description": "Run a campaign against a synthetic audience built from a reality seed. Long-running — it drives the full pipeline (seed → ontology → knowledge graph → persona simulation → report), so poll get_campaign for progress rather than expecting a result inline.",
+      "input_schema": {
+        "type": "object",
+        "required": ["campaign"],
+        "properties": {
+          "campaign": {
+            "type": "object",
+            "description": "Campaign definition: subject, body, target segment"
+          },
+          "reality_seed": {
+            "type": "string",
+            "description": "Grounding document the personas are generated from. Richer seeds produce a denser graph and more differentiated personas."
+          },
+          "channel": { "type": "string", "description": "See list_channels" },
+          "webhook_url": {
+            "type": "string",
+            "description": "Optional completion callback, so a DAG can wait on an event instead of polling"
+          }
+        }
+      }
+    },
+    {
+      "id": "get_campaign",
+      "label": "Get Simulation Status",
+      "description": "Progress and status for a running or finished simulation. Safe to poll.",
+      "input_schema": {
+        "type": "object",
+        "required": ["campaign_id"],
+        "properties": { "campaign_id": { "type": "string" } }
+      }
+    },
+    {
+      "id": "get_personas",
+      "label": "Get Personas",
+      "description": "The synthetic personas generated for this campaign, with their attributes. Use to check the audience is actually representative before trusting the reactions.",
+      "input_schema": {
+        "type": "object",
+        "required": ["campaign_id"],
+        "properties": { "campaign_id": { "type": "string" } }
+      }
+    },
+    {
+      "id": "get_report",
+      "label": "Get Simulation Report",
+      "description": "Aggregate reactions and findings across the persona set — the summary judgement on whether the campaign lands.",
+      "input_schema": {
+        "type": "object",
+        "required": ["campaign_id"],
+        "properties": { "campaign_id": { "type": "string" } }
+      }
+    },
+    {
+      "id": "ask_campaign",
+      "label": "Ask the Simulation",
+      "description": "Free-form question against a finished simulation, e.g. 'which persona objected to pricing and why'. This is the read that turns a report into something a DAG can branch on.",
+      "input_schema": {
+        "type": "object",
+        "required": ["campaign_id", "question"],
+        "properties": {
+          "campaign_id": { "type": "string" },
+          "question": { "type": "string" }
+        }
+      }
+    },
+    {
+      "id": "interview_persona",
+      "label": "Interview a Persona",
+      "description": "Question one persona in depth rather than reading aggregate output. Useful when the report says a segment rejected the message but not what would have worked.",
+      "input_schema": {
+        "type": "object",
+        "required": ["campaign_id"],
+        "properties": {
+          "campaign_id": { "type": "string" },
+          "persona_id": { "type": "string" },
+          "questions": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    {
+      "id": "check_deliverability",
+      "label": "Predict Deliverability",
+      "description": "Spam and placement read on campaign copy BEFORE sending. Distinct from ChampMail's InboxKit health, which measures a mailbox after the fact — this scores the message, that scores the sender.",
+      "input_schema": {
+        "type": "object",
+        "required": ["subject", "body"],
+        "properties": {
+          "subject": { "type": "string" },
+          "body": { "type": "string" },
+          "from_domain": { "type": "string" }
+        }
+      }
+    },
+    {
+      "id": "list_channels",
+      "label": "List Channels",
+      "description": "Channels this ChampOracle deployment can simulate.",
+      "input_schema": { "type": "object", "properties": {} }
+    },
+    {
+      "id": "health",
+      "label": "Health Check",
+      "description": "Whether the ChampOracle service is reachable. Worth gating a long simulation on, since the pipeline is expensive to start and abandon.",
+      "input_schema": { "type": "object", "properties": {} }
+    }
+  ],
+  "triggers": []
+}

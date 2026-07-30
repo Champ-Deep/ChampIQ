@@ -3,28 +3,40 @@
   "manifest_version": 2,
   "tool_id": "harbinger",
   "name": "ChampHarbinger",
-  "description": "Signals + enrichment (canonical per the Jul-20 consolidation decision). Pull the qualified feed, acknowledge prospects, fire signal runs, import companies. Webhook ingress: emits prospect.qualified / signal.matched onto the event bus (SUGGESTIONS 2.2).",
+  "description": "Discovery, multi-provider enrichment, intent signals and prospect qualification \u2014 the SENSE stage. Previously read-only from the orchestrator: a DAG could read qualified prospects but could not create any.",
   "category": "data",
   "color": "#F59E0B",
   "icon": "radar",
-  "credentials_required": ["harbinger"],
+  "credentials_required": [
+    "harbinger"
+  ],
   "actions": [
     {
       "id": "get_qualified_prospects",
       "label": "Get Qualified Prospects",
       "description": "The 'who to contact today' feed: score + talking points + signal reasoning.",
-      "input_schema": {"type": "object", "properties": {}}
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
     },
     {
       "id": "get_signals",
       "label": "Get Signals",
-      "description": "SENSE-step read-back: detected signals for a prospect/domain, feeding the prospect_lifecycle state machine (e.g. a new signal on a Researched prospect justifies InCadence). Filters the qualified-prospects feed client-side by domain — Harbinger's API has no per-prospect signal endpoint.",
+      "description": "SENSE-step read-back: detected signals for a prospect/domain, feeding the prospect_lifecycle state machine (e.g. a new signal on a Researched prospect justifies InCadence). Filters the qualified-prospects feed client-side by domain \u2014 Harbinger's API has no per-prospect signal endpoint.",
       "input_schema": {
         "type": "object",
         "properties": {
-          "domain": {"type": "string", "description": "Company domain to filter to (optional)"},
-          "since": {"type": "string"},
-          "limit": {"type": "integer"}
+          "domain": {
+            "type": "string",
+            "description": "Company domain to filter to (optional)"
+          },
+          "since": {
+            "type": "string"
+          },
+          "limit": {
+            "type": "integer"
+          }
         }
       }
     },
@@ -34,11 +46,24 @@
       "description": "Mark a queued prospect ingested (default) or failed. Empty body is valid.",
       "input_schema": {
         "type": "object",
-        "required": ["id"],
+        "required": [
+          "id"
+        ],
         "properties": {
-          "id": {"type": "string", "description": "champiqQueue id"},
-          "status": {"type": "string", "enum": ["ingested", "failed"]},
-          "iq_prospect_id": {"type": "string"}
+          "id": {
+            "type": "string",
+            "description": "champiqQueue id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ingested",
+              "failed"
+            ]
+          },
+          "iq_prospect_id": {
+            "type": "string"
+          }
         }
       }
     },
@@ -48,11 +73,25 @@
       "description": "Fire a signal recipe against a domain. pricing-changes is coded end-to-end; detector tools (rss, jobs, github, wayback, searxng) are registered on main.",
       "input_schema": {
         "type": "object",
-        "required": ["domain", "signal_name"],
+        "required": [
+          "domain",
+          "signal_name"
+        ],
         "properties": {
-          "domain": {"type": "string"},
-          "signal_name": {"type": "string"},
-          "mode": {"type": "string", "enum": ["manual", "auto"], "default": "manual"}
+          "domain": {
+            "type": "string"
+          },
+          "signal_name": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "auto"
+            ],
+            "default": "manual"
+          }
         }
       }
     },
@@ -62,19 +101,147 @@
       "description": "1-click push of {name, domain} rows into a new campaign.",
       "input_schema": {
         "type": "object",
-        "required": ["campaignName", "companies"],
+        "required": [
+          "campaignName",
+          "companies"
+        ],
         "properties": {
-          "campaignName": {"type": "string"},
+          "campaignName": {
+            "type": "string"
+          },
           "companies": {
             "type": "array",
-            "items": {"type": "object", "required": ["name", "domain"]}
+            "items": {
+              "type": "object",
+              "required": [
+                "name",
+                "domain"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "discover",
+      "label": "Discover Companies",
+      "description": "Find companies matching a query and land them in a campaign. Paginates properly and reports whether results are live or mock \u2014 a fixture-backed result now carries mock:true rather than silently passing as real.",
+      "input_schema": {
+        "type": "object",
+        "required": [
+          "query"
+        ],
+        "properties": {
+          "query": {
+            "type": "string"
+          },
+          "limit": {
+            "type": "integer",
+            "default": 200
+          },
+          "campaignId": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "id": "enrich_company",
+      "label": "Enrich Company",
+      "description": "Enrich one company record \u2014 industry, size, location, tech signals.",
+      "input_schema": {
+        "type": "object",
+        "required": [
+          "domain"
+        ],
+        "properties": {
+          "domain": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "id": "enrich_contact",
+      "label": "Enrich Contact",
+      "description": "Enrich one person \u2014 title, seniority, verified email.",
+      "input_schema": {
+        "type": "object",
+        "required": [],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "linkedinUrl": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "companyDomain": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "id": "enrich_waterfall",
+      "label": "Enrich (Waterfall)",
+      "description": "Run the multi-provider enrichment waterfall, falling through providers until a field resolves. Costs more per record than a single provider but materially lifts fill rate \u2014 use for a target list you intend to actually contact.",
+      "input_schema": {
+        "type": "object",
+        "required": [],
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "linkedinUrl": {
+            "type": "string"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "enrich_batch",
+      "label": "Enrich (Batch)",
+      "description": "Enrich many records in one call. The efficient path for a freshly imported list.",
+      "input_schema": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
           }
         }
       }
     }
   ],
   "triggers": [
-    {"kind": "event", "event": "prospect.qualified"},
-    {"kind": "event", "event": "signal.matched"}
+    {
+      "kind": "event",
+      "event": "prospect.qualified"
+    },
+    {
+      "kind": "event",
+      "event": "signal.matched"
+    }
   ]
 }

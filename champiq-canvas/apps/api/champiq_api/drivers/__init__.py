@@ -1,5 +1,6 @@
 from .base import HttpToolDriver, ToolNodeExecutor
 from .champmail import ChampMailDriver
+from .champoracle import ChampOracleDriver
 from .lakestream import LakeStreamDriver
 from .champvoice import ChampVoiceDriver
 from .harbinger import HarbingerDriver
@@ -9,6 +10,7 @@ __all__ = [
     "HttpToolDriver",
     "ToolNodeExecutor",
     "ChampMailDriver",
+    "ChampOracleDriver",
     "LakeStreamDriver",
     "ChampVoiceDriver",
     "HarbingerDriver",

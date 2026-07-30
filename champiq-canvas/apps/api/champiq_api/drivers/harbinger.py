@@ -19,6 +19,36 @@ class HarbingerDriver(HttpToolDriver):
     tool_id = "harbinger"
 
     actions = {
+        # * Enrichment + discovery — added 2026-07-30. These are the remaining
+        # * API-key-authenticated v1 routes Harbinger exposes for machine
+        # * callers; without them a DAG could read qualified prospects but could
+        # * not CREATE any, so the SENSE stage was read-only from the
+        # * orchestrator's point of view.
+        "discover": {
+            "method": "POST",
+            "path": "/api/v1/discover",
+            "auth": "bearer",
+        },
+        "enrich_company": {
+            "method": "POST",
+            "path": "/api/v1/enrich/company",
+            "auth": "bearer",
+        },
+        "enrich_contact": {
+            "method": "POST",
+            "path": "/api/v1/enrich/contact",
+            "auth": "bearer",
+        },
+        "enrich_waterfall": {
+            "method": "POST",
+            "path": "/api/v1/enrich/waterfall",
+            "auth": "bearer",
+        },
+        "enrich_batch": {
+            "method": "POST",
+            "path": "/api/v1/enrich/batch",
+            "auth": "bearer",
+        },
         "get_qualified_prospects": {
             "method": "GET",
             "path": "/api/v1/prospects/qualified",
