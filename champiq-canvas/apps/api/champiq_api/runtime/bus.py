@@ -46,6 +46,7 @@ from collections import defaultdict
 from typing import Any, AsyncIterator
 
 from ..core.interfaces import EventBus
+from . import lead_key as lead_key_mod
 
 log = logging.getLogger(__name__)
 
@@ -76,6 +77,8 @@ class InMemoryEventBus:
         self._subscribers: dict[str, list[asyncio.Queue]] = defaultdict(list)
 
     async def publish(self, topic: str, payload: dict[str, Any]) -> None:
+        # Stamp here too, so dev/test sees the same payload shape as production.
+        payload = lead_key_mod.stamp(topic, payload)
         for queue in list(self._subscribers.get(topic, [])):
             await queue.put(payload)
         # Wildcard listeners use topic "*".
@@ -131,13 +134,59 @@ class RedisEventBus:
 
         The payload is JSON-encoded into a single field because stream entries
         are flat string maps — nested dicts cannot be stored directly.
+
+        `lead_key` is promoted to its own stream field as well as staying inside
+        the payload, so `lead_history()` can filter without JSON-decoding every
+        entry it scans.
         """
+        payload = lead_key_mod.stamp(topic, payload)
+        fields = {"topic": topic, "payload": json.dumps(payload, default=str)}
+        key = payload.get(lead_key_mod.LEAD_KEY_FIELD)
+        if key:
+            fields[lead_key_mod.LEAD_KEY_FIELD] = key
         await self._redis.xadd(
-            self._stream,
-            {"topic": topic, "payload": json.dumps(payload, default=str)},
-            maxlen=self._maxlen,
-            approximate=True,
+            self._stream, fields, maxlen=self._maxlen, approximate=True
         )
+
+    async def lead_history(
+        self, key: str, *, limit: int = 500
+    ) -> list[dict[str, Any]]:
+        """Every retained event for one lead, oldest first.
+
+        A debugging and inspection view, NOT a system of record. The stream is
+        capped at `maxlen`, so this answers "what happened recently" and will
+        silently stop finding events older than the buffer. Durable lead history
+        belongs in Cham_Graph (knowledge) and the enriched store (records) —
+        this is the ordered log that ties them together.
+
+        Scans newest-first and reverses, so a busy stream still returns the most
+        recent `limit` events rather than the oldest ones.
+        """
+        out: list[dict[str, Any]] = []
+        cursor = "+"
+        while len(out) < limit:
+            batch = await self._redis.xrevrange(
+                self._stream, max=cursor, min="-", count=500
+            )
+            if not batch:
+                break
+            for entry_id, entry_fields in batch:
+                if entry_fields.get(lead_key_mod.LEAD_KEY_FIELD) != key:
+                    continue
+                topic, message = self._decode(entry_fields, "*")
+                if message is None:
+                    continue
+                out.append({"event_id": entry_id, **message})
+                if len(out) >= limit:
+                    break
+            last_id = batch[-1][0]
+            if last_id == "0-0":
+                break
+            # XREVRANGE is inclusive, so step past the last id seen.
+            ms, _, seq = last_id.partition("-")
+            cursor = f"{ms}-{int(seq) - 1}" if seq and int(seq) > 0 else f"{int(ms) - 1}"
+        out.reverse()
+        return out
 
     # --- decoding ---------------------------------------------------------
 
