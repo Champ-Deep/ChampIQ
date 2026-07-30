@@ -26,6 +26,7 @@ from ..champgraph.service import ChampGraphService
 from ..champmail.repositories import ProspectRepository
 from ..core.interfaces import EventBus
 from ..models import RunLedgerTable
+from ..runtime import consumer_groups
 
 log = logging.getLogger(__name__)
 
@@ -170,8 +171,13 @@ class GraphWritebackConsumer:
             self._task.cancel()
 
     async def _run(self) -> None:
+        # * Durable subscription (own consumer group). Previously a restart
+        # * dropped every event published in the gap, leaving permanent holes
+        # * in the graph that nothing surfaced.
         try:
-            async for message in self._bus.subscribe("*"):
+            async for message in self._bus.subscribe_durable(
+                "*", group=consumer_groups.GRAPH_WRITEBACK
+            ):
                 topic = message.get("topic")
                 if topic not in HANDLED_TOPICS:
                     continue
@@ -318,8 +324,13 @@ class LedgerConsumer:
             self._task.cancel()
 
     async def _run(self) -> None:
+        # * Durable subscription (own consumer group). The ledger is the
+        # * per-client health record; events missed during a restart made those
+        # * numbers quietly wrong, which is worse than them being absent.
         try:
-            async for message in self._bus.subscribe("*"):
+            async for message in self._bus.subscribe_durable(
+                "*", group=consumer_groups.RUN_LEDGER
+            ):
                 topic = message.get("topic") or "unknown"
                 try:
                     await self._record(topic, message)

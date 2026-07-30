@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 
 from ..core.interfaces import EventBus
 from ..models import WorkflowTable
+from ..runtime import consumer_groups
 from ..runtime.orchestrator import Orchestrator
 
 log = logging.getLogger(__name__)
@@ -35,12 +36,22 @@ class EventTriggerListener:
             self._task.cancel()
 
     async def _run(self) -> None:
+        # * Durable subscription: a workflow whose trigger event fired while
+        # * this listener was restarting used to be lost silently. The group
+        # * remembers its position, so the DAG fires on the way back up.
         try:
-            async for message in self._bus.subscribe("*"):
+            async for message in self._bus.subscribe_durable(
+                "*", group=consumer_groups.WORKFLOW_TRIGGERS
+            ):
                 topic = message.get("topic")
                 if not topic or topic.startswith("execution.") or topic.startswith("node."):
                     continue
-                await self._dispatch(topic, message)
+                try:
+                    await self._dispatch(topic, message)
+                except Exception:
+                    # ! A dispatch failure must not kill the listener — the
+                    # ! remaining events still need to reach their workflows.
+                    log.exception("event listener dispatch failed for %s", topic)
         except asyncio.CancelledError:
             return
         except Exception:
